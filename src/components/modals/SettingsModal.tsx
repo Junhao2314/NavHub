@@ -19,6 +19,7 @@ interface SettingsModalProps {
   onRestoreBackup: (backupKey: string) => Promise<boolean>;
   onDeleteBackup: (backupKey: string) => Promise<boolean>;
   onSyncPasswordChange: (password: string) => void;
+  onVerifySyncPassword: () => Promise<'admin' | 'user'>;
   syncRole: 'admin' | 'user';
   isSyncProtected: boolean;
   useSeparatePrivacyPassword: boolean;
@@ -43,6 +44,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onRestoreBackup,
   onDeleteBackup,
   onSyncPasswordChange,
+  onVerifySyncPassword,
   syncRole,
   isSyncProtected,
   useSeparatePrivacyPassword,
@@ -83,9 +85,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         backgroundImageEnabled: siteSettings?.backgroundImageEnabled ?? false,
         backgroundMotion: siteSettings?.backgroundMotion ?? false
       });
-      setActiveTab('site');
     }
   }, [isOpen, config, siteSettings]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab('site');
+    }
+  }, [isOpen]);
 
   const handleChange = (key: keyof AIConfig, value: string) => {
     setLocalConfig(prev => ({ ...prev, [key]: value }));
@@ -197,6 +204,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               onRestoreBackup={onRestoreBackup}
               onDeleteBackup={onDeleteBackup}
               onSyncPasswordChange={onSyncPasswordChange}
+              onVerifySyncPassword={onVerifySyncPassword}
               syncRole={syncRole}
               isSyncProtected={isSyncProtected}
               useSeparatePrivacyPassword={useSeparatePrivacyPassword}

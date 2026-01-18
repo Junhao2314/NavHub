@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudUpload, CloudDownload, Trash2 } from 'lucide-react';
+import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudUpload, CloudDownload, Trash2, LogOut } from 'lucide-react';
 import { SYNC_API_ENDPOINT, SYNC_PASSWORD_KEY } from '../../../utils/constants';
 
 interface DataTabProps {
@@ -9,6 +9,7 @@ interface DataTabProps {
     onRestoreBackup: (backupKey: string) => Promise<boolean>;
     onDeleteBackup: (backupKey: string) => Promise<boolean>;
     onSyncPasswordChange: (password: string) => void;
+    onVerifySyncPassword: () => Promise<'admin' | 'user'>;
     syncRole: 'admin' | 'user';
     isSyncProtected: boolean;
     useSeparatePrivacyPassword: boolean;
@@ -37,6 +38,7 @@ const DataTab: React.FC<DataTabProps> = ({
     onRestoreBackup,
     onDeleteBackup,
     onSyncPasswordChange,
+    onVerifySyncPassword,
     syncRole,
     isSyncProtected,
     useSeparatePrivacyPassword,
@@ -48,6 +50,8 @@ const DataTab: React.FC<DataTabProps> = ({
 }) => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [isVerifyingSyncPassword, setIsVerifyingSyncPassword] = useState(false);
+    const [syncPasswordMessage, setSyncPasswordMessage] = useState<string | null>(null);
     const [backups, setBackups] = useState<BackupItem[]>([]);
     const [isLoadingBackups, setIsLoadingBackups] = useState(false);
     const [backupError, setBackupError] = useState<string | null>(null);
@@ -70,12 +74,13 @@ const DataTab: React.FC<DataTabProps> = ({
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newVal = e.target.value;
         setPassword(newVal);
+        setSyncPasswordMessage(null);
         localStorage.setItem(SYNC_PASSWORD_KEY, newVal);
         onSyncPasswordChange(newVal);
     };
 
     const getAuthHeaders = useCallback(() => {
-        const storedPassword = localStorage.getItem(SYNC_PASSWORD_KEY);
+        const storedPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
         return {
             'Content-Type': 'application/json',
             ...(storedPassword ? { 'X-Sync-Password': storedPassword } : {})
@@ -180,6 +185,24 @@ const DataTab: React.FC<DataTabProps> = ({
         }
     }, [fetchBackups, onDeleteBackup]);
 
+    const handleVerifySyncPassword = useCallback(async () => {
+        setIsVerifyingSyncPassword(true);
+        setSyncPasswordMessage(null);
+        try {
+            const role = await onVerifySyncPassword();
+            setSyncPasswordMessage(role === 'admin' ? '验证成功：已进入管理员模式' : '验证失败：密码错误或无权限');
+        } finally {
+            setIsVerifyingSyncPassword(false);
+        }
+    }, [onVerifySyncPassword]);
+
+    const handleLogoutSyncPassword = useCallback(() => {
+        setSyncPasswordMessage(null);
+        setPassword('');
+        localStorage.removeItem(SYNC_PASSWORD_KEY);
+        onSyncPasswordChange('');
+    }, [onSyncPasswordChange]);
+
     const isSyncPasswordReady = password.trim().length > 0;
     const currentPrivacyMode = useSeparatePrivacyPassword ? '独立密码' : '同步密码';
 
@@ -273,12 +296,39 @@ const DataTab: React.FC<DataTabProps> = ({
                          <p className="text-[10px] text-green-600/80 dark:text-green-400/80 mt-1.5 leading-relaxed">
                              如需增强安全性，请在 Cloudflare Pages 后台设置 <code>SYNC_PASSWORD</code> 环境变量，并在此处输入相同密码。
                          </p>
-                         <div className="mt-2 flex items-center justify-between text-[10px] text-green-700/80 dark:text-green-300/80">
+                        <div className="mt-2 flex items-center justify-between text-[10px] text-green-700/80 dark:text-green-300/80">
                              <span>当前模式：</span>
                              <span className={`font-semibold ${syncRole === 'admin' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'}`}>
                                  {syncRole === 'admin' ? '管理员' : '用户'}
                              </span>
                          </div>
+                         {isSyncProtected && (
+                             <div className="mt-2 flex items-center justify-between gap-3">
+                                 <button
+                                     type="button"
+                                     onClick={handleVerifySyncPassword}
+                                     disabled={!isSyncPasswordReady || isVerifyingSyncPassword}
+                                     className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 disabled:opacity-60"
+                                 >
+                                     <RefreshCw size={12} className={isVerifyingSyncPassword ? 'animate-spin' : ''} />
+                                     验证登录
+                                 </button>
+                                 <button
+                                     type="button"
+                                     onClick={handleLogoutSyncPassword}
+                                     disabled={isVerifyingSyncPassword || (!isSyncPasswordReady && syncRole !== 'admin')}
+                                     className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60"
+                                 >
+                                     <LogOut size={12} />
+                                     退出
+                                 </button>
+                             </div>
+                         )}
+                         {syncPasswordMessage && (
+                             <div className={`mt-1 text-[10px] ${syncPasswordMessage.startsWith('验证成功') ? 'text-emerald-700/80 dark:text-emerald-300/80' : 'text-red-600/80 dark:text-red-400/80'}`}>
+                                 {syncPasswordMessage}
+                             </div>
+                         )}
                          {!isSyncProtected && (
                              <div className="mt-1 text-[10px] text-green-600/80 dark:text-green-400/80">
                                  未开启密码保护：所有访问者默认拥有管理员权限。

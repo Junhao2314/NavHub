@@ -85,7 +85,7 @@ const saveLocalSyncMeta = (meta: SyncMetadata): void => {
 };
 
 const getAuthHeaders = (): HeadersInit => {
-    const password = localStorage.getItem(SYNC_PASSWORD_KEY);
+    const password = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
     return {
         'Content-Type': 'application/json',
         ...(password ? { 'X-Sync-Password': password } : {})

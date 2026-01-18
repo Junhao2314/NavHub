@@ -1101,6 +1101,28 @@ function App() {
     }, 600);
   }, [cancelPendingSync, refreshSyncAuth, performPull]);
 
+  const handleVerifySyncPassword = useCallback(async (): Promise<SyncRole> => {
+    if (syncPasswordRefreshTimerRef.current) {
+      clearTimeout(syncPasswordRefreshTimerRef.current);
+      syncPasswordRefreshTimerRef.current = null;
+    }
+
+    cancelPendingSync();
+    isSyncPasswordRefreshingRef.current = true;
+    syncPasswordRefreshIdRef.current += 1;
+    const refreshId = syncPasswordRefreshIdRef.current;
+
+    try {
+      const auth = await refreshSyncAuth();
+      await performPull(auth.role);
+      return auth.role;
+    } finally {
+      if (syncPasswordRefreshIdRef.current === refreshId) {
+        isSyncPasswordRefreshingRef.current = false;
+      }
+    }
+  }, [cancelPendingSync, refreshSyncAuth, performPull]);
+
   useEffect(() => {
     return () => {
       if (syncPasswordRefreshTimerRef.current) {
@@ -1206,6 +1228,7 @@ function App() {
           onRestoreBackup={handleRestoreBackup}
           onDeleteBackup={handleDeleteBackup}
           onSyncPasswordChange={handleSyncPasswordChange}
+          onVerifySyncPassword={handleVerifySyncPassword}
           syncRole={syncRole}
           isSyncProtected={isSyncProtected}
           useSeparatePrivacyPassword={useSeparatePrivacyPassword}
