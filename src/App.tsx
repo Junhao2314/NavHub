@@ -207,7 +207,6 @@ function App() {
     pullFromCloud,
     pushToCloud,
     schedulePush,
-    createBackup,
     restoreBackup,
     deleteBackup,
     resolveConflict: resolveSyncConflict,
@@ -990,7 +989,7 @@ function App() {
     // 避免与自动同步重复触发
     prevSyncDataRef.current = JSON.stringify(syncData);
     cancelPendingSync();
-    void pushToCloud(syncData);
+    void pushToCloud(syncData, false, 'manual');
   }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, buildSyncData, cancelPendingSync, pushToCloud]);
 
   // === Sync Conflict Resolution ===
@@ -1019,31 +1018,8 @@ function App() {
       siteSettings,
       privateVaultCipher || undefined
     );
-    await pushToCloud(syncData);
+    await pushToCloud(syncData, false, 'manual');
   }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, pushToCloud, isAdmin, notify]);
-
-  const handleCreateBackup = useCallback(async () => {
-    if (!isAdmin) {
-      notify('用户模式无法创建云端备份，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return false;
-    }
-
-    const syncData = buildSyncData(
-      links,
-      categories,
-      { mode: searchMode, externalSources: externalSearchSources },
-      aiConfig,
-      siteSettings,
-      privateVaultCipher || undefined
-    );
-    const success = await createBackup(syncData);
-    if (success) {
-      notify('备份已创建', 'success');
-    } else {
-      notify('备份失败，请稍后重试', 'error');
-    }
-    return success;
-  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, createBackup, notify, isAdmin]);
 
   const performPull = useCallback(async (role: SyncRole) => {
     const localMeta = getLocalSyncMeta();
@@ -1249,7 +1225,6 @@ function App() {
           links={links}
           onUpdateLinks={(newLinks) => updateData(newLinks, categories)}
           onOpenImport={() => setIsImportModalOpen(true)}
-          onCreateBackup={handleCreateBackup}
           onRestoreBackup={handleRestoreBackup}
           onDeleteBackup={handleDeleteBackup}
           onSyncPasswordChange={handleSyncPasswordChange}

@@ -110,6 +110,7 @@ export interface SyncMetadata {
   version: number;        // 数据版本号(递增,防止并发冲突)
   browser?: string;       // 浏览器信息
   os?: string;            // 操作系统信息
+  syncKind?: 'auto' | 'manual'; // 同步来源（自动/手动）
 }
 
 // Main sync data structure

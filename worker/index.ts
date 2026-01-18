@@ -37,6 +37,7 @@ interface SyncMetadata {
     version: number;
     browser?: string;
     os?: string;
+    syncKind?: 'auto' | 'manual';
 }
 
 interface YNavSyncData {
@@ -56,6 +57,8 @@ interface YNavSyncData {
 const KV_MAIN_DATA_KEY = 'ynav:data';
 const KV_BACKUP_PREFIX = 'ynav:backup:';
 const BACKUP_TTL_SECONDS = 30 * 24 * 60 * 60;
+const KV_SYNC_HISTORY_PREFIX = `${KV_BACKUP_PREFIX}history-`;
+const MAX_SYNC_HISTORY = 10;
 
 // Auth Security (brute-force protection)
 const AUTH_MAX_FAILED_ATTEMPTS = 5;
@@ -68,13 +71,48 @@ interface AuthAttemptRecord {
     updatedAt: number;
 }
 
-type BackupKind = 'manual' | 'rollback';
+type BackupKind = 'auto' | 'manual' | 'rollback';
 
 function getBackupKindFromKey(backupKey: string): BackupKind {
     const suffix = backupKey.startsWith(KV_BACKUP_PREFIX)
         ? backupKey.slice(KV_BACKUP_PREFIX.length)
         : backupKey;
+    if (suffix.startsWith('history-')) return 'auto';
     return suffix.startsWith('rollback-') ? 'rollback' : 'manual';
+}
+
+type SyncHistoryKind = 'auto' | 'manual';
+
+function normalizeSyncKind(value: unknown): SyncHistoryKind {
+    return value === 'manual' ? 'manual' : 'auto';
+}
+
+function buildHistoryKey(now: number): string {
+    const timestamp = new Date(now).toISOString().replace(/[:.]/g, '-');
+    return `${KV_SYNC_HISTORY_PREFIX}${timestamp}`;
+}
+
+async function trimSyncHistory(env: Env): Promise<void> {
+    const list = await env.YNAV_WORKER_KV.list({ prefix: KV_SYNC_HISTORY_PREFIX });
+    if (!list?.keys || list.keys.length <= MAX_SYNC_HISTORY) return;
+
+    const sorted = [...list.keys].sort((a, b) => b.name.localeCompare(a.name));
+    const toDelete = sorted.slice(MAX_SYNC_HISTORY);
+    await Promise.all(toDelete.map((key) => env.YNAV_WORKER_KV.delete(key.name)));
+}
+
+async function saveSyncHistory(env: Env, data: YNavSyncData, kind: SyncHistoryKind): Promise<string> {
+    const key = buildHistoryKey(data.meta?.updatedAt || Date.now());
+    const payload: YNavSyncData = {
+        ...data,
+        meta: {
+            ...data.meta,
+            syncKind: kind
+        }
+    };
+    await env.YNAV_WORKER_KV.put(key, JSON.stringify(payload));
+    await trimSyncHistory(env);
+    return key;
 }
 
 // ============================================
@@ -312,7 +350,7 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 }
 
 async function handlePost(request: Request, env: Env): Promise<Response> {
-    const body = await request.json() as { data: YNavSyncData; expectedVersion?: number };
+    const body = await request.json() as { data: YNavSyncData; expectedVersion?: number; syncKind?: SyncHistoryKind };
 
     if (!body.data) {
         return jsonResponse({ success: false, error: '缺少 data 字段' }, 400);
@@ -333,17 +371,28 @@ async function handlePost(request: Request, env: Env): Promise<Response> {
     }
 
     const newVersion = existingData ? existingData.meta.version + 1 : 1;
+    const now = Date.now();
+    const kind = normalizeSyncKind(body.syncKind);
     const dataToSave: YNavSyncData = {
         ...body.data,
         meta: {
             ...body.data.meta,
-            updatedAt: Date.now(),
-            version: newVersion
+            updatedAt: now,
+            version: newVersion,
+            syncKind: kind
         }
     };
 
     await env.YNAV_WORKER_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(dataToSave));
-    return jsonResponse({ success: true, data: dataToSave, message: '同步成功' });
+
+    let historyKey: string | null = null;
+    try {
+        historyKey = await saveSyncHistory(env, dataToSave, kind);
+    } catch {
+        historyKey = null;
+    }
+
+    return jsonResponse({ success: true, data: dataToSave, historyKey, message: '同步成功' });
 }
 
 async function handleBackup(request: Request, env: Env): Promise<Response> {
@@ -352,7 +401,7 @@ async function handleBackup(request: Request, env: Env): Promise<Response> {
         return jsonResponse({ success: false, error: '缺少 data 字段' }, 400);
     }
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('.')[0];
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupKey = `${KV_BACKUP_PREFIX}${timestamp}`;
 
     await env.YNAV_WORKER_KV.put(backupKey, JSON.stringify(body.data), {
@@ -397,7 +446,7 @@ async function handleRestore(request: Request, env: Env): Promise<Response> {
 
     // 创建回滚点
     if (existingData) {
-        const rollbackTimestamp = new Date(now).toISOString().replace(/[:.]/g, '-').split('.')[0];
+        const rollbackTimestamp = new Date(now).toISOString().replace(/[:.]/g, '-');
         rollbackKey = `${KV_BACKUP_PREFIX}rollback-${rollbackTimestamp}`;
         await env.YNAV_WORKER_KV.put(rollbackKey, JSON.stringify({
             ...existingData,
@@ -412,16 +461,25 @@ async function handleRestore(request: Request, env: Env): Promise<Response> {
             ...(backupData.meta || {}),
             updatedAt: now,
             deviceId: body.deviceId || backupData.meta?.deviceId || 'unknown',
-            version: newVersion
+            version: newVersion,
+            syncKind: 'manual'
         }
     };
 
     await env.YNAV_WORKER_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(restoredData));
+    try {
+        await saveSyncHistory(env, restoredData, 'manual');
+    } catch {
+        // ignore history failures
+    }
     return jsonResponse({ success: true, data: restoredData, rollbackKey });
 }
 
 async function handleListBackups(env: Env): Promise<Response> {
-    const list = await env.YNAV_WORKER_KV.list({ prefix: KV_BACKUP_PREFIX });
+    const currentData = await env.YNAV_WORKER_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
+    const currentVersion = currentData?.meta?.version;
+
+    const list = await env.YNAV_WORKER_KV.list({ prefix: KV_SYNC_HISTORY_PREFIX });
 
     const backups = await Promise.all(list.keys.map(async (key) => {
         let meta: SyncMetadata | null = null;
@@ -431,20 +489,27 @@ async function handleListBackups(env: Env): Promise<Response> {
         } catch {
             meta = null;
         }
+        const kind = normalizeSyncKind(meta?.syncKind);
         return {
             key: key.name,
             timestamp: key.name.replace(KV_BACKUP_PREFIX, ''),
             expiration: key.expiration,
-            kind: getBackupKindFromKey(key.name),
+            kind,
             deviceId: meta?.deviceId,
             updatedAt: meta?.updatedAt,
             version: meta?.version,
             browser: meta?.browser,
-            os: meta?.os
+            os: meta?.os,
+            isCurrent: typeof currentVersion === 'number' && meta?.version === currentVersion
         };
     }));
 
-    return jsonResponse({ success: true, backups });
+    return jsonResponse({
+        success: true,
+        backups: backups
+            .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+            .slice(0, MAX_SYNC_HISTORY)
+    });
 }
 
 async function handleDeleteBackup(request: Request, env: Env): Promise<Response> {
@@ -455,9 +520,17 @@ async function handleDeleteBackup(request: Request, env: Env): Promise<Response>
         return jsonResponse({ success: false, error: '无效的备份 key' }, 400);
     }
 
-    const backupData = await env.YNAV_WORKER_KV.get(backupKey, 'json');
+    const backupData = await env.YNAV_WORKER_KV.get(backupKey, 'json') as YNavSyncData | null;
     if (!backupData) {
         return jsonResponse({ success: false, error: '备份不存在或已过期' }, 404);
+    }
+
+    if (backupKey.startsWith(KV_SYNC_HISTORY_PREFIX)) {
+        const currentData = await env.YNAV_WORKER_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
+        const currentVersion = currentData?.meta?.version;
+        if (typeof currentVersion === 'number' && backupData?.meta?.version === currentVersion) {
+            return jsonResponse({ success: false, error: '当前记录不允许删除' }, 400);
+        }
     }
 
     await env.YNAV_WORKER_KV.delete(backupKey);

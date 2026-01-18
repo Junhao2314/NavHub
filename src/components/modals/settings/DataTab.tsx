@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudUpload, CloudDownload, Trash2, LogOut, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudDownload, Trash2, LogOut, Download } from 'lucide-react';
 import { SYNC_ADMIN_SESSION_KEY, SYNC_API_ENDPOINT, SYNC_PASSWORD_KEY, SYNC_PASSWORD_LOCK_UNTIL_KEY } from '../../../utils/constants';
 import { downloadJsonFile } from '../../../services/exportService';
 
@@ -18,7 +18,6 @@ type VerifySyncPasswordResult = {
 interface DataTabProps {
     onOpenImport: () => void;
     onClose: () => void;
-    onCreateBackup: () => Promise<boolean>;
     onRestoreBackup: (backupKey: string) => Promise<boolean>;
     onDeleteBackup: (backupKey: string) => Promise<boolean>;
     onSyncPasswordChange: (password: string) => void;
@@ -37,24 +36,23 @@ interface BackupItem {
     key: string;
     timestamp?: string;
     expiration?: number;
-    kind?: 'manual' | 'rollback';
+    kind?: 'auto' | 'manual' | 'rollback';
     deviceId?: string;
     updatedAt?: number;
     version?: number;
     browser?: string;
     os?: string;
+    isCurrent?: boolean;
 }
 
-const getBackupKind = (backup: BackupItem): 'manual' | 'rollback' => {
-    if (backup.kind === 'manual' || backup.kind === 'rollback') return backup.kind;
-    const suffix = backup.key.replace(/^ynav:backup:/, '');
-    return suffix.startsWith('rollback-') ? 'rollback' : 'manual';
+const getBackupKind = (backup: BackupItem): 'auto' | 'manual' => {
+    if (backup.kind === 'manual' || backup.kind === 'rollback') return 'manual';
+    return 'auto';
 };
 
 const DataTab: React.FC<DataTabProps> = ({
     onOpenImport,
     onClose,
-    onCreateBackup,
     onRestoreBackup,
     onDeleteBackup,
     onSyncPasswordChange,
@@ -76,13 +74,10 @@ const DataTab: React.FC<DataTabProps> = ({
     const [backups, setBackups] = useState<BackupItem[]>([]);
     const [isLoadingBackups, setIsLoadingBackups] = useState(false);
     const [backupError, setBackupError] = useState<string | null>(null);
-    const [isCreatingBackup, setIsCreatingBackup] = useState(false);
-    const [createError, setCreateError] = useState<string | null>(null);
     const [restoringKey, setRestoringKey] = useState<string | null>(null);
     const [deletingKey, setDeletingKey] = useState<string | null>(null);
     const [exportingKey, setExportingKey] = useState<string | null>(null);
     const [exportError, setExportError] = useState<string | null>(null);
-    const [backupFilter, setBackupFilter] = useState<'all' | 'manual' | 'rollback'>('all');
     const [privacyTarget, setPrivacyTarget] = useState<'sync' | 'separate' | null>(null);
     const [privacyOldPassword, setPrivacyOldPassword] = useState('');
     const [privacyNewPassword, setPrivacyNewPassword] = useState('');
@@ -182,32 +177,19 @@ const DataTab: React.FC<DataTabProps> = ({
             });
             const result = await response.json();
             if (!result.success) {
-                setBackupError(result.error || '获取备份列表失败');
+                setBackupError(result.error || '获取同步记录失败');
                 setBackups([]);
                 return;
             }
-            setBackups(Array.isArray(result.backups) ? result.backups : []);
+            const next = Array.isArray(result.backups) ? [...result.backups] : [];
+            next.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            setBackups(next);
         } catch (error: any) {
             setBackupError(error.message || '网络错误');
         } finally {
             setIsLoadingBackups(false);
         }
     }, [getAuthHeaders]);
-
-    const handleCreateBackup = useCallback(async () => {
-        setIsCreatingBackup(true);
-        setCreateError(null);
-        try {
-            const success = await onCreateBackup();
-            if (!success) {
-                setCreateError('备份失败，请稍后重试');
-                return;
-            }
-            await fetchBackups();
-        } finally {
-            setIsCreatingBackup(false);
-        }
-    }, [fetchBackups, onCreateBackup]);
 
     const handleRestoreBackup = useCallback(async (backupKey: string) => {
         setRestoringKey(backupKey);
@@ -222,6 +204,9 @@ const DataTab: React.FC<DataTabProps> = ({
     }, [fetchBackups, onRestoreBackup]);
 
     const handleDeleteBackup = useCallback(async (backupKey: string) => {
+        const current = backups.find(item => item.key === backupKey);
+        if (current?.isCurrent) return;
+
         setDeletingKey(backupKey);
         try {
             const success = await onDeleteBackup(backupKey);
@@ -231,7 +216,7 @@ const DataTab: React.FC<DataTabProps> = ({
         } finally {
             setDeletingKey(null);
         }
-    }, [fetchBackups, onDeleteBackup]);
+    }, [fetchBackups, onDeleteBackup, backups]);
 
     const handleExportBackup = useCallback(async (backup: BackupItem) => {
         setExportingKey(backup.key);
@@ -304,11 +289,6 @@ const DataTab: React.FC<DataTabProps> = ({
     const isSyncPasswordReady = password.trim().length > 0;
     const isLoginLocked = !!loginLockedUntil && loginLockedUntil > Date.now();
     const currentPrivacyMode = useSeparatePrivacyPassword ? '独立密码' : '同步密码';
-
-    const filteredBackups = useMemo(() => {
-        if (backupFilter === 'all') return backups;
-        return backups.filter(backup => getBackupKind(backup) === backupFilter);
-    }, [backups, backupFilter]);
 
     const resetPrivacyMigration = useCallback(() => {
         setPrivacyTarget(null);
@@ -596,50 +576,9 @@ const DataTab: React.FC<DataTabProps> = ({
                 {/* Backup List */}
                 <div className="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/40">
                     <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-bold text-slate-700 dark:text-slate-200">云端备份列表</div>
+                        <div className="text-sm font-bold text-slate-700 dark:text-slate-200">云端同步记录（最近 10 次）</div>
                         {syncRole === 'admin' && (
                         <div className="flex items-center gap-3 flex-wrap justify-end">
-                            <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                                <button
-                                    type="button"
-                                    onClick={() => setBackupFilter('all')}
-                                    className={`px-2 py-1 text-[10px] font-semibold transition-colors ${backupFilter === 'all'
-                                        ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white'
-                                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    全部
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setBackupFilter('manual')}
-                                    className={`px-2 py-1 text-[10px] font-semibold transition-colors ${backupFilter === 'manual'
-                                        ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white'
-                                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    手动
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setBackupFilter('rollback')}
-                                    className={`px-2 py-1 text-[10px] font-semibold transition-colors ${backupFilter === 'rollback'
-                                        ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white'
-                                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    回滚点
-                                </button>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleCreateBackup}
-                                disabled={isCreatingBackup}
-                                className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 disabled:opacity-60"
-                            >
-                                <CloudUpload size={12} className={isCreatingBackup ? 'animate-spin' : ''} />
-                                创建备份
-                            </button>
                             <button
                                 type="button"
                                 onClick={fetchBackups}
@@ -655,13 +594,10 @@ const DataTab: React.FC<DataTabProps> = ({
 
                     {syncRole !== 'admin' ? (
                         <div className="text-xs text-slate-500 dark:text-slate-400">
-                            用户模式下不显示备份列表。输入管理员密码后可创建、恢复与删除备份。
+                            用户模式下不显示同步记录。输入管理员密码后可查看、恢复、导出与删除记录（当前记录不可删除）。
                         </div>
                     ) : (
                     <>
-                    {createError && (
-                        <div className="mb-2 text-xs text-red-600 dark:text-red-400">{createError}</div>
-                    )}
                     {exportError && (
                         <div className="mb-2 text-xs text-red-600 dark:text-red-400">{exportError}</div>
                     )}
@@ -675,19 +611,16 @@ const DataTab: React.FC<DataTabProps> = ({
                     )}
 
                     {!isLoadingBackups && !backupError && backups.length === 0 && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">暂无备份</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">暂无记录</div>
                     )}
 
-                    {!isLoadingBackups && !backupError && backups.length > 0 && filteredBackups.length === 0 && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">暂无匹配备份</div>
-                    )}
-
-                    {!isLoadingBackups && !backupError && filteredBackups.length > 0 && (
+                    {!isLoadingBackups && !backupError && backups.length > 0 && (
                         <div className="space-y-2">
-                            {filteredBackups.map((backup) => {
+                            {backups.map((backup) => {
                                 const deviceLabel = formatDeviceLabel(backup.deviceId, backup.browser, backup.os);
                                 const showDeviceId = backup.deviceId && !backup.browser && !backup.os && deviceLabel !== backup.deviceId;
                                 const kind = getBackupKind(backup);
+                                const isCurrent = !!backup.isCurrent;
                                 return (
                                 <div
                                     key={backup.key}
@@ -697,12 +630,17 @@ const DataTab: React.FC<DataTabProps> = ({
                                         <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                                             <Clock size={12} />
                                             <span>{formatBackupTime(backup)}</span>
-                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${kind === 'rollback'
-                                                ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200'
+                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${kind === 'auto'
+                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
                                                 : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
                                                 }`}>
-                                                {kind === 'rollback' ? '回滚点' : '手动备份'}
+                                                {kind === 'auto' ? '自动同步' : '手动同步'}
                                             </span>
+                                            {isCurrent && (
+                                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100">
+                                                    当前
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button
@@ -717,7 +655,7 @@ const DataTab: React.FC<DataTabProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => handleRestoreBackup(backup.key)}
-                                                disabled={!!restoringKey || !!deletingKey || !!exportingKey}
+                                                disabled={isCurrent || !!restoringKey || !!deletingKey || !!exportingKey}
                                                 className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 disabled:opacity-60"
                                             >
                                                 <CloudDownload size={12} className={restoringKey === backup.key ? 'animate-spin' : ''} />
@@ -726,8 +664,11 @@ const DataTab: React.FC<DataTabProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => handleDeleteBackup(backup.key)}
-                                                disabled={!!restoringKey || !!deletingKey || !!exportingKey}
-                                                className="flex items-center gap-1.5 text-xs text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-200 disabled:opacity-60"
+                                                disabled={isCurrent || !!restoringKey || !!deletingKey || !!exportingKey}
+                                                className={`flex items-center gap-1.5 text-xs ${isCurrent
+                                                    ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                                    : 'text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-200'
+                                                    } disabled:opacity-60`}
                                             >
                                                 <Trash2 size={12} className={deletingKey === backup.key ? 'animate-spin' : ''} />
                                                 删除

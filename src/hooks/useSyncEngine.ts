@@ -53,7 +53,7 @@ interface UseSyncEngineReturn {
 
     // 操作
     pullFromCloud: () => Promise<YNavSyncData | null>;
-    pushToCloud: (data: Omit<YNavSyncData, 'meta'>, force?: boolean) => Promise<boolean>;
+    pushToCloud: (data: Omit<YNavSyncData, 'meta'>, force?: boolean, syncKind?: 'auto' | 'manual') => Promise<boolean>;
     schedulePush: (data: Omit<YNavSyncData, 'meta'>) => void;
     createBackup: (data: Omit<YNavSyncData, 'meta'>) => Promise<boolean>;
     restoreBackup: (backupKey: string) => Promise<YNavSyncData | null>;
@@ -167,7 +167,8 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     // 推送数据到云端
     const pushToCloud = useCallback(async (
         data: Omit<YNavSyncData, 'meta'>,
-        force: boolean = false
+        force: boolean = false,
+        syncKind: 'auto' | 'manual' = 'auto'
     ): Promise<boolean> => {
         setSyncStatus('syncing');
 
@@ -176,14 +177,16 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         const deviceInfo = getDeviceInfo();
 
         // 构建完整的同步数据
+        const now = Date.now();
         const syncData: YNavSyncData = {
             ...data,
             meta: {
-                updatedAt: Date.now(),
+                updatedAt: now,
                 deviceId,
                 version: localMeta?.version || 0,
                 browser: deviceInfo?.browser,
-                os: deviceInfo?.os
+                os: deviceInfo?.os,
+                syncKind
             }
         };
 
@@ -193,7 +196,8 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     data: syncData,
-                    expectedVersion: force ? undefined : localMeta?.version
+                    expectedVersion: force ? undefined : localMeta?.version,
+                    syncKind
                 })
             });
 
@@ -247,7 +251,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         // 设置新的定时器
         debounceTimer.current = setTimeout(async () => {
             if (pendingData.current) {
-                await pushToCloud(pendingData.current);
+                await pushToCloud(pendingData.current, false, 'auto');
                 pendingData.current = null;
             }
         }, SYNC_DEBOUNCE_MS);
@@ -364,7 +368,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
         if (choice === 'local') {
             // 使用本地版本，强制推送
-            pushToCloud(currentConflict.localData, true);
+            pushToCloud(currentConflict.localData, true, 'manual');
         } else {
             // 使用云端版本
             saveLocalSyncMeta(currentConflict.remoteData.meta);

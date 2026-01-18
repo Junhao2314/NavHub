@@ -27,7 +27,6 @@ interface SettingsModalProps {
   links: LinkItem[];
   onUpdateLinks: (links: LinkItem[]) => void;
   onOpenImport: () => void;
-  onCreateBackup: () => Promise<boolean>;
   onRestoreBackup: (backupKey: string) => Promise<boolean>;
   onDeleteBackup: (backupKey: string) => Promise<boolean>;
   onSyncPasswordChange: (password: string) => void;
@@ -52,7 +51,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   links,
   onUpdateLinks,
   onOpenImport,
-  onCreateBackup,
   onRestoreBackup,
   onDeleteBackup,
   onSyncPasswordChange,
@@ -212,7 +210,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <DataTab
               onOpenImport={onOpenImport}
               onClose={onClose}
-              onCreateBackup={onCreateBackup}
               onRestoreBackup={onRestoreBackup}
               onDeleteBackup={onDeleteBackup}
               onSyncPasswordChange={onSyncPasswordChange}
