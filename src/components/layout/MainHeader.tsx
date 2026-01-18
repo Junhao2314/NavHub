@@ -7,6 +7,7 @@ interface MainHeaderProps {
   siteCardStyle: 'detailed' | 'simple';
   themeMode: 'light' | 'dark' | 'system';
   darkMode: boolean;
+  canEdit: boolean;
   isMobileSearchOpen: boolean;
   searchMode: SearchMode;
   searchQuery: string;
@@ -39,6 +40,7 @@ interface MainHeaderProps {
   onCancelCategorySorting: () => void;
   onAddLink: () => void;
   onOpenSettings: () => void;
+  onEditDisabled: () => void;
 }
 
 const MainHeader: React.FC<MainHeaderProps> = ({
@@ -46,6 +48,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   siteCardStyle,
   themeMode,
   darkMode,
+  canEdit,
   isMobileSearchOpen,
   searchMode,
   searchQuery,
@@ -77,8 +80,10 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   onSaveCategorySorting,
   onCancelCategorySorting,
   onAddLink,
-  onOpenSettings
+  onOpenSettings,
+  onEditDisabled
 }) => {
+  const editDisabledHint = '用户模式不可编辑，请先输入 API 访问密码进入管理员模式。';
   const showSortControls = canSortPinned || canSortCategory || isSortingPinned || isSortingCategory;
   const sortLabel = canSortPinned ? '排序置顶' : '排序分类';
   const isSorting = isSortingPinned || isSortingCategory;
@@ -229,9 +234,13 @@ const MainHeader: React.FC<MainHeaderProps> = ({
 
         {searchMode === 'external' && (
           <button
-            onClick={onOpenSearchConfig}
-            className="px-3 text-slate-400 hover:text-accent transition-colors"
-            title="管理搜索源"
+            onClick={canEdit ? onOpenSearchConfig : onEditDisabled}
+            className={`px-3 transition-colors ${canEdit
+              ? 'text-slate-400 hover:text-accent'
+              : 'text-slate-400 opacity-60 cursor-not-allowed'
+              }`}
+            title={canEdit ? '管理搜索源' : editDisabledHint}
+            aria-disabled={!canEdit}
           >
             <Settings size={14} />
           </button>
@@ -298,25 +307,37 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 </span>
                 <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                 <button
-                  onClick={isSortingPinned ? onSavePinnedSorting : onSaveCategorySorting}
-                  className="p-1 rounded-full text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:scale-105 transition-all"
-                  title="保存排序"
+                  onClick={canEdit ? (isSortingPinned ? onSavePinnedSorting : onSaveCategorySorting) : onEditDisabled}
+                  className={`p-1 rounded-full transition-all ${canEdit
+                    ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:scale-105'
+                    : 'text-green-600 opacity-60 cursor-not-allowed'
+                    }`}
+                  title={canEdit ? '保存排序' : editDisabledHint}
+                  aria-disabled={!canEdit}
                 >
                   <CheckCircle size={16} />
                 </button>
                 <button
-                  onClick={isSortingPinned ? onCancelPinnedSorting : onCancelCategorySorting}
-                  className="p-1 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:scale-105 transition-all"
-                  title="取消"
+                  onClick={canEdit ? (isSortingPinned ? onCancelPinnedSorting : onCancelCategorySorting) : onEditDisabled}
+                  className={`p-1 rounded-full transition-all ${canEdit
+                    ? 'text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:scale-105'
+                    : 'text-slate-400 opacity-60 cursor-not-allowed'
+                    }`}
+                  title={canEdit ? '取消' : editDisabledHint}
+                  aria-disabled={!canEdit}
                 >
                   <X size={16} />
                 </button>
               </div>
             ) : (
               <button
-                onClick={canSortPinned ? onStartPinnedSorting : onStartCategorySorting}
-                className="p-2 rounded-xl text-slate-500 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-slate-200/50 dark:hover:border-white/5"
-                title={sortLabel}
+                onClick={canEdit ? (canSortPinned ? onStartPinnedSorting : onStartCategorySorting) : onEditDisabled}
+                className={`p-2 rounded-xl transition-all border border-transparent ${canEdit
+                  ? 'text-slate-500 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-200/50 dark:hover:border-white/5'
+                  : 'text-slate-500 opacity-60 cursor-not-allowed'
+                  }`}
+                title={canEdit ? sortLabel : editDisabledHint}
+                aria-disabled={!canEdit}
               >
                 <GripVertical size={18} />
               </button>
@@ -390,11 +411,17 @@ const MainHeader: React.FC<MainHeaderProps> = ({
 
           {/* Add Link - Primary Action */}
           <button
-            onClick={onAddLink}
-            className="relative overflow-hidden group flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-accent to-accent/80 hover:from-accent hover:to-accent/90 text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 active:scale-95 transition-all duration-200"
-            title="添加链接"
+            onClick={canEdit ? onAddLink : onEditDisabled}
+            className={`relative overflow-hidden group flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-200 ${canEdit
+              ? 'bg-gradient-to-r from-accent to-accent/80 hover:from-accent hover:to-accent/90 text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 active:scale-95'
+              : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
+              }`}
+            title={canEdit ? '添加链接' : editDisabledHint}
+            aria-disabled={!canEdit}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full animate-shimmer-slow pointer-events-none" />
+            {canEdit && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full animate-shimmer-slow pointer-events-none" />
+            )}
             <span className="relative z-10 flex items-center gap-0.5">
               <span className="text-lg leading-none">+</span> <span className="hidden sm:inline">添加</span>
             </span>

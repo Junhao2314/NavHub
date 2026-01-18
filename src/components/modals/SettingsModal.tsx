@@ -6,6 +6,18 @@ import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
 import DataTab from './settings/DataTab';
 
+type SyncRole = 'admin' | 'user';
+
+type VerifySyncPasswordResult = {
+  success: boolean;
+  role: SyncRole;
+  error?: string;
+  lockedUntil?: number;
+  retryAfterSeconds?: number;
+  remainingAttempts?: number;
+  maxAttempts?: number;
+};
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,8 +31,8 @@ interface SettingsModalProps {
   onRestoreBackup: (backupKey: string) => Promise<boolean>;
   onDeleteBackup: (backupKey: string) => Promise<boolean>;
   onSyncPasswordChange: (password: string) => void;
-  onVerifySyncPassword: () => Promise<'admin' | 'user'>;
-  syncRole: 'admin' | 'user';
+  onVerifySyncPassword: () => Promise<VerifySyncPasswordResult>;
+  syncRole: SyncRole;
   isSyncProtected: boolean;
   useSeparatePrivacyPassword: boolean;
   onMigratePrivacyMode: (payload: { useSeparatePassword: boolean; oldPassword: string; newPassword: string }) => Promise<boolean>;

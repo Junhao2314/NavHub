@@ -12,6 +12,12 @@ export const DEVICE_INFO_KEY = 'ynav_device_info';
 export const SYNC_META_KEY = 'ynav_sync_meta';
 export const SYNC_PASSWORD_KEY = 'ynav_sync_password';
 export const LAST_SYNC_KEY = 'ynav_last_sync';
+export const SYNC_ADMIN_SESSION_KEY = 'ynav_sync_admin_session';
+export const SYNC_PASSWORD_LOCK_UNTIL_KEY = 'ynav_sync_password_lock_until';
+
+// Sync Auth Security (brute-force protection)
+export const SYNC_PASSWORD_MAX_ATTEMPTS = 5;
+export const SYNC_PASSWORD_LOCKOUT_MS = 60 * 60 * 1000; // 1 hour
 
 // Privacy Vault Keys
 export const PRIVATE_VAULT_KEY = 'ynav_private_vault_v1';

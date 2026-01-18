@@ -40,6 +40,8 @@ import {
   PRIVACY_GROUP_ENABLED_KEY,
   PRIVACY_SESSION_UNLOCKED_KEY,
   PRIVACY_USE_SEPARATE_PASSWORD_KEY,
+  SYNC_ADMIN_SESSION_KEY,
+  SYNC_API_ENDPOINT,
   SYNC_META_KEY,
   SYNC_PASSWORD_KEY,
   getDeviceId
@@ -47,6 +49,16 @@ import {
 import { decryptPrivateVault, encryptPrivateVault } from './utils/privateVault';
 
 type SyncRole = 'admin' | 'user';
+
+type VerifySyncPasswordResult = {
+  success: boolean;
+  role: SyncRole;
+  error?: string;
+  lockedUntil?: number;
+  retryAfterSeconds?: number;
+  remainingAttempts?: number;
+  maxAttempts?: number;
+};
 
 function App() {
   // === Core Data ===
@@ -83,8 +95,6 @@ function App() {
   const [currentConflict, setCurrentConflict] = useState<SyncConflict | null>(null);
   const hasInitialSyncRun = useRef(false);
   const autoUnlockAttemptedRef = useRef(false);
-  const syncPasswordRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const syncPasswordRefreshIdRef = useRef(0);
   const lastSyncPasswordRef = useRef((localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim());
   const isSyncPasswordRefreshingRef = useRef(false);
   const [syncRole, setSyncRole] = useState<SyncRole>('user');
@@ -213,6 +223,9 @@ function App() {
     const auth = await checkAuth();
     setSyncRole(auth.role);
     setIsSyncProtected(auth.protected);
+    if (auth.role !== 'admin') {
+      localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+    }
     return auth;
   }, [checkAuth]);
 
@@ -502,6 +515,10 @@ function App() {
   const effectiveBatchMove = isPrivateView || !isAdmin ? () => { } : handleBatchMove;
   const handleLinkSelect = isPrivateView || !isAdmin ? () => { } : toggleLinkSelection;
 
+  const handleEditDisabled = useCallback(() => {
+    notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+  }, [notify]);
+
   // === Context Menu ===
   const {
     contextMenu,
@@ -549,6 +566,12 @@ function App() {
   const canSortCategory = isAdmin && selectedCategory !== 'all'
     && selectedCategory !== PRIVATE_CATEGORY_ID
     && displayedLinks.length > 1;
+
+  useEffect(() => {
+    if (isAdmin) return;
+    if (isSortingPinned) cancelPinnedSorting();
+    if (isSortingMode) cancelSorting();
+  }, [isAdmin, isSortingPinned, isSortingMode, cancelPinnedSorting, cancelSorting]);
 
   // === Computed: Link Counts ===
   const linkCounts = useMemo(() => {
@@ -1066,70 +1089,72 @@ function App() {
     if (trimmed === lastSyncPasswordRef.current) return;
     lastSyncPasswordRef.current = trimmed;
 
-    if (syncPasswordRefreshTimerRef.current) {
-      clearTimeout(syncPasswordRefreshTimerRef.current);
-      syncPasswordRefreshTimerRef.current = null;
+    // 任何密码变更都会退出管理员会话，需要重新点击“登录”验证
+    localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+    cancelPendingSync();
+
+    if (syncRole === 'admin' && isSyncProtected) {
+      setSyncRole('user');
+    }
+  }, [cancelPendingSync, isSyncProtected, syncRole]);
+
+  const handleVerifySyncPassword = useCallback(async (): Promise<VerifySyncPasswordResult> => {
+    if (!isSyncProtected) {
+      // 未开启密码保护：所有访问者默认拥有管理员权限
+      setSyncRole('admin');
+      return { success: true, role: 'admin' };
     }
 
-    if (!trimmed) {
-      isSyncPasswordRefreshingRef.current = true;
-      syncPasswordRefreshIdRef.current += 1;
-      const refreshId = syncPasswordRefreshIdRef.current;
-      refreshSyncAuth()
-        .then(auth => performPull(auth.role))
-        .finally(() => {
-          if (syncPasswordRefreshIdRef.current === refreshId) {
-            isSyncPasswordRefreshingRef.current = false;
-          }
-        });
-      return;
+    const password = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    if (!password) {
+      localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+      setSyncRole('user');
+      return { success: false, role: 'user', error: '请输入密码后点击登录' };
     }
 
     cancelPendingSync();
     isSyncPasswordRefreshingRef.current = true;
-    syncPasswordRefreshIdRef.current += 1;
-    const refreshId = syncPasswordRefreshIdRef.current;
-    syncPasswordRefreshTimerRef.current = setTimeout(() => {
-      syncPasswordRefreshTimerRef.current = null;
-      refreshSyncAuth()
-        .then(auth => performPull(auth.role))
-        .finally(() => {
-          if (syncPasswordRefreshIdRef.current === refreshId) {
-            isSyncPasswordRefreshingRef.current = false;
-          }
-        });
-    }, 600);
-  }, [cancelPendingSync, refreshSyncAuth, performPull]);
-
-  const handleVerifySyncPassword = useCallback(async (): Promise<SyncRole> => {
-    if (syncPasswordRefreshTimerRef.current) {
-      clearTimeout(syncPasswordRefreshTimerRef.current);
-      syncPasswordRefreshTimerRef.current = null;
-    }
-
-    cancelPendingSync();
-    isSyncPasswordRefreshingRef.current = true;
-    syncPasswordRefreshIdRef.current += 1;
-    const refreshId = syncPasswordRefreshIdRef.current;
 
     try {
+      const response = await fetch(`${SYNC_API_ENDPOINT}?action=login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Sync-Password': password
+        },
+        body: JSON.stringify({ deviceId: getDeviceId() })
+      });
+
+      const result = await response.json();
+
+      if (!result?.success) {
+        localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+        setSyncRole('user');
+        await refreshSyncAuth();
+        return {
+          success: false,
+          role: 'user',
+          error: result?.error || '登录失败',
+          lockedUntil: typeof result?.lockedUntil === 'number' ? result.lockedUntil : undefined,
+          retryAfterSeconds: typeof result?.retryAfterSeconds === 'number' ? result.retryAfterSeconds : undefined,
+          remainingAttempts: typeof result?.remainingAttempts === 'number' ? result.remainingAttempts : undefined,
+          maxAttempts: typeof result?.maxAttempts === 'number' ? result.maxAttempts : undefined
+        };
+      }
+
+      localStorage.setItem(SYNC_ADMIN_SESSION_KEY, '1');
       const auth = await refreshSyncAuth();
       await performPull(auth.role);
-      return auth.role;
-    } finally {
-      if (syncPasswordRefreshIdRef.current === refreshId) {
-        isSyncPasswordRefreshingRef.current = false;
-      }
-    }
-  }, [cancelPendingSync, refreshSyncAuth, performPull]);
 
-  useEffect(() => {
-    return () => {
-      if (syncPasswordRefreshTimerRef.current) {
-        clearTimeout(syncPasswordRefreshTimerRef.current);
-      }
-    };
-  }, []);
+      return { success: true, role: auth.role };
+    } catch (error: any) {
+      localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+      setSyncRole('user');
+      return { success: false, role: 'user', error: error.message || '网络错误' };
+    } finally {
+      isSyncPasswordRefreshingRef.current = false;
+    }
+  }, [cancelPendingSync, isSyncProtected, refreshSyncAuth, performPull]);
 
   const handleRestoreBackup = useCallback(async (backupKey: string) => {
     if (!isAdmin) {
@@ -1369,6 +1394,7 @@ function App() {
             siteCardStyle={siteSettings.cardStyle}
             themeMode={themeMode}
             darkMode={darkMode}
+            canEdit={isAdmin}
             isMobileSearchOpen={isMobileSearchOpen}
             searchMode={searchMode}
             searchQuery={searchQuery}
@@ -1421,6 +1447,7 @@ function App() {
             onCancelCategorySorting={cancelSorting}
             onAddLink={handleAddLinkRequest}
             onOpenSettings={() => setIsSettingsModalOpen(true)}
+            onEditDisabled={handleEditDisabled}
           />
 
           <LinkSections

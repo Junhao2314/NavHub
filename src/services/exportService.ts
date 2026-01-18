@@ -69,14 +69,24 @@ export const generateBookmarkHtml = (links: LinkItem[], categories: Category[]):
   return html;
 };
 
-export const downloadHtmlFile = (content: string, filename: string = 'bookmarks.html') => {
-  const blob = new Blob([content], { type: 'text/html' });
+const triggerDownload = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+export const downloadHtmlFile = (content: string, filename: string = 'bookmarks.html') => {
+  const blob = new Blob([content], { type: "text/html" });
+  triggerDownload(blob, filename);
+};
+
+export const downloadJsonFile = (data: unknown, filename: string = "navhub_backup.json") => {
+  const content = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  const blob = new Blob([content], { type: "application/json" });
+  triggerDownload(blob, filename);
 };

@@ -57,6 +57,26 @@ const KV_MAIN_DATA_KEY = 'ynav:data';
 const KV_BACKUP_PREFIX = 'ynav:backup:';
 const BACKUP_TTL_SECONDS = 30 * 24 * 60 * 60;
 
+// Auth Security (brute-force protection)
+const AUTH_MAX_FAILED_ATTEMPTS = 5;
+const AUTH_LOCKOUT_SECONDS = 60 * 60; // 1 hour
+const KV_AUTH_ATTEMPT_PREFIX = 'ynav:auth_attempt:';
+
+interface AuthAttemptRecord {
+    failedCount: number;
+    lockedUntil: number; // timestamp (ms)
+    updatedAt: number;
+}
+
+type BackupKind = 'manual' | 'rollback';
+
+function getBackupKindFromKey(backupKey: string): BackupKind {
+    const suffix = backupKey.startsWith(KV_BACKUP_PREFIX)
+        ? backupKey.slice(KV_BACKUP_PREFIX.length)
+        : backupKey;
+    return suffix.startsWith('rollback-') ? 'rollback' : 'manual';
+}
+
 // ============================================
 // 辅助函数
 // ============================================
@@ -67,18 +87,99 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'Content-Type, X-Sync-Password',
 };
 
-function jsonResponse(data: any, status = 200): Response {
+function jsonResponse(data: any, status = 200, extraHeaders: Record<string, string> = {}): Response {
     return new Response(JSON.stringify(data), {
         status,
         headers: {
             'Content-Type': 'application/json',
-            ...corsHeaders
+            ...corsHeaders,
+            ...extraHeaders
         }
     });
 }
 
 function isSyncProtected(env: Env): boolean {
     return !!(env.SYNC_PASSWORD && env.SYNC_PASSWORD.trim() !== '');
+}
+
+function getClientIp(request: Request): string {
+    const cfIp = request.headers.get('CF-Connecting-IP');
+    if (cfIp) return cfIp;
+
+    const forwardedFor = request.headers.get('X-Forwarded-For');
+    if (forwardedFor) return forwardedFor.split(',')[0]?.trim() || 'unknown';
+
+    return 'unknown';
+}
+
+function getAuthAttemptKey(request: Request): string {
+    return `${KV_AUTH_ATTEMPT_PREFIX}${getClientIp(request)}`;
+}
+
+function buildLockoutResponse(lockedUntil: number, now: number): Response {
+    const retryAfterSeconds = Math.max(1, Math.ceil((lockedUntil - now) / 1000));
+    return jsonResponse({
+        success: false,
+        error: '登录失败：连续输入错误次数过多，请稍后重试',
+        lockedUntil,
+        retryAfterSeconds,
+        maxAttempts: AUTH_MAX_FAILED_ATTEMPTS
+    }, 429, { 'Retry-After': String(retryAfterSeconds) });
+}
+
+async function requireAdminAccess(request: Request, env: Env): Promise<Response | null> {
+    if (!isSyncProtected(env)) {
+        return null;
+    }
+
+    const providedPassword = (request.headers.get('X-Sync-Password') || '').trim();
+    if (!providedPassword) {
+        return jsonResponse({ success: false, error: 'Unauthorized: 管理员密码错误或未提供' }, 401);
+    }
+
+    const attemptKey = getAuthAttemptKey(request);
+    const now = Date.now();
+    const record = await env.YNAV_WORKER_KV.get(attemptKey, 'json') as AuthAttemptRecord | null;
+
+    if (record?.lockedUntil && now < record.lockedUntil) {
+        return buildLockoutResponse(record.lockedUntil, now);
+    }
+
+    if (providedPassword !== env.SYNC_PASSWORD) {
+        const nextFailedCount = (record?.failedCount || 0) + 1;
+        const remainingAttempts = Math.max(0, AUTH_MAX_FAILED_ATTEMPTS - nextFailedCount);
+        const lockedUntil = nextFailedCount >= AUTH_MAX_FAILED_ATTEMPTS
+            ? now + AUTH_LOCKOUT_SECONDS * 1000
+            : 0;
+
+        const nextRecord: AuthAttemptRecord = {
+            failedCount: nextFailedCount,
+            lockedUntil,
+            updatedAt: now
+        };
+
+        await env.YNAV_WORKER_KV.put(attemptKey, JSON.stringify(nextRecord), {
+            expirationTtl: AUTH_LOCKOUT_SECONDS
+        });
+
+        if (lockedUntil) {
+            return buildLockoutResponse(lockedUntil, now);
+        }
+
+        return jsonResponse({
+            success: false,
+            error: '密码错误',
+            remainingAttempts,
+            maxAttempts: AUTH_MAX_FAILED_ATTEMPTS
+        }, 401);
+    }
+
+    // 登录成功/密码正确，清空错误计数
+    if (record) {
+        await env.YNAV_WORKER_KV.delete(attemptKey);
+    }
+
+    return null;
 }
 
 function isAdminRequest(request: Request, env: Env): boolean {
@@ -108,7 +209,6 @@ function sanitizePublicData(data: YNavSyncData): YNavSyncData {
 async function handleApiSync(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const action = url.searchParams.get('action');
-    const isAdmin = isAdminRequest(request, env);
 
     // CORS 预检
     if (request.method === 'OPTIONS') {
@@ -118,21 +218,28 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
     try {
         if (request.method === 'GET') {
             if (action === 'auth') {
-                return handleAuth(request, env);
+                return await handleAuth(request, env);
+            }
+            if (action === 'backup') {
+                const authError = await requireAdminAccess(request, env);
+                if (authError) return authError;
+                return await handleGetBackup(request, env);
             }
             if (action === 'backups') {
-                if (!isAdmin) {
-                    return jsonResponse({ success: false, error: 'Unauthorized: 管理员密码错误或未提供' }, 401);
-                }
+                const authError = await requireAdminAccess(request, env);
+                if (authError) return authError;
                 return await handleListBackups(env);
             }
             return await handleGet(request, env);
         }
 
         if (request.method === 'POST') {
-            if (!isAdmin) {
-                return jsonResponse({ success: false, error: 'Unauthorized: 管理员密码错误或未提供' }, 401);
+            if (action === 'login') {
+                return await handleLogin(request, env);
             }
+
+            const authError = await requireAdminAccess(request, env);
+            if (authError) return authError;
             if (action === 'backup') {
                 return await handleBackup(request, env);
             }
@@ -143,10 +250,9 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
         }
 
         if (request.method === 'DELETE') {
-            if (!isAdmin) {
-                return jsonResponse({ success: false, error: 'Unauthorized: 管理员密码错误或未提供' }, 401);
-            }
             if (action === 'backup') {
+                const authError = await requireAdminAccess(request, env);
+                if (authError) return authError;
                 return await handleDeleteBackup(request, env);
             }
         }
@@ -157,8 +263,15 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
     }
 }
 
-function handleAuth(request: Request, env: Env): Response {
+async function handleAuth(request: Request, env: Env): Promise<Response> {
     const protectedMode = isSyncProtected(env);
+
+    const providedPassword = (request.headers.get('X-Sync-Password') || '').trim();
+    if (protectedMode && providedPassword) {
+        const authError = await requireAdminAccess(request, env);
+        if (authError) return authError;
+    }
+
     const isAdmin = isAdminRequest(request, env);
     return jsonResponse({
         success: true,
@@ -168,7 +281,24 @@ function handleAuth(request: Request, env: Env): Response {
     });
 }
 
+async function handleLogin(request: Request, env: Env): Promise<Response> {
+    if (!isSyncProtected(env)) {
+        return jsonResponse({ success: true, protected: false, role: 'admin', canWrite: true });
+    }
+
+    const authError = await requireAdminAccess(request, env);
+    if (authError) return authError;
+
+    return jsonResponse({ success: true, protected: true, role: 'admin', canWrite: true });
+}
+
 async function handleGet(request: Request, env: Env): Promise<Response> {
+    const providedPassword = (request.headers.get('X-Sync-Password') || '').trim();
+    if (isSyncProtected(env) && providedPassword) {
+        const authError = await requireAdminAccess(request, env);
+        if (authError) return authError;
+    }
+
     const isAdmin = isAdminRequest(request, env);
     const data = await env.YNAV_WORKER_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
     if (!data) {
@@ -232,6 +362,22 @@ async function handleBackup(request: Request, env: Env): Promise<Response> {
     return jsonResponse({ success: true, backupKey, message: `备份成功: ${backupKey}` });
 }
 
+async function handleGetBackup(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    const backupKey = url.searchParams.get('backupKey') || url.searchParams.get('key');
+
+    if (!backupKey || !backupKey.startsWith(KV_BACKUP_PREFIX)) {
+        return jsonResponse({ success: false, error: '无效的备份 key' }, 400);
+    }
+
+    const backupData = await env.YNAV_WORKER_KV.get(backupKey, 'json') as YNavSyncData | null;
+    if (!backupData) {
+        return jsonResponse({ success: false, error: '备份不存在或已过期' }, 404);
+    }
+
+    return jsonResponse({ success: true, data: backupData });
+}
+
 async function handleRestore(request: Request, env: Env): Promise<Response> {
     const body = await request.json() as { backupKey?: string; deviceId?: string };
     const backupKey = body.backupKey;
@@ -289,6 +435,7 @@ async function handleListBackups(env: Env): Promise<Response> {
             key: key.name,
             timestamp: key.name.replace(KV_BACKUP_PREFIX, ''),
             expiration: key.expiration,
+            kind: getBackupKindFromKey(key.name),
             deviceId: meta?.deviceId,
             updatedAt: meta?.updatedAt,
             version: meta?.version,

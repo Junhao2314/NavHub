@@ -25,6 +25,7 @@ import {
     SYNC_API_ENDPOINT,
     SYNC_META_KEY,
     SYNC_PASSWORD_KEY,
+    SYNC_ADMIN_SESSION_KEY,
     getDeviceId,
     getDeviceInfo
 } from '../utils/constants';
@@ -86,9 +87,10 @@ const saveLocalSyncMeta = (meta: SyncMetadata): void => {
 
 const getAuthHeaders = (): HeadersInit => {
     const password = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    const isAdminSession = localStorage.getItem(SYNC_ADMIN_SESSION_KEY) === '1';
     return {
         'Content-Type': 'application/json',
-        ...(password ? { 'X-Sync-Password': password } : {})
+        ...(password && isAdminSession ? { 'X-Sync-Password': password } : {})
     };
 };
 
