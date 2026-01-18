@@ -9,6 +9,8 @@ interface DataTabProps {
     onRestoreBackup: (backupKey: string) => Promise<boolean>;
     onDeleteBackup: (backupKey: string) => Promise<boolean>;
     onSyncPasswordChange: (password: string) => void;
+    syncRole: 'admin' | 'user';
+    isSyncProtected: boolean;
     useSeparatePrivacyPassword: boolean;
     onMigratePrivacyMode: (payload: { useSeparatePassword: boolean; oldPassword: string; newPassword: string }) => Promise<boolean>;
     privacyGroupEnabled: boolean;
@@ -35,6 +37,8 @@ const DataTab: React.FC<DataTabProps> = ({
     onRestoreBackup,
     onDeleteBackup,
     onSyncPasswordChange,
+    syncRole,
+    isSyncProtected,
     useSeparatePrivacyPassword,
     onMigratePrivacyMode,
     privacyGroupEnabled,
@@ -216,8 +220,13 @@ const DataTab: React.FC<DataTabProps> = ({
     }, [privacyTarget, privacyOldPassword, privacyNewPassword, onMigratePrivacyMode, resetPrivacyMigration]);
 
     useEffect(() => {
+        if (syncRole !== 'admin') {
+            setBackups([]);
+            setBackupError(null);
+            return;
+        }
         fetchBackups();
-    }, [fetchBackups]);
+    }, [fetchBackups, syncRole]);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -261,11 +270,22 @@ const DataTab: React.FC<DataTabProps> = ({
                                 {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                             </button>
                         </div>
-                        <p className="text-[10px] text-green-600/80 dark:text-green-400/80 mt-1.5 leading-relaxed">
-                            如需增强安全性，请在 Cloudflare Pages 后台设置 <code>SYNC_PASSWORD</code> 环境变量，并在此处输入相同密码。
-                        </p>
-                    </div>
-                </div>
+                         <p className="text-[10px] text-green-600/80 dark:text-green-400/80 mt-1.5 leading-relaxed">
+                             如需增强安全性，请在 Cloudflare Pages 后台设置 <code>SYNC_PASSWORD</code> 环境变量，并在此处输入相同密码。
+                         </p>
+                         <div className="mt-2 flex items-center justify-between text-[10px] text-green-700/80 dark:text-green-300/80">
+                             <span>当前模式：</span>
+                             <span className={`font-semibold ${syncRole === 'admin' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                                 {syncRole === 'admin' ? '管理员' : '用户'}
+                             </span>
+                         </div>
+                         {!isSyncProtected && (
+                             <div className="mt-1 text-[10px] text-green-600/80 dark:text-green-400/80">
+                                 未开启密码保护：所有访问者默认拥有管理员权限。
+                             </div>
+                         )}
+                     </div>
+                 </div>
 
                 {/* Privacy Vault */}
                 <div className="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/40">
@@ -418,6 +438,7 @@ const DataTab: React.FC<DataTabProps> = ({
                 <div className="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/40">
                     <div className="flex items-center justify-between mb-3">
                         <div className="text-sm font-bold text-slate-700 dark:text-slate-200">云端备份列表</div>
+                        {syncRole === 'admin' && (
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
@@ -438,8 +459,15 @@ const DataTab: React.FC<DataTabProps> = ({
                                 刷新
                             </button>
                         </div>
+                        )}
                     </div>
 
+                    {syncRole !== 'admin' ? (
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                            用户模式下不显示备份列表。输入管理员密码后可创建、恢复与删除备份。
+                        </div>
+                    ) : (
+                    <>
                     {createError && (
                         <div className="mb-2 text-xs text-red-600 dark:text-red-400">{createError}</div>
                     )}
@@ -506,15 +534,22 @@ const DataTab: React.FC<DataTabProps> = ({
                             })}
                         </div>
                     )}
+                    </>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
                     <button
                         onClick={() => {
+                            if (syncRole !== 'admin') return;
                             onOpenImport();
                             onClose();
                         }}
-                        className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 hover:border-accent hover:bg-accent/5 dark:hover:bg-accent/10 transition-all group"
+                        disabled={syncRole !== 'admin'}
+                        className={`flex flex-col items-center justify-center gap-3 p-6 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 transition-all group ${syncRole === 'admin'
+                            ? 'hover:border-accent hover:bg-accent/5 dark:hover:bg-accent/10'
+                            : 'opacity-60 cursor-not-allowed'
+                            }`}
                     >
                         <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:text-accent group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors shadow-sm">
                             <Upload size={24} />

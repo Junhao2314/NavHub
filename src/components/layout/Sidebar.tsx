@@ -47,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   // 状态机：'typing' | 'pausing' | 'deleting'
   const [phase, setPhase] = React.useState<'typing' | 'pausing' | 'deleting'>('typing');
-  const [targetText, setTargetText] = React.useState('Nav'); // 当前要显示的目标文本
+  const [targetText, setTargetText] = React.useState('NavHub'); // 当前要显示的目标文本
   const [displayText, setDisplayText] = React.useState(''); // 实际显示的文本
 
   // 核心打字机逻辑
@@ -56,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     const typeSpeed = 150;
     const deleteSpeed = 100;
-    const navPause = 5000; // Nav 停留较久
+    const navPause = 5000; // 品牌名停留较久
     const timePauseMin = 3000;
     const timePauseMax = 6000; // 时间停留 3-6秒
 
@@ -83,7 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     } else if (phase === 'pausing') {
       // 决定停留多久
       let delay = navPause;
-      if (targetText !== 'Nav') {
+      if (targetText !== 'NavHub') {
         // 如果是时间，停留 3-6 秒
         delay = Math.floor(Math.random() * (timePauseMax - timePauseMin + 1)) + timePauseMin;
       }
@@ -99,16 +99,16 @@ const Sidebar: React.FC<SidebarProps> = ({
         }, deleteSpeed);
       } else {
         // 删除完毕，决定下一个文本
-        let nextText = 'Nav';
+        let nextText = 'NavHub';
 
-        if (targetText === 'Nav') {
-          // 当前是 Nav，准备切换到其他信息
+        if (targetText === 'NavHub') {
+          // 当前是品牌名，准备切换到其他信息
           // 20% 概率显示日期，80% 显示时间
           const showDate = Math.random() < 0.2;
           nextText = showDate ? getCurrentDate() : getCurrentTime();
         } else {
-          // 当前是时间或日期，切回 Nav
-          nextText = 'Nav';
+          // 当前是时间或日期，切回品牌名
+          nextText = 'NavHub';
         }
 
         setTargetText(nextText);
@@ -136,22 +136,20 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="h-9 w-9 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-white/10 flex items-center justify-center transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-accent/20 hover:border-accent/30 hover:bg-white dark:hover:bg-slate-800 hover:scale-105 active:scale-95 group"
               title="展开侧边栏"
             >
-              <span className="font-mono font-black text-xl text-slate-700 dark:text-slate-200 group-hover:text-accent transition-colors duration-300">Y</span>
+              <span className="font-mono font-black text-xl text-slate-700 dark:text-slate-200 group-hover:text-accent transition-colors duration-300">N</span>
             </button>
           ) : (
             <div className="relative flex items-center justify-center font-mono font-bold text-lg cursor-pointer select-none group" title={navTitleText}>
               {/* Ghost element for layout sizing (holds the widest possible width) */}
               <div className="flex items-center opacity-0 pointer-events-none" aria-hidden="true">
                 <span className="mr-1.5">~/</span>
-                <span className="tracking-tight">Y-</span>
-                <span className="tracking-tight">00:00</span>
+                <span className="tracking-tight">NavHub</span>
                 <span className="w-2.5 ml-1"></span>
               </div>
 
               {/* Visible animated content */}
               <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center">
                 <span className="text-accent mr-1.5">~/</span>
-                <span className="text-slate-700 dark:text-slate-200 tracking-tight">Y-</span>
                 <span className="text-slate-700 dark:text-slate-200 tracking-tight">{displayText}</span>
                 <span className="w-2.5 h-5 bg-accent ml-1 animate-pulse rounded-[2px] opacity-80 shadow-[0_0_8px_rgb(var(--accent-color)/0.6)]"></span>
               </div>
@@ -294,7 +292,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {!isSidebarCollapsed && (
           <div className="px-3 pb-4">
             <div className="flex w-full items-center justify-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-              <span className="font-mono font-semibold">元启 v{__APP_VERSION__}</span>
+              <span className="font-mono font-semibold">NavHub v{__APP_VERSION__}</span>
               <span className="text-slate-300 dark:text-slate-600">·</span>
               <a
                 href={repoUrl}

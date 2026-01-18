@@ -1,4 +1,4 @@
-# Y-Nav (元启) - 你的 AI 智能导航仪表盘
+# NavHub - AI 智能导航仪
 
 <div align="center">
 
@@ -49,7 +49,7 @@
 
 ### 1. 一键部署到 Cloudflare Pages
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yml2213/Y-Nav)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yml2213/NavHub)
 
 - 点击按钮后按提示授权 GitHub 与 Cloudflare
 - 选择你的 GitHub 账号，Cloudflare 会自动创建 Pages 项目
@@ -99,7 +99,7 @@ jobs:
           fetch-depth: 0
       - name: Sync from upstream
         run: |
-          git remote add upstream https://github.com/yml2213/Y-Nav.git
+          git remote add upstream https://github.com/yml2213/NavHub.git
           git fetch upstream
           git checkout main
           git merge upstream/main --no-edit
@@ -172,7 +172,7 @@ id = "你的 Namespace ID"  # ← 替换这里
 
 提交 `wrangler.toml` 的修改并推送到 `main` 分支，GitHub Actions 会自动构建并部署。
 
-部署成功后，访问：`https://y-nav.<你的账号>.workers.dev`
+部署成功后，访问：`https://navhub.<你的账号>.workers.dev`
 
 ### 步骤 8：绑定自定义域名（可选，实现优选 IP）
 
@@ -208,7 +208,7 @@ id = "你的 Namespace ID"  # ← 替换这里
 **方法二：命令行**
 
 ```bash
-git remote add upstream https://github.com/yml2213/Y-Nav.git
+git remote add upstream https://github.com/yml2213/NavHub.git
 git fetch upstream
 git merge upstream/main
 git push
@@ -222,8 +222,8 @@ git push
 
 ```bash
 # 克隆仓库
-git clone https://github.com/你的用户名/Y-Nav.git
-cd Y-Nav
+git clone https://github.com/你的用户名/NavHub.git
+cd NavHub
 
 # 安装依赖
 npm install
@@ -242,7 +242,7 @@ npm run dev:workers
 ## 📦 项目结构
 
 ```
-Y-Nav/
+NavHub/
 ├── src/                    # React 前端源码
 ├── functions/              # Cloudflare Pages Functions (API)
 │   └── api/sync.ts
@@ -281,6 +281,6 @@ Y-Nav/
 
 <div align="center">
 
-Made with ❤️ by Y-Nav Team
+Made with ❤️ by NavHub Team
 
 </div>

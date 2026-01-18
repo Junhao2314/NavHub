@@ -19,6 +19,8 @@ interface SettingsModalProps {
   onRestoreBackup: (backupKey: string) => Promise<boolean>;
   onDeleteBackup: (backupKey: string) => Promise<boolean>;
   onSyncPasswordChange: (password: string) => void;
+  syncRole: 'admin' | 'user';
+  isSyncProtected: boolean;
   useSeparatePrivacyPassword: boolean;
   onMigratePrivacyMode: (payload: { useSeparatePassword: boolean; oldPassword: string; newPassword: string }) => Promise<boolean>;
   privacyGroupEnabled: boolean;
@@ -41,6 +43,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onRestoreBackup,
   onDeleteBackup,
   onSyncPasswordChange,
+  syncRole,
+  isSyncProtected,
   useSeparatePrivacyPassword,
   onMigratePrivacyMode,
   privacyGroupEnabled,
@@ -52,7 +56,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [activeTab, setActiveTab] = useState<'site' | 'ai' | 'appearance' | 'data'>('site');
   const [localConfig, setLocalConfig] = useState<AIConfig>(config);
   const [localSiteSettings, setLocalSiteSettings] = useState<SiteSettings>(() => ({
-    title: siteSettings?.title || '元启 - AI 智能导航',
+    title: siteSettings?.title || 'NavHub - AI 智能导航仪',
+    navTitle: siteSettings?.navTitle || 'NavHub',
     favicon: siteSettings?.favicon || '',
     cardStyle: siteSettings?.cardStyle || 'detailed',
     accentColor: siteSettings?.accentColor || '99 102 241',
@@ -67,7 +72,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     if (isOpen) {
       setLocalConfig(config);
       setLocalSiteSettings({
-        title: siteSettings?.title || '元启 - AI 智能导航',
+        title: siteSettings?.title || 'NavHub - AI 智能导航仪',
+        navTitle: siteSettings?.navTitle || 'NavHub',
         favicon: siteSettings?.favicon || '',
         cardStyle: siteSettings?.cardStyle || 'detailed',
         accentColor: siteSettings?.accentColor || '99 102 241',
@@ -191,6 +197,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               onRestoreBackup={onRestoreBackup}
               onDeleteBackup={onDeleteBackup}
               onSyncPasswordChange={onSyncPasswordChange}
+              syncRole={syncRole}
+              isSyncProtected={isSyncProtected}
               useSeparatePrivacyPassword={useSeparatePrivacyPassword}
               onMigratePrivacyMode={onMigratePrivacyMode}
               privacyGroupEnabled={privacyGroupEnabled}
@@ -205,10 +213,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="p-6 pt-2 border-t border-transparent shrink-0">
           <button
             onClick={handleSave}
-            className="w-full bg-slate-900 dark:bg-accent text-white font-bold py-3.5 px-4 rounded-xl hover:bg-slate-800 dark:hover:bg-accent/90 transition-all shadow-lg shadow-slate-200 dark:shadow-none active:scale-[0.99] text-sm flex items-center justify-center gap-2"
+            disabled={syncRole !== 'admin'}
+            className={`w-full text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-slate-200 dark:shadow-none text-sm flex items-center justify-center gap-2 ${syncRole === 'admin'
+              ? 'bg-slate-900 dark:bg-accent hover:bg-slate-800 dark:hover:bg-accent/90 active:scale-[0.99]'
+              : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-70'
+              }`}
           >
             <Save size={16} />
-            <span>保存设置</span>
+            <span>{syncRole === 'admin' ? '保存设置' : '用户模式（仅管理员可保存）'}</span>
           </button>
         </div>
       </div>

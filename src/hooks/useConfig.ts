@@ -10,8 +10,8 @@ const DEFAULT_AI_CONFIG: AIConfig = {
 };
 
 const DEFAULT_SITE_SETTINGS: SiteSettings = {
-    title: '元启 - AI 智能导航',
-    navTitle: '元启',
+    title: 'NavHub - AI 智能导航仪',
+    navTitle: 'NavHub',
     favicon: '',
     cardStyle: 'detailed',
     accentColor: '99 102 241',
@@ -100,7 +100,7 @@ export function useConfig() {
     }, [siteSettings.title, siteSettings.favicon]);
 
     // Derived values
-    const navTitleText = siteSettings.navTitle || '元启';
+    const navTitleText = siteSettings.navTitle || 'NavHub';
     const navTitleShort = navTitleText.slice(0, 2);
 
     return {

@@ -27,7 +27,7 @@ export const SYNC_DEBOUNCE_MS = 3000; // 3秒内无新操作则触发同步
 export const SYNC_API_ENDPOINT = '/api/sync';
 
 // GitHub Repo URL
-export const GITHUB_REPO_URL = 'https://github.com/yml2213/Y-Nav.git';
+export const GITHUB_REPO_URL = 'https://github.com/yml2213/NavHub.git';
 
 // 获取浏览器信息
 const getBrowserInfo = (): string => {

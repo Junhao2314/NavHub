@@ -17,11 +17,11 @@ const getRandomColor = () => {
 
 const generateSvgIcon = (text: string, color1: string, color2: string) => {
     let char = '';
-    // Use first character of title, default to 'Y' if empty
+    // Use first character of title, default to 'N' if empty
     if (text && text.length > 0) {
         char = text.substring(0, 1).toUpperCase();
     } else {
-        char = 'Y';
+        char = 'N';
     }
 
     const gradientId = 'g_' + Math.random().toString(36).substr(2, 9);
@@ -67,7 +67,7 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
     // Initial generation
     useEffect(() => {
         if (generatedIcons.length === 0) {
-            updateGeneratedIcons(settings.title || 'Y-Nav');
+            updateGeneratedIcons(settings.title || 'NavHub');
         }
     }, []);
 

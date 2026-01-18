@@ -1,5 +1,5 @@
 /**
- * useSyncEngine - Y-Nav KV 同步引擎
+ * useSyncEngine - NavHub KV 同步引擎
  * 
  * 功能:
  *   - 页面加载时检测云端数据并处理冲突
@@ -36,6 +36,14 @@ interface UseSyncEngineOptions {
     onError?: (error: string) => void;
 }
 
+type SyncRole = 'admin' | 'user';
+
+interface SyncAuthState {
+    protected: boolean;
+    role: SyncRole;
+    canWrite: boolean;
+}
+
 // 同步引擎返回值
 interface UseSyncEngineReturn {
     // 状态
@@ -56,6 +64,9 @@ interface UseSyncEngineReturn {
 
     // 工具
     cancelPendingSync: () => void;
+
+    // 权限
+    checkAuth: () => Promise<SyncAuthState>;
 }
 
 // 获取当前本地的 sync meta
@@ -128,6 +139,28 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
             return null;
         }
     }, [onError]);
+
+    const checkAuth = useCallback(async (): Promise<SyncAuthState> => {
+        try {
+            const response = await fetch(`${SYNC_API_ENDPOINT}?action=auth`, {
+                headers: getAuthHeaders()
+            });
+            const result = await response.json();
+
+            if (!result?.success) {
+                return { protected: true, role: 'user', canWrite: false };
+            }
+
+            const role: SyncRole = result.role === 'admin' ? 'admin' : 'user';
+            return {
+                protected: !!result.protected,
+                role,
+                canWrite: !!result.canWrite
+            };
+        } catch {
+            return { protected: true, role: 'user', canWrite: false };
+        }
+    }, []);
 
     // 推送数据到云端
     const pushToCloud = useCallback(async (
@@ -361,7 +394,8 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         deleteBackup,
         resolveConflict,
         currentConflict,
-        cancelPendingSync
+        cancelPendingSync,
+        checkAuth
     };
 }
 

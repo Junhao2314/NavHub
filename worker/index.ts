@@ -1,5 +1,5 @@
 /**
- * Y-Nav Cloudflare Worker 入口
+ * NavHub Cloudflare Worker 入口
  * 
  * 功能:
  * 1. 托管静态资源 (SPA)
@@ -21,6 +21,7 @@ const assetManifest = JSON.parse(manifestJSON);
 interface KVNamespaceInterface {
     get(key: string, type?: 'text' | 'json' | 'arrayBuffer' | 'stream'): Promise<any>;
     put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+    delete(key: string): Promise<void>;
     list(options?: { prefix?: string }): Promise<{ keys: Array<{ name: string; expiration?: number }> }>;
 }
 
@@ -62,7 +63,7 @@ const BACKUP_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Sync-Password',
 };
 
@@ -76,12 +77,28 @@ function jsonResponse(data: any, status = 200): Response {
     });
 }
 
-function isAuthenticated(request: Request, env: Env): boolean {
-    if (!env.SYNC_PASSWORD || env.SYNC_PASSWORD.trim() === '') {
+function isSyncProtected(env: Env): boolean {
+    return !!(env.SYNC_PASSWORD && env.SYNC_PASSWORD.trim() !== '');
+}
+
+function isAdminRequest(request: Request, env: Env): boolean {
+    if (!isSyncProtected(env)) {
         return true;
     }
     const authHeader = request.headers.get('X-Sync-Password');
     return authHeader === env.SYNC_PASSWORD;
+}
+
+function sanitizePublicData(data: YNavSyncData): YNavSyncData {
+    const safeAiConfig = data.aiConfig && typeof data.aiConfig === 'object'
+        ? { ...data.aiConfig, apiKey: '' }
+        : undefined;
+
+    return {
+        ...data,
+        aiConfig: safeAiConfig,
+        privateVault: undefined
+    };
 }
 
 // ============================================
@@ -91,29 +108,31 @@ function isAuthenticated(request: Request, env: Env): boolean {
 async function handleApiSync(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const action = url.searchParams.get('action');
+    const isAdmin = isAdminRequest(request, env);
 
     // CORS 预检
     if (request.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
     }
 
-    // 鉴权检查
-    if (!isAuthenticated(request, env)) {
-        return jsonResponse({
-            success: false,
-            error: 'Unauthorized: 密码错误或未配置'
-        }, 401);
-    }
-
     try {
         if (request.method === 'GET') {
+            if (action === 'auth') {
+                return handleAuth(request, env);
+            }
             if (action === 'backups') {
+                if (!isAdmin) {
+                    return jsonResponse({ success: false, error: 'Unauthorized: 管理员密码错误或未提供' }, 401);
+                }
                 return await handleListBackups(env);
             }
-            return await handleGet(env);
+            return await handleGet(request, env);
         }
 
         if (request.method === 'POST') {
+            if (!isAdmin) {
+                return jsonResponse({ success: false, error: 'Unauthorized: 管理员密码错误或未提供' }, 401);
+            }
             if (action === 'backup') {
                 return await handleBackup(request, env);
             }
@@ -123,18 +142,43 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
             return await handlePost(request, env);
         }
 
+        if (request.method === 'DELETE') {
+            if (!isAdmin) {
+                return jsonResponse({ success: false, error: 'Unauthorized: 管理员密码错误或未提供' }, 401);
+            }
+            if (action === 'backup') {
+                return await handleDeleteBackup(request, env);
+            }
+        }
+
         return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
     } catch (error: any) {
         return jsonResponse({ success: false, error: error.message || '服务器错误' }, 500);
     }
 }
 
-async function handleGet(env: Env): Promise<Response> {
-    const data = await env.YNAV_WORKER_KV.get(KV_MAIN_DATA_KEY, 'json');
+function handleAuth(request: Request, env: Env): Response {
+    const protectedMode = isSyncProtected(env);
+    const isAdmin = isAdminRequest(request, env);
+    return jsonResponse({
+        success: true,
+        protected: protectedMode,
+        role: isAdmin ? 'admin' : 'user',
+        canWrite: isAdmin
+    });
+}
+
+async function handleGet(request: Request, env: Env): Promise<Response> {
+    const isAdmin = isAdminRequest(request, env);
+    const data = await env.YNAV_WORKER_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
     if (!data) {
         return jsonResponse({ success: true, data: null, message: '云端暂无数据' });
     }
-    return jsonResponse({ success: true, data });
+    return jsonResponse({
+        success: true,
+        role: isAdmin ? 'admin' : 'user',
+        data: isAdmin ? data : sanitizePublicData(data)
+    });
 }
 
 async function handlePost(request: Request, env: Env): Promise<Response> {
@@ -254,6 +298,23 @@ async function handleListBackups(env: Env): Promise<Response> {
     }));
 
     return jsonResponse({ success: true, backups });
+}
+
+async function handleDeleteBackup(request: Request, env: Env): Promise<Response> {
+    const body = await request.json() as { backupKey?: string };
+    const backupKey = body.backupKey;
+
+    if (!backupKey || !backupKey.startsWith(KV_BACKUP_PREFIX)) {
+        return jsonResponse({ success: false, error: '无效的备份 key' }, 400);
+    }
+
+    const backupData = await env.YNAV_WORKER_KV.get(backupKey, 'json');
+    if (!backupData) {
+        return jsonResponse({ success: false, error: '备份不存在或已过期' }, 404);
+    }
+
+    await env.YNAV_WORKER_KV.delete(backupKey);
+    return jsonResponse({ success: true, message: '备份已删除' });
 }
 
 // ============================================

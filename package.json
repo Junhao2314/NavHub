@@ -1,8 +1,8 @@
 {
-  "name": "Y-Nav",
+  "name": "navhub",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yml2213/Y-Nav.git"
+    "url": "https://github.com/yml2213/NavHub.git"
   },
   "private": true,
   "version": "0.1.4",
@@ -12,7 +12,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy:workers": "npm run build && wrangler deploy",
-    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name=y-nav",
+    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name=navhub",
     "kv:create": "wrangler kv:namespace create YNAV_WORKER_KV",
     "dev:workers": "npm run build && wrangler dev"
   },

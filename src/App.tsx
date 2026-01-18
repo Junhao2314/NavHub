@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, lazy, Suspense, useState, useCallback, useRef } from 'react';
-import { LinkItem, Category, SyncConflict, YNavSyncData } from './types';
+import { LinkItem, Category, SyncConflict, YNavSyncData, AIConfig, SiteSettings } from './types';
 
 // Lazy load modal components for better code splitting
 const LinkModal = lazy(() => import('./components/modals/LinkModal'));
@@ -46,6 +46,8 @@ import {
 } from './utils/constants';
 import { decryptPrivateVault, encryptPrivateVault } from './utils/privateVault';
 
+type SyncRole = 'admin' | 'user';
+
 function App() {
   // === Core Data ===
   const {
@@ -85,6 +87,9 @@ function App() {
   const syncPasswordRefreshIdRef = useRef(0);
   const lastSyncPasswordRef = useRef((localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim());
   const isSyncPasswordRefreshingRef = useRef(false);
+  const [syncRole, setSyncRole] = useState<SyncRole>('user');
+  const [isSyncProtected, setIsSyncProtected] = useState(false);
+  const isAdmin = syncRole === 'admin';
   const getLocalSyncMeta = useCallback(() => {
     const stored = localStorage.getItem(SYNC_META_KEY);
     if (!stored) return null;
@@ -145,19 +150,22 @@ function App() {
     setSyncConflictOpen(true);
   }, []);
 
-  const handleSyncComplete = useCallback((data: YNavSyncData) => {
-    // 当从云端恢复数据时更新本地数据
+  const applyCloudData = useCallback((data: YNavSyncData, role: SyncRole) => {
     if (data.links && data.categories) {
       updateData(data.links, data.categories);
     }
     if (data.searchConfig) {
       restoreSearchConfig(data.searchConfig);
     }
-    if (data.aiConfig) {
-      restoreAIConfig(data.aiConfig);
-    }
     if (data.siteSettings) {
       restoreSiteSettings(data.siteSettings);
+    }
+
+    // 用户模式：仅展示管理员最新内容，不覆盖本地敏感配置（如 AI Key、隐私分组）
+    if (role !== 'admin') return;
+
+    if (data.aiConfig) {
+      restoreAIConfig(data.aiConfig);
     }
     if (typeof data.privateVault === 'string') {
       setPrivateVaultCipher(data.privateVault);
@@ -173,7 +181,11 @@ function App() {
           });
       }
     }
-  }, [updateData, restoreAIConfig, restoreSiteSettings, isPrivateUnlocked, notify, privateVaultPassword]);
+  }, [updateData, restoreSiteSettings, restoreAIConfig, isPrivateUnlocked, notify, privateVaultPassword]);
+
+  const handleSyncComplete = useCallback((data: YNavSyncData) => {
+    applyCloudData(data, syncRole);
+  }, [applyCloudData, syncRole]);
 
   const handleSyncError = useCallback((error: string) => {
     console.error('[Sync Error]', error);
@@ -189,12 +201,24 @@ function App() {
     restoreBackup,
     deleteBackup,
     resolveConflict: resolveSyncConflict,
-    cancelPendingSync
+    cancelPendingSync,
+    checkAuth
   } = useSyncEngine({
     onConflict: handleSyncConflict,
     onSyncComplete: handleSyncComplete,
     onError: handleSyncError
   });
+
+  const refreshSyncAuth = useCallback(async () => {
+    const auth = await checkAuth();
+    setSyncRole(auth.role);
+    setIsSyncProtected(auth.protected);
+    return auth;
+  }, [checkAuth]);
+
+  useEffect(() => {
+    refreshSyncAuth();
+  }, [refreshSyncAuth]);
 
   // === Search ===
   const {
@@ -462,15 +486,21 @@ function App() {
   });
 
   const emptySelection = useMemo(() => new Set<string>(), []);
-  const effectiveIsBatchEditMode = isPrivateView ? false : isBatchEditMode;
-  const effectiveSelectedLinks = isPrivateView ? emptySelection : selectedLinks;
-  const effectiveSelectedLinksCount = isPrivateView ? 0 : selectedLinks.size;
-  const effectiveToggleBatchEditMode = isPrivateView ? () => {} : toggleBatchEditMode;
-  const effectiveSelectAll = isPrivateView ? () => {} : handleSelectAll;
-  const effectiveBatchDelete = isPrivateView ? () => {} : handleBatchDelete;
-  const effectiveBatchPin = isPrivateView ? () => {} : handleBatchPin;
-  const effectiveBatchMove = isPrivateView ? () => {} : handleBatchMove;
-  const handleLinkSelect = isPrivateView ? () => {} : toggleLinkSelection;
+  const effectiveIsBatchEditMode = isPrivateView || !isAdmin ? false : isBatchEditMode;
+  const effectiveSelectedLinks = isPrivateView || !isAdmin ? emptySelection : selectedLinks;
+  const effectiveSelectedLinksCount = isPrivateView || !isAdmin ? 0 : selectedLinks.size;
+  const effectiveToggleBatchEditMode = isPrivateView || !isAdmin
+    ? () => {
+      if (!isAdmin) {
+        notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      }
+    }
+    : toggleBatchEditMode;
+  const effectiveSelectAll = isPrivateView || !isAdmin ? () => { } : handleSelectAll;
+  const effectiveBatchDelete = isPrivateView || !isAdmin ? () => { } : handleBatchDelete;
+  const effectiveBatchPin = isPrivateView || !isAdmin ? () => { } : handleBatchPin;
+  const effectiveBatchMove = isPrivateView || !isAdmin ? () => { } : handleBatchMove;
+  const handleLinkSelect = isPrivateView || !isAdmin ? () => { } : toggleLinkSelection;
 
   // === Context Menu ===
   const {
@@ -515,8 +545,8 @@ function App() {
   });
 
   // === Computed: Sorting States ===
-  const canSortPinned = selectedCategory === 'all' && !searchQuery && pinnedLinks.length > 1;
-  const canSortCategory = selectedCategory !== 'all'
+  const canSortPinned = isAdmin && selectedCategory === 'all' && !searchQuery && pinnedLinks.length > 1;
+  const canSortCategory = isAdmin && selectedCategory !== 'all'
     && selectedCategory !== PRIVATE_CATEGORY_ID
     && displayedLinks.length > 1;
 
@@ -571,23 +601,39 @@ function App() {
 
   // === Handlers ===
   const handleImportConfirm = (newLinks: LinkItem[], newCategories: Category[]) => {
+    if (!isAdmin) {
+      notify('用户模式无法导入数据，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     importData(newLinks, newCategories);
     setIsImportModalOpen(false);
     notify(`成功导入 ${newLinks.length} 个新书签!`, 'success');
   };
 
   const handleAddLink = (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     addLink(data);
     setPrefillLink(undefined);
   };
 
   const handleEditLink = (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     if (!editingLink) return;
     updateLink({ ...data, id: editingLink.id });
     setEditingLink(undefined);
   };
 
   const handleDeleteLink = async (id: string) => {
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     const shouldDelete = await confirm({
       title: '删除链接',
       message: '确定删除此链接吗？',
@@ -685,33 +731,53 @@ function App() {
       openPrivateAddModal();
       return;
     }
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     openAddLinkModal();
-  }, [isPrivateView, openPrivateAddModal, openAddLinkModal]);
+  }, [isPrivateView, openPrivateAddModal, openAddLinkModal, isAdmin, notify]);
 
   const handleLinkEdit = useCallback((link: LinkItem) => {
     if (isPrivateView) {
       openPrivateEditModal(link);
       return;
     }
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     openEditLinkModal(link);
-  }, [isPrivateView, openEditLinkModal, openPrivateEditModal]);
+  }, [isPrivateView, openEditLinkModal, openPrivateEditModal, isAdmin, notify]);
 
   const handleLinkContextMenu = useCallback((event: React.MouseEvent, link: LinkItem) => {
-    if (isPrivateView) return;
+    if (isPrivateView || !isAdmin) return;
     handleContextMenu(event, link);
-  }, [handleContextMenu, isPrivateView]);
+  }, [handleContextMenu, isPrivateView, isAdmin]);
 
   const togglePin = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     togglePinStore(id);
   };
 
   const handleUpdateCategories = (newCats: Category[]) => {
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     updateData(links, newCats);
   };
 
   const handleDeleteCategory = (catId: string) => {
+    if (!isAdmin) {
+      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
     deleteCategoryStore(catId);
   };
 
@@ -824,6 +890,7 @@ function App() {
     hasInitialSyncRun.current = true;
 
     const checkCloudData = async () => {
+      const auth = await refreshSyncAuth();
       const localMeta = getLocalSyncMeta();
       const localVersion = localMeta?.version ?? 0;
       const localUpdatedAt = typeof localMeta?.updatedAt === 'number' ? localMeta.updatedAt : 0;
@@ -831,6 +898,11 @@ function App() {
       const cloudData = await pullFromCloud();
 
       if (cloudData && cloudData.links && cloudData.categories) {
+        if (auth.role !== 'admin') {
+          applyCloudData(cloudData, auth.role);
+          return;
+        }
+
         // 版本不一致时提示用户选择
         if (cloudData.meta.version !== localVersion) {
           const localData = buildSyncData(
@@ -850,7 +922,7 @@ function App() {
     };
 
     checkCloudData();
-  }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, getLocalSyncMeta]);
+  }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, getLocalSyncMeta, refreshSyncAuth, applyCloudData]);
 
   // === KV Sync: Auto-sync on data change ===
   const prevSyncDataRef = useRef<string | null>(null);
@@ -859,6 +931,7 @@ function App() {
     // 跳过初始加载阶段
     if (!isLoaded || !hasInitialSyncRun.current || currentConflict) return;
     if (isSyncPasswordRefreshingRef.current) return;
+    if (!isAdmin) return;
 
     const syncData = buildSyncData(
       links,
@@ -874,7 +947,28 @@ function App() {
       prevSyncDataRef.current = serialized;
       schedulePush(syncData);
     }
-  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, schedulePush, buildSyncData, currentConflict]);
+  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, schedulePush, buildSyncData, currentConflict, isAdmin]);
+
+  const handleSaveSettings = useCallback((nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
+    saveAIConfig(nextConfig, nextSiteSettings);
+
+    // 仅管理员可把“保存设置”同步到云端
+    if (!isAdmin) return;
+
+    const syncData = buildSyncData(
+      links,
+      categories,
+      { mode: searchMode, externalSources: externalSearchSources },
+      nextConfig,
+      nextSiteSettings,
+      privateVaultCipher || undefined
+    );
+
+    // 避免与自动同步重复触发
+    prevSyncDataRef.current = JSON.stringify(syncData);
+    cancelPendingSync();
+    void pushToCloud(syncData);
+  }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, buildSyncData, cancelPendingSync, pushToCloud]);
 
   // === Sync Conflict Resolution ===
   const handleResolveConflict = useCallback((choice: 'local' | 'remote') => {
@@ -889,6 +983,11 @@ function App() {
 
   // 手动触发同步
   const handleManualSync = useCallback(async () => {
+    if (!isAdmin) {
+      notify('用户模式无法写入云端，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return;
+    }
+
     const syncData = buildSyncData(
       links,
       categories,
@@ -898,9 +997,14 @@ function App() {
       privateVaultCipher || undefined
     );
     await pushToCloud(syncData);
-  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, pushToCloud]);
+  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, pushToCloud, isAdmin, notify]);
 
   const handleCreateBackup = useCallback(async () => {
+    if (!isAdmin) {
+      notify('用户模式无法创建云端备份，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return false;
+    }
+
     const syncData = buildSyncData(
       links,
       categories,
@@ -916,33 +1020,46 @@ function App() {
       notify('备份失败，请稍后重试', 'error');
     }
     return success;
-  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, createBackup, notify]);
+  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, createBackup, notify, isAdmin]);
 
-  const handleManualPull = useCallback(async () => {
+  const performPull = useCallback(async (role: SyncRole) => {
     const localMeta = getLocalSyncMeta();
     const localVersion = localMeta?.version ?? 0;
     const localUpdatedAt = typeof localMeta?.updatedAt === 'number' ? localMeta.updatedAt : 0;
     const localDeviceId = localMeta?.deviceId || getDeviceId();
+
     const cloudData = await pullFromCloud();
-    if (cloudData && cloudData.links && cloudData.categories) {
-      if (cloudData.meta.version !== localVersion) {
-        const localData = buildSyncData(
-          links,
-          categories,
-          { mode: searchMode, externalSources: externalSearchSources },
-          aiConfig,
-          siteSettings,
-          privateVaultCipher || undefined
-        );
-        handleSyncConflict({
-          localData: { ...localData, meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion } },
-          remoteData: cloudData
-        });
-        return;
-      }
-      handleSyncComplete(cloudData);
+    if (!cloudData || !cloudData.links || !cloudData.categories) return;
+
+    // 用户模式：直接以云端为准，不弹冲突
+    if (role !== 'admin') {
+      applyCloudData(cloudData, role);
+      return;
     }
-  }, [pullFromCloud, handleSyncComplete, getLocalSyncMeta, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict]);
+
+    // 管理员模式：版本不一致时提示用户选择
+    if (cloudData.meta.version !== localVersion) {
+      const localData = buildSyncData(
+        links,
+        categories,
+        { mode: searchMode, externalSources: externalSearchSources },
+        aiConfig,
+        siteSettings,
+        privateVaultCipher || undefined
+      );
+      handleSyncConflict({
+        localData: { ...localData, meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion } },
+        remoteData: cloudData
+      });
+      return;
+    }
+
+    applyCloudData(cloudData, role);
+  }, [getLocalSyncMeta, pullFromCloud, applyCloudData, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict]);
+
+  const handleManualPull = useCallback(async () => {
+    await performPull(syncRole);
+  }, [performPull, syncRole]);
 
   const handleSyncPasswordChange = useCallback((nextPassword: string) => {
     const trimmed = nextPassword.trim();
@@ -955,7 +1072,16 @@ function App() {
     }
 
     if (!trimmed) {
-      isSyncPasswordRefreshingRef.current = false;
+      isSyncPasswordRefreshingRef.current = true;
+      syncPasswordRefreshIdRef.current += 1;
+      const refreshId = syncPasswordRefreshIdRef.current;
+      refreshSyncAuth()
+        .then(auth => performPull(auth.role))
+        .finally(() => {
+          if (syncPasswordRefreshIdRef.current === refreshId) {
+            isSyncPasswordRefreshingRef.current = false;
+          }
+        });
       return;
     }
 
@@ -965,14 +1091,15 @@ function App() {
     const refreshId = syncPasswordRefreshIdRef.current;
     syncPasswordRefreshTimerRef.current = setTimeout(() => {
       syncPasswordRefreshTimerRef.current = null;
-      handleManualPull()
+      refreshSyncAuth()
+        .then(auth => performPull(auth.role))
         .finally(() => {
           if (syncPasswordRefreshIdRef.current === refreshId) {
             isSyncPasswordRefreshingRef.current = false;
           }
         });
     }, 600);
-  }, [cancelPendingSync, handleManualPull]);
+  }, [cancelPendingSync, refreshSyncAuth, performPull]);
 
   useEffect(() => {
     return () => {
@@ -983,6 +1110,11 @@ function App() {
   }, []);
 
   const handleRestoreBackup = useCallback(async (backupKey: string) => {
+    if (!isAdmin) {
+      notify('用户模式无法恢复云端备份，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return false;
+    }
+
     const confirmed = await confirm({
       title: '恢复云端备份',
       message: '此操作将用所选备份覆盖本地数据，并在云端创建一个回滚点。',
@@ -1009,9 +1141,14 @@ function App() {
     ));
     notify('已恢复到所选备份，并创建回滚点', 'success');
     return true;
-  }, [confirm, restoreBackup, handleSyncComplete, notify, buildSyncData]);
+  }, [confirm, restoreBackup, handleSyncComplete, notify, buildSyncData, isAdmin]);
 
   const handleDeleteBackup = useCallback(async (backupKey: string) => {
+    if (!isAdmin) {
+      notify('用户模式无法删除云端备份，请先输入 API 访问密码进入管理员模式。', 'warning');
+      return false;
+    }
+
     const confirmed = await confirm({
       title: '删除备份',
       message: '确定要删除此备份吗?此操作无法撤销。',
@@ -1029,7 +1166,7 @@ function App() {
 
     notify('备份已删除', 'success');
     return true;
-  }, [confirm, deleteBackup, notify]);
+  }, [confirm, deleteBackup, notify, isAdmin]);
 
   // === Render ===
   return (
@@ -1061,7 +1198,7 @@ function App() {
           onClose={() => setIsSettingsModalOpen(false)}
           config={aiConfig}
           siteSettings={siteSettings}
-          onSave={saveAIConfig}
+          onSave={handleSaveSettings}
           links={links}
           onUpdateLinks={(newLinks) => updateData(newLinks, categories)}
           onOpenImport={() => setIsImportModalOpen(true)}
@@ -1069,6 +1206,8 @@ function App() {
           onRestoreBackup={handleRestoreBackup}
           onDeleteBackup={handleDeleteBackup}
           onSyncPasswordChange={handleSyncPasswordChange}
+          syncRole={syncRole}
+          isSyncProtected={isSyncProtected}
           useSeparatePrivacyPassword={useSeparatePrivacyPassword}
           onMigratePrivacyMode={handleMigratePrivacyMode}
           privacyGroupEnabled={privacyGroupEnabled}
@@ -1101,7 +1240,7 @@ function App() {
         <SyncStatusIndicator
           status={syncStatus}
           lastSyncTime={lastSyncTime}
-          onManualSync={handleManualSync}
+          onManualSync={isAdmin ? handleManualSync : handleManualPull}
           onManualPull={handleManualPull}
         />
       </div>
@@ -1115,7 +1254,7 @@ function App() {
       )}
 
       {/* Sidebar */}
-      <Sidebar
+        <Sidebar
         sidebarOpen={sidebarOpen}
         sidebarWidthClass={sidebarWidthClass}
         isSidebarCollapsed={isSidebarCollapsed}
@@ -1132,8 +1271,20 @@ function App() {
         onSelectCategory={handleCategoryClick}
         onSelectPrivate={handleSelectPrivate}
         onToggleCollapsed={toggleSidebarCollapsed}
-        onOpenCategoryManager={() => setIsCatManagerOpen(true)}
-        onOpenImport={() => setIsImportModalOpen(true)}
+        onOpenCategoryManager={() => {
+          if (!isAdmin) {
+            notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+            return;
+          }
+          setIsCatManagerOpen(true);
+        }}
+        onOpenImport={() => {
+          if (!isAdmin) {
+            notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+            return;
+          }
+          setIsImportModalOpen(true);
+        }}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
       />
 
@@ -1210,7 +1361,13 @@ function App() {
             onSetTheme={setThemeAndApply}
             onViewModeChange={handleViewModeChange}
             onSearchModeChange={handleSearchModeChange}
-            onOpenSearchConfig={() => setIsSearchConfigModalOpen(true)}
+            onOpenSearchConfig={() => {
+              if (!isAdmin) {
+                notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+                return;
+              }
+              setIsSearchConfigModalOpen(true);
+            }}
             onSearchQueryChange={setSearchQuery}
             onExternalSearch={handleExternalSearch}
             onSearchSourceSelect={handleSearchSourceSelect}
@@ -1219,8 +1376,18 @@ function App() {
             onPopupHoverChange={setIsPopupHovered}
             onToggleMobileSearch={toggleMobileSearch}
             onToggleSearchSourcePopup={() => setShowSearchSourcePopup(prev => !prev)}
-            onStartPinnedSorting={startPinnedSorting}
+            onStartPinnedSorting={() => {
+              if (!isAdmin) {
+                notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+                return;
+              }
+              startPinnedSorting();
+            }}
             onStartCategorySorting={() => {
+              if (!isAdmin) {
+                notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
+                return;
+              }
               if (!isPrivateView) {
                 startSorting(selectedCategory);
               }
