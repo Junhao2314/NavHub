@@ -50,6 +50,9 @@ const getBackupKind = (backup: BackupItem): 'auto' | 'manual' => {
     return 'auto';
 };
 
+const SYNC_HISTORY_DISPLAY_LIMIT = 20;
+const SYNC_HISTORY_PAGE_SIZE = 10;
+
 const DataTab: React.FC<DataTabProps> = ({
     onOpenImport,
     onClose,
@@ -72,6 +75,7 @@ const DataTab: React.FC<DataTabProps> = ({
     const [syncPasswordMessage, setSyncPasswordMessage] = useState<string | null>(null);
     const [loginLockedUntil, setLoginLockedUntil] = useState<number | null>(null);
     const [backups, setBackups] = useState<BackupItem[]>([]);
+    const [syncHistoryPage, setSyncHistoryPage] = useState(1);
     const [isLoadingBackups, setIsLoadingBackups] = useState(false);
     const [backupError, setBackupError] = useState<string | null>(null);
     const [restoringKey, setRestoringKey] = useState<string | null>(null);
@@ -335,6 +339,19 @@ const DataTab: React.FC<DataTabProps> = ({
         fetchBackups();
     }, [fetchBackups, syncRole]);
 
+    useEffect(() => {
+        const display = backups.slice(0, SYNC_HISTORY_DISPLAY_LIMIT);
+        const totalPages = Math.max(1, Math.ceil(display.length / SYNC_HISTORY_PAGE_SIZE));
+        setSyncHistoryPage((prev) => (prev > totalPages ? totalPages : prev));
+    }, [backups]);
+
+    const displayBackups = backups.slice(0, SYNC_HISTORY_DISPLAY_LIMIT);
+    const totalBackupPages = Math.max(1, Math.ceil(displayBackups.length / SYNC_HISTORY_PAGE_SIZE));
+    const pagedBackups = displayBackups.slice(
+        (syncHistoryPage - 1) * SYNC_HISTORY_PAGE_SIZE,
+        syncHistoryPage * SYNC_HISTORY_PAGE_SIZE
+    );
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div>
@@ -576,7 +593,7 @@ const DataTab: React.FC<DataTabProps> = ({
                 {/* Backup List */}
                 <div className="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/40">
                     <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-bold text-slate-700 dark:text-slate-200">云端同步记录（最近 10 次）</div>
+                        <div className="text-sm font-bold text-slate-700 dark:text-slate-200">云端同步记录（最近 20 次）</div>
                         {syncRole === 'admin' && (
                         <div className="flex items-center gap-3 flex-wrap justify-end">
                             <button
@@ -610,13 +627,14 @@ const DataTab: React.FC<DataTabProps> = ({
                         <div className="text-xs text-red-600 dark:text-red-400">{backupError}</div>
                     )}
 
-                    {!isLoadingBackups && !backupError && backups.length === 0 && (
+                    {!isLoadingBackups && !backupError && displayBackups.length === 0 && (
                         <div className="text-xs text-slate-500 dark:text-slate-400">暂无记录</div>
                     )}
 
-                    {!isLoadingBackups && !backupError && backups.length > 0 && (
+                    {!isLoadingBackups && !backupError && displayBackups.length > 0 && (
+                        <>
                         <div className="space-y-2">
-                            {backups.map((backup) => {
+                            {pagedBackups.map((backup) => {
                                 const deviceLabel = formatDeviceLabel(backup.deviceId, backup.browser, backup.os);
                                 const showDeviceId = backup.deviceId && !backup.browser && !backup.os && deviceLabel !== backup.deviceId;
                                 const kind = getBackupKind(backup);
@@ -688,6 +706,33 @@ const DataTab: React.FC<DataTabProps> = ({
                                 );
                             })}
                         </div>
+                        {totalBackupPages > 1 && (
+                            <div className="mt-3 flex items-center justify-between gap-2">
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                                    第 {syncHistoryPage}/{totalBackupPages} 页
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: totalBackupPages }, (_, idx) => {
+                                        const page = idx + 1;
+                                        const isActive = page === syncHistoryPage;
+                                        return (
+                                            <button
+                                                key={page}
+                                                type="button"
+                                                onClick={() => setSyncHistoryPage(page)}
+                                                className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${isActive
+                                                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
+                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                    }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        </>
                     )}
                     </>
                     )}

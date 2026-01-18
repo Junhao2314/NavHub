@@ -46,7 +46,8 @@ const KV_MAIN_DATA_KEY = 'ynav:data';
 const KV_BACKUP_PREFIX = 'ynav:backup:';
 const BACKUP_TTL_SECONDS = 30 * 24 * 60 * 60;
 const KV_SYNC_HISTORY_PREFIX = `${KV_BACKUP_PREFIX}history-`;
-const MAX_SYNC_HISTORY = 10;
+const SYNC_HISTORY_RESPONSE_LIMIT = 20;
+const SYNC_HISTORY_RETENTION_LIMIT = 30;
 
 // Auth Security (brute-force protection)
 const AUTH_MAX_FAILED_ATTEMPTS = 5;
@@ -82,10 +83,10 @@ const buildHistoryKey = (now: number): string => {
 
 const trimSyncHistory = async (env: Env): Promise<void> => {
     const list = await env.YNAV_KV.list({ prefix: KV_SYNC_HISTORY_PREFIX });
-    if (!list?.keys || list.keys.length <= MAX_SYNC_HISTORY) return;
+    if (!list?.keys || list.keys.length <= SYNC_HISTORY_RETENTION_LIMIT) return;
 
     const sorted = [...list.keys].sort((a, b) => b.name.localeCompare(a.name));
-    const toDelete = sorted.slice(MAX_SYNC_HISTORY);
+    const toDelete = sorted.slice(SYNC_HISTORY_RETENTION_LIMIT);
     await Promise.all(toDelete.map((key) => env.YNAV_KV.delete(key.name)));
 };
 
@@ -575,6 +576,7 @@ async function handleListBackups(request: Request, env: Env): Promise<Response> 
     if (authError) return authError;
 
     try {
+        await trimSyncHistory(env);
         const currentData = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
         const currentVersion = currentData?.meta?.version;
 
@@ -609,7 +611,7 @@ async function handleListBackups(request: Request, env: Env): Promise<Response> 
             success: true,
             backups: backups
                 .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-                .slice(0, MAX_SYNC_HISTORY)
+                .slice(0, SYNC_HISTORY_RESPONSE_LIMIT)
         }), {
             headers: { 'Content-Type': 'application/json' }
         });

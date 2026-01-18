@@ -24,6 +24,12 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
     const shouldStopRef = useRef(false);
 
     const handleTestConnection = async () => {
+        if (!config.apiKey.trim()) {
+            notify("请先填写 API Key", 'warning');
+            setConnectionStatus('error');
+            return;
+        }
+
         setTestingConnection(true);
         setConnectionStatus('idle');
         try {
@@ -31,15 +37,27 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
             setConnectionStatus(result ? 'success' : 'error');
             if (result) {
                 setTimeout(() => setConnectionStatus('idle'), 3000);
+            } else {
+                if (config.provider === 'openai') {
+                    notify("连接失败：请检查 Base URL/模型/API Key。若直连被 CORS 拦截，请使用 Workers/Pages 部署以启用 /api/ai 代理。", 'error');
+                } else {
+                    notify("连接失败：请检查模型名称与 API Key", 'error');
+                }
             }
         } catch (e) {
             setConnectionStatus('error');
+            notify("连接测试异常，请查看控制台日志", 'error');
         } finally {
             setTestingConnection(false);
         }
     };
 
     const handleFetchModels = async () => {
+        if (!config.apiKey.trim()) {
+            notify("请先填写 API Key", 'warning');
+            return;
+        }
+
         setFetchingModels(true);
         setShowModelList(false);
         try {
@@ -48,7 +66,11 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
                 setAvailableModels(models);
                 setShowModelList(true);
             } else {
-                notify("未找到可用模型，请检查配置或手动输入。", 'warning');
+                if (config.provider === 'openai') {
+                    notify("未找到可用模型：部分 OpenAI Compatible 不支持 /v1/models，可手动输入。", 'warning');
+                } else {
+                    notify("未找到可用模型，请检查配置或手动输入。", 'warning');
+                }
             }
         } catch (e) {
             notify("获取模型列表失败", 'error');
@@ -109,7 +131,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
                         <Sparkles size={18} />
                     </div>
                     <div className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                        <p>配置 AI 助手后，可以自动为您的链接生成智能描述和分类建议。Key 仅存储在本地浏览器缓存中，不会发送到我们的服务器。</p>
+                        <p>配置 AI 助手后，可以自动为您的链接生成智能描述和分类建议。Key 默认仅存储在本地浏览器缓存中；部分 OpenAI Compatible 接口若浏览器直连受 CORS 限制，会自动通过同源 /api/ai 代理请求（需 Workers/Pages 部署）。</p>
                     </div>
                 </div>
                 <div className="flex justify-end mt-1">
@@ -205,7 +227,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
 
                 {config.provider === 'openai' && (
                     <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Base URL (可选)</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Base URL (可选，支持填 /v1 或完整 /chat/completions)</label>
                         <input
                             type="text"
                             value={config.baseUrl}

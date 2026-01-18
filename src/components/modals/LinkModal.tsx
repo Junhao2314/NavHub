@@ -192,6 +192,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
     } catch (e) {
       console.error("AI Assist failed", e);
+      notify("AI 生成失败，请检查 AI 配置或查看控制台日志", 'error');
     } finally {
       setIsGenerating(false);
     }

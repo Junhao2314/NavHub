@@ -1,51 +1,122 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { AIConfig } from "../types";
 
+const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
+
+type OpenAICompatibleUrls = {
+    chatCompletionsUrl: string;
+    modelsUrl: string;
+};
+
+const ensureHttpScheme = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed) return trimmed;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+};
+
+const buildOpenAICompatibleUrls = (baseUrlInput: string): OpenAICompatibleUrls => {
+    const normalizedInput = ensureHttpScheme(baseUrlInput) || DEFAULT_OPENAI_COMPAT_BASE_URL;
+
+    let parsedUrl: URL;
+    try {
+        parsedUrl = new URL(normalizedInput);
+    } catch {
+        parsedUrl = new URL(DEFAULT_OPENAI_COMPAT_BASE_URL);
+    }
+
+    const origin = parsedUrl.origin;
+    const pathname = parsedUrl.pathname.replace(/\/+$/, ''); // drop trailing slash
+    const base = `${origin}${pathname === '/' ? '' : pathname}`;
+
+    if (pathname.endsWith('/chat/completions')) {
+        return {
+            chatCompletionsUrl: base,
+            modelsUrl: base.replace(/\/chat\/completions$/, '/models')
+        };
+    }
+
+    if (pathname.endsWith('/models')) {
+        return {
+            chatCompletionsUrl: base.replace(/\/models$/, '/chat/completions'),
+            modelsUrl: base
+        };
+    }
+
+    if (pathname.endsWith('/v1')) {
+        return {
+            chatCompletionsUrl: `${base}/chat/completions`,
+            modelsUrl: `${base}/models`
+        };
+    }
+
+    return {
+        chatCompletionsUrl: `${base}/v1/chat/completions`,
+        modelsUrl: `${base}/v1/models`
+    };
+};
+
 /**
  * Helper to call OpenAI Compatible API
  */
 const callOpenAICompatible = async (config: AIConfig, systemPrompt: string, userPrompt: string): Promise<string> => {
     try {
-        let baseUrl = config.baseUrl.replace(/\/$/, '');
-        // If user didn't provide full path, assume /v1/chat/completions logic or just trust them
-        // Common convention: if URL ends with /v1, append /chat/completions
-        if (!baseUrl.includes('/chat/completions')) {
-            if (baseUrl.endsWith('/v1')) {
-                baseUrl += '/chat/completions';
-            } else {
-                // If it's just a domain like api.openai.com, usually implies /v1/chat/completions
-                // But let's assume user might input full path or standard base. 
-                // To be safe, let's append /chat/completions if not present
-                baseUrl += '/chat/completions';
-            }
-        }
+        const apiKey = config.apiKey.trim();
+        const model = config.model.trim();
+        const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
+        const { chatCompletionsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
 
-        const response = await fetch(baseUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${config.apiKey}`
-            },
-            body: JSON.stringify({
-                model: config.model,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt }
-                ],
-                temperature: 0.7
-            })
-        });
+        if (!apiKey) return "";
+        if (!model) return "";
+
+        const payload = {
+            model,
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            temperature: 0.7
+        };
+
+        let response: Response;
+        try {
+            response = await fetch(chatCompletionsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload)
+            });
+        } catch (directError) {
+            // Fallback: same-origin proxy to bypass browser CORS restrictions.
+            console.warn('Direct OpenAI Compatible request failed, trying /api/ai proxy...', directError);
+            response = await fetch('/api/ai?action=chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    baseUrl: baseUrlInput,
+                    apiKey,
+                    payload
+                })
+            });
+        }
 
         if (!response.ok) {
             const err = await response.text();
-            console.error("OpenAI API Error:", err);
+            console.error("OpenAI Compatible API Error:", response.status, err);
             return "";
         }
 
         const data = await response.json();
-        return data.choices?.[0]?.message?.content?.trim() || "";
+        const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? "";
+        return typeof content === 'string' ? content.trim() : "";
     } catch (e) {
-        console.error("OpenAI Call Failed", e);
+        console.error("OpenAI Compatible Call Failed", e);
         return "";
     }
 };
@@ -193,21 +264,36 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
             return [];
         } else {
             // OpenAI Compatible
-            // Need to extract base URL from the config which might be user entered
-            let baseUrl = config.baseUrl || 'https://api.openai.com/v1';
-            // Common Cleanup: remove /chat/completions if user added it
-            baseUrl = baseUrl.replace(/\/chat\/completions\/?$/, '');
-            baseUrl = baseUrl.replace(/\/v1\/?$/, ''); // We often need to add /v1 back for models, strictly speaking /v1/models is standard
+            const apiKey = config.apiKey.trim();
+            const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
+            const { modelsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
 
-            // Re-construct standard path
-            const modelsUrl = `${baseUrl}/v1/models`;
+            if (!apiKey) return [];
 
-            const response = await fetch(modelsUrl, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${config.apiKey}`
-                }
-            });
+            let response: Response;
+            try {
+                response = await fetch(modelsUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+            } catch (directError) {
+                // Fallback: same-origin proxy to bypass browser CORS restrictions.
+                console.warn('Direct OpenAI Compatible models request failed, trying /api/ai proxy...', directError);
+                response = await fetch('/api/ai?action=models', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        baseUrl: baseUrlInput,
+                        apiKey
+                    })
+                });
+            }
 
             if (!response.ok) {
                 return [];
