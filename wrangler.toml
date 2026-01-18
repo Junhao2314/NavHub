@@ -32,7 +32,7 @@ id = "ae3dd5e1875547948cb013180e2e4e3b"
 
 # ============================================
 # 部署步骤:
-# 1. npm run build
+# 1. npm run build 
 # 2. wrangler kv:namespace create YNAV_WORKER_KV
 # 3. 将返回的 id 填入上方 kv_namespaces.id
 # 4. wrangler deploy
