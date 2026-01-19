@@ -385,15 +385,21 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setRecommended(!recommended)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${recommended
-                  ? 'bg-accent/10 border-accent/20 text-accent dark:bg-accent/15 dark:border-accent/20'
-                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-750'
-                  }`}
-                title="加入「常用推荐」，不会影响所属分类"
+                onClick={() => categoryId !== 'common' && setRecommended(!recommended)}
+                disabled={categoryId === 'common'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${
+                  categoryId === 'common'
+                    ? 'bg-accent/5 border-accent/10 text-accent/50 dark:bg-accent/10 dark:border-accent/15 dark:text-accent/40 cursor-not-allowed'
+                    : recommended
+                      ? 'bg-accent/10 border-accent/20 text-accent dark:bg-accent/15 dark:border-accent/20'
+                      : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-750'
+                }`}
+                title={categoryId === 'common' 
+                  ? '当前分类已是「常用推荐」' 
+                  : '加入「常用推荐」，同时保留原分类'}
               >
-                <Star size={13} className={recommended ? "fill-current" : ""} />
-                {recommended ? '已推荐' : '常用推荐'}
+                <Star size={13} className={recommended || categoryId === 'common' ? "fill-current" : ""} />
+                {categoryId === 'common' ? '已在此分类' : recommended ? '已推荐' : '推荐'}
               </button>
 
               {initialData && onDelete && (

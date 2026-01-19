@@ -291,14 +291,15 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {!isSidebarCollapsed && (
           <div className="px-3 pb-4">
-            <div className="flex w-full items-center justify-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="flex w-full items-center justify-center">
               <a
                 href={repoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
               >
-                GitHub
+                <Icon name="Github" size={14} />
+                <span>View on GitHub</span>
               </a>
             </div>
           </div>
