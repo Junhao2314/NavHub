@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Copy, Edit2, Trash2, Pin, CopyPlus, FolderInput, ChevronRight } from 'lucide-react';
+import { Copy, Edit2, Trash2, Pin, Star, CopyPlus, FolderInput, ChevronRight } from 'lucide-react';
 import { Category } from '../../types';
 
 interface ContextMenuProps {
   isOpen: boolean;
   position: { x: number; y: number };
   categories: Category[];
+  isRecommended: boolean;
   onClose: () => void;
   onCopyLink: () => void;
   onEditLink: () => void;
@@ -13,19 +14,22 @@ interface ContextMenuProps {
   onMoveLink: (categoryId: string) => void;
   onDeleteLink: () => void;
   onTogglePin: () => void;
+  onToggleRecommended: () => void;
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
   isOpen,
   position,
   categories,
+  isRecommended,
   onClose,
   onCopyLink,
   onEditLink,
   onDuplicateLink,
   onMoveLink,
   onDeleteLink,
-  onTogglePin
+  onTogglePin,
+  onToggleRecommended
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +80,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     },
     { icon: Edit2, label: '编辑链接', onClick: onEditLink },
     { icon: Pin, label: '置顶/取消置顶', onClick: onTogglePin },
+    { icon: Star, label: isRecommended ? '取消常用推荐' : '加入常用推荐', onClick: onToggleRecommended },
     { icon: Trash2, label: '删除链接', onClick: onDeleteLink, className: 'text-red-500 dark:text-red-400' }
   ];
 

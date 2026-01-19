@@ -104,6 +104,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   }, [isOpen]);
 
+  const canAccessAISettings = syncRole === 'admin';
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!canAccessAISettings && activeTab === 'ai') {
+      setActiveTab('site');
+    }
+  }, [isOpen, canAccessAISettings, activeTab]);
+
   const handleChange = (key: keyof AIConfig, value: string) => {
     setLocalConfig(prev => ({ ...prev, [key]: value }));
   };
@@ -154,16 +163,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               <Globe size={16} />
               <span>网站设置</span>
             </button>
-            <button
-              onClick={() => setActiveTab('ai')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'ai'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
-            >
-              <Bot size={16} />
-              <span>AI 助手</span>
-            </button>
+            {canAccessAISettings && (
+              <button
+                onClick={() => setActiveTab('ai')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'ai'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+              >
+                <Bot size={16} />
+                <span>AI 助手</span>
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('appearance')}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'appearance'
@@ -193,7 +204,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <SiteTab settings={localSiteSettings} onChange={handleSiteChange} />
           )}
 
-          {activeTab === 'ai' && (
+          {canAccessAISettings && activeTab === 'ai' && (
             <AITab
               config={localConfig}
               onChange={handleChange}

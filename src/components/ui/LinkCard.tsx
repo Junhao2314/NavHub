@@ -11,6 +11,7 @@ interface LinkCardProps {
     onSelect: (id: string) => void;
     onContextMenu: (e: React.MouseEvent, link: LinkItem) => void;
     onEdit: (link: LinkItem) => void;
+    onOpenLink?: (link: LinkItem) => void;
 }
 
 const LinkCard: React.FC<LinkCardProps> = ({
@@ -20,7 +21,8 @@ const LinkCard: React.FC<LinkCardProps> = ({
     isSelected,
     onSelect,
     onContextMenu,
-    onEdit
+    onEdit,
+    onOpenLink
 }) => {
     const isDetailedView = siteCardStyle === 'detailed';
 
@@ -110,6 +112,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
                     rel="noopener noreferrer"
                     className={`flex ${isDetailedView ? 'flex-col' : 'items-center'} min-w-0`}
                     title={isDetailedView ? link.url : (link.description || link.url)}
+                    onClick={() => onOpenLink?.(link)}
                 >
                     {renderContent()}
                 </a>

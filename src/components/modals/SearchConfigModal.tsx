@@ -28,15 +28,17 @@ interface SearchConfigModalProps {
   closeOnBackdrop?: boolean;
 }
 
+type SortableSearchItemProps = {
+  source: ExternalSearchSource;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
+};
+
 // 可排序的列表项组件
-const SortableSearchItem = ({
+const SortableSearchItem: React.FC<SortableSearchItemProps> = ({
   source,
   onToggle,
   onDelete
-}: {
-  source: ExternalSearchSource;
-  onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
 }) => {
   const {
     attributes,
@@ -125,7 +127,7 @@ const SortableSearchItem = ({
         </button>
 
         <button
-          onClick={() => onDelete(source.id)}
+          onClick={() => void onDelete(source.id)}
           className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors group/delete"
           title="删除"
         >

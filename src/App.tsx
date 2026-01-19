@@ -33,6 +33,7 @@ import {
 
 import {
   GITHUB_REPO_URL,
+  COMMON_CATEGORY_ID,
   PRIVATE_CATEGORY_ID,
   PRIVATE_VAULT_KEY,
   PRIVACY_PASSWORD_KEY,
@@ -47,6 +48,7 @@ import {
   getDeviceId
 } from './utils/constants';
 import { decryptPrivateVault, encryptPrivateVault } from './utils/privateVault';
+import { getCommonRecommendedLinks } from './utils/recommendation';
 
 type SyncRole = 'admin' | 'user';
 
@@ -69,6 +71,7 @@ function App() {
     addLink,
     updateLink,
     deleteLink,
+    recordAdminLinkClick,
     togglePin: togglePinStore,
     reorderLinks,
     reorderPinnedLinks,
@@ -433,12 +436,16 @@ function App() {
     });
   }, [links]);
 
+  const commonRecommendedLinks = useMemo(() => getCommonRecommendedLinks(links), [links]);
+
   const displayedLinks = useMemo(() => {
-    let result = links;
+    const q = searchQuery.trim().toLowerCase();
+    const baseLinks = selectedCategory === COMMON_CATEGORY_ID ? commonRecommendedLinks : links;
+
+    let result = baseLinks;
 
     // Search Filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (q) {
       result = result.filter(l =>
         l.title.toLowerCase().includes(q) ||
         l.url.toLowerCase().includes(q) ||
@@ -446,18 +453,27 @@ function App() {
       );
     }
 
-    // Category Filter
-    if (selectedCategory !== 'all' && selectedCategory !== PRIVATE_CATEGORY_ID) {
+    // Category Filter (exclude common：常用推荐为“叠加集合”，不走 categoryId 过滤)
+    if (
+      selectedCategory !== 'all'
+      && selectedCategory !== PRIVATE_CATEGORY_ID
+      && selectedCategory !== COMMON_CATEGORY_ID
+    ) {
       result = result.filter(l => l.categoryId === selectedCategory);
     }
 
+    if (selectedCategory === COMMON_CATEGORY_ID) {
+      // 常用推荐已在 getCommonRecommendedLinks 内完成排序
+      return result;
+    }
+
     // Sort by order
-    return result.sort((a, b) => {
+    return result.slice().sort((a, b) => {
       const aOrder = a.order !== undefined ? a.order : a.createdAt;
       const bOrder = b.order !== undefined ? b.order : b.createdAt;
       return aOrder - bOrder;
     });
-  }, [links, selectedCategory, searchQuery]);
+  }, [links, selectedCategory, searchQuery, commonRecommendedLinks]);
 
   const displayedPrivateLinks = useMemo(() => {
     let result = privateLinks;
@@ -527,6 +543,7 @@ function App() {
     editLinkFromContextMenu,
     deleteLinkFromContextMenu,
     togglePinFromContextMenu,
+    toggleRecommendedFromContextMenu,
     duplicateLinkFromContextMenu,
     moveLinkFromContextMenu
   } = useContextMenu({
@@ -564,6 +581,7 @@ function App() {
   const canSortPinned = isAdmin && selectedCategory === 'all' && !searchQuery && pinnedLinks.length > 1;
   const canSortCategory = isAdmin && selectedCategory !== 'all'
     && selectedCategory !== PRIVATE_CATEGORY_ID
+    && selectedCategory !== COMMON_CATEGORY_ID
     && displayedLinks.length > 1;
 
   useEffect(() => {
@@ -594,8 +612,9 @@ function App() {
       }
     });
 
+    counts[COMMON_CATEGORY_ID] = commonRecommendedLinks.length;
     return counts;
-  }, [links, categories]);
+  }, [links, categories, commonRecommendedLinks]);
 
   const privateCount = privacyGroupEnabled && isPrivateUnlocked ? privateLinks.length : 0;
   const privateUnlockHint = useSeparatePrivacyPassword
@@ -776,6 +795,12 @@ function App() {
     if (isPrivateView || !isAdmin) return;
     handleContextMenu(event, link);
   }, [handleContextMenu, isPrivateView, isAdmin]);
+
+  const handleLinkOpen = useCallback((link: LinkItem) => {
+    if (!isAdmin) return;
+    if (link.categoryId === PRIVATE_CATEGORY_ID) return;
+    recordAdminLinkClick(link.id);
+  }, [isAdmin, recordAdminLinkClick]);
 
   const togglePin = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -1412,7 +1437,7 @@ function App() {
                 notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
                 return;
               }
-              if (!isPrivateView) {
+              if (!isPrivateView && selectedCategory !== COMMON_CATEGORY_ID) {
                 startSorting(selectedCategory);
               }
             }}
@@ -1447,6 +1472,7 @@ function App() {
             onSelectAll={effectiveSelectAll}
             onBatchMove={effectiveBatchMove}
             onAddLink={handleAddLinkRequest}
+            onLinkOpen={handleLinkOpen}
             selectedLinks={effectiveSelectedLinks}
             onLinkSelect={handleLinkSelect}
             onLinkContextMenu={handleLinkContextMenu}
@@ -1490,6 +1516,7 @@ function App() {
         isOpen={contextMenu.isOpen}
         position={contextMenu.position}
         categories={categories}
+        isRecommended={Boolean(contextMenu.link?.recommended)}
         onClose={closeContextMenu}
         onCopyLink={copyLinkToClipboard}
         onEditLink={editLinkFromContextMenu}
@@ -1497,6 +1524,7 @@ function App() {
         onMoveLink={moveLinkFromContextMenu}
         onDeleteLink={deleteLinkFromContextMenu}
         onTogglePin={togglePinFromContextMenu}
+        onToggleRecommended={toggleRecommendedFromContextMenu}
       />
     </div>
   );

@@ -110,6 +110,33 @@ export function useContextMenu({
         closeContextMenu();
     }, [contextMenu.link, links, categories, updateData, closeContextMenu]);
 
+    const toggleRecommendedFromContextMenu = useCallback(() => {
+        if (!contextMenu.link) return;
+
+        const linkToToggle = links.find(l => l.id === contextMenu.link!.id);
+        if (!linkToToggle) return;
+
+        const nextRecommended = !linkToToggle.recommended;
+        const maxRecommendedOrder = links
+            .filter(link => link.recommended && link.id !== linkToToggle.id)
+            .reduce((max, link) => Math.max(max, link.recommendedOrder ?? -1), -1);
+        const nextRecommendedOrder = nextRecommended ? maxRecommendedOrder + 1 : undefined;
+
+        const updated = links.map(l => {
+            if (l.id === linkToToggle.id) {
+                return {
+                    ...l,
+                    recommended: nextRecommended,
+                    recommendedOrder: nextRecommendedOrder
+                };
+            }
+            return l;
+        });
+
+        updateData(updated, categories);
+        closeContextMenu();
+    }, [contextMenu.link, links, categories, updateData, closeContextMenu]);
+
     const duplicateLinkFromContextMenu = useCallback(() => {
         if (!contextMenu.link) return;
         const newLink: LinkItem = {
@@ -141,6 +168,7 @@ export function useContextMenu({
         editLinkFromContextMenu,
         deleteLinkFromContextMenu,
         togglePinFromContextMenu,
+        toggleRecommendedFromContextMenu,
         duplicateLinkFromContextMenu,
         moveLinkFromContextMenu
     };

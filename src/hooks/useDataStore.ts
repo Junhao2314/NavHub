@@ -107,6 +107,14 @@ export const useDataStore = () => {
             processedUrl = 'https://' + processedUrl;
         }
 
+        const isRecommended = Boolean(data.recommended);
+        const maxRecommendedOrder = links
+            .filter(link => link.recommended)
+            .reduce((max, link) => Math.max(max, link.recommendedOrder ?? -1), -1);
+        const recommendedOrder = isRecommended
+            ? (data.recommendedOrder ?? maxRecommendedOrder + 1)
+            : undefined;
+
         const categoryLinks = links.filter(link =>
             !link.pinned && (data.categoryId === 'all' || link.categoryId === data.categoryId)
         );
@@ -121,7 +129,9 @@ export const useDataStore = () => {
             id: Date.now().toString(),
             createdAt: Date.now(),
             order: maxOrder + 1,
-            pinnedOrder: data.pinned ? links.filter(l => l.pinned).length : undefined
+            pinnedOrder: data.pinned ? links.filter(l => l.pinned).length : undefined,
+            recommended: isRecommended,
+            recommendedOrder
         };
 
         if (newLink.pinned) {
@@ -150,12 +160,51 @@ export const useDataStore = () => {
         if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
             processedUrl = 'https://' + processedUrl;
         }
-        const updated = links.map(l => l.id === data.id ? { ...l, ...data, url: processedUrl } : l);
+        const existing = links.find(l => l.id === data.id);
+        if (!existing) return;
+
+        const recommendedProvided = Object.prototype.hasOwnProperty.call(data, 'recommended');
+        const nextRecommended = recommendedProvided ? Boolean(data.recommended) : Boolean(existing.recommended);
+
+        const recommendedOrderProvided = Object.prototype.hasOwnProperty.call(data, 'recommendedOrder');
+        const nextRecommendedOrderInput = recommendedOrderProvided ? data.recommendedOrder : existing.recommendedOrder;
+
+        let nextRecommendedOrder: number | undefined = nextRecommendedOrderInput;
+        if (nextRecommended) {
+            if (typeof nextRecommendedOrder !== 'number') {
+                const maxRecommendedOrder = links
+                    .filter(link => link.id !== data.id && link.recommended)
+                    .reduce((max, link) => Math.max(max, link.recommendedOrder ?? -1), -1);
+                nextRecommendedOrder = maxRecommendedOrder + 1;
+            }
+        } else {
+            nextRecommendedOrder = undefined;
+        }
+
+        const updated = links.map(l => l.id === data.id ? {
+            ...l,
+            ...data,
+            url: processedUrl,
+            recommended: nextRecommended,
+            recommendedOrder: nextRecommendedOrder
+        } : l);
         updateData(updated, categories);
     }, [links, categories, updateData]);
 
     const deleteLink = useCallback((id: string) => {
         updateData(links.filter(l => l.id !== id), categories);
+    }, [links, categories, updateData]);
+
+    const recordAdminLinkClick = useCallback((id: string) => {
+        const updatedLinks = links.map(link => {
+            if (link.id !== id) return link;
+            return {
+                ...link,
+                adminClicks: (link.adminClicks ?? 0) + 1,
+                adminLastClickedAt: Date.now()
+            };
+        });
+        updateData(updatedLinks, categories);
     }, [links, categories, updateData]);
 
     const togglePin = useCallback((id: string) => {
@@ -283,6 +332,7 @@ export const useDataStore = () => {
         addLink,
         updateLink,
         deleteLink,
+        recordAdminLinkClick,
         togglePin,
         reorderLinks,
         reorderPinnedLinks,

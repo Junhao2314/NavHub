@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { X, ArrowUp, ArrowDown, Trash2, Edit2, Plus, Check, Palette, Square, CheckSquare } from 'lucide-react';
+import { DndContext, closestCenter, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { X, ArrowUp, ArrowDown, Trash2, Edit2, Plus, Check, Palette, Square, CheckSquare, GripVertical } from 'lucide-react';
 import { Category } from '../../types';
 import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
@@ -13,6 +16,40 @@ interface CategoryManagerModalProps {
   onDeleteCategory: (id: string) => void;
   closeOnBackdrop?: boolean;
 }
+
+type SortableItemRenderProps = {
+  setNodeRef: (node: HTMLElement | null) => void;
+  setActivatorNodeRef: (node: HTMLElement | null) => void;
+  attributes: any;
+  listeners: any;
+  style: React.CSSProperties;
+  isDragging: boolean;
+};
+
+const SortableItem: React.FC<{
+  id: string;
+  disabled?: boolean;
+  children: (props: SortableItemRenderProps) => React.ReactNode;
+}> = ({ id, disabled = false, children }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id, disabled });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: isDragging ? 'none' : transition,
+    opacity: isDragging ? 0.65 : 1,
+    zIndex: isDragging ? 1000 : 'auto'
+  };
+
+  return children({ setNodeRef, setActivatorNodeRef, attributes, listeners, style, isDragging });
+};
 
 const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   isOpen,
@@ -36,6 +73,18 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const { notify, confirm } = useDialog();
+
+  // DnD-kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8 // Prevent accidental drags
+      }
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  );
 
   if (!isOpen) return null;
 
@@ -111,6 +160,18 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
       [newCats[index], newCats[index + 1]] = [newCats[index + 1], newCats[index]];
     }
     onUpdateCategories(newCats);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (isBatchMode) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = categories.findIndex(c => c.id === active.id);
+    const newIndex = categories.findIndex(c => c.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    onUpdateCategories(arrayMove(categories, oldIndex, newIndex) as Category[]);
   };
 
   const handleStartEdit = (cat: Category) => {
@@ -251,107 +312,136 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {categories.map((cat, index) => (
-            <div key={cat.id} className={`flex flex-col p-3 rounded-lg group gap-2 ${isBatchMode && selectedCategories.has(cat.id)
-              ? 'bg-accent/10 dark:bg-accent/20 border-2 border-accent'
-              : 'bg-slate-50 dark:bg-slate-700/50'
-              }`}>
-              <div className="flex items-center gap-2">
-                {/* 多选模式复选框 */}
-                {isBatchMode && (
-                  <button
-                    onClick={() => toggleCategorySelection(cat.id)}
-                    className="flex-shrink-0 p-1"
-                  >
-                    {selectedCategories.has(cat.id) ? (
-                      <CheckSquare size={18} className="text-accent" />
-                    ) : (
-                      <Square size={18} className="text-slate-400 hover:text-accent" />
-                    )}
-                  </button>
-                )}
-
-                {/* Order Controls - 非多选模式显示 */}
-                {!isBatchMode && (
-                  <div className="flex flex-col gap-1 mr-2">
-                    <button
-                      onClick={() => handleMove(index, 'up')}
-                      disabled={index === 0}
-                      className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={categories.map(c => c.id)} strategy={verticalListSortingStrategy}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {categories.map((cat, index) => (
+                <SortableItem key={cat.id} id={cat.id} disabled={isBatchMode}>
+                  {({ setNodeRef, setActivatorNodeRef, attributes, listeners, style, isDragging }) => (
+                    <div
+                      ref={setNodeRef}
+                      style={style}
+                      className={`flex flex-col p-3 rounded-lg group gap-2 ${isBatchMode && selectedCategories.has(cat.id)
+                        ? 'bg-accent/10 dark:bg-accent/20 border-2 border-accent'
+                        : 'bg-slate-50 dark:bg-slate-700/50'
+                        } ${isDragging ? 'shadow-lg shadow-slate-200/60 dark:shadow-black/30 ring-2 ring-accent/30' : ''}`}
                     >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleMove(index, 'down')}
-                      disabled={index === categories.length - 1}
-                      className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  {editingId === cat.id ? (
-                    <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
-                        <Icon name={editIcon} size={16} />
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="flex-1 p-1.5 px-2 text-sm rounded border border-accent dark:bg-slate-800 dark:text-white outline-none"
-                          placeholder="分类名称"
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
-                          onClick={() => openIconSelector('edit')}
-                          title="选择图标"
-                        >
-                          <Palette size={16} />
-                        </button>
+                        {/* 多选模式复选框 */}
+                        {isBatchMode && (
+                          <button
+                            onClick={() => toggleCategorySelection(cat.id)}
+                            className="flex-shrink-0 p-1"
+                          >
+                            {selectedCategories.has(cat.id) ? (
+                              <CheckSquare size={18} className="text-accent" />
+                            ) : (
+                              <Square size={18} className="text-slate-400 hover:text-accent" />
+                            )}
+                          </button>
+                        )}
+
+                        {/* Drag Handle + Fallback Order Controls (非多选模式显示) */}
+                        {!isBatchMode && (
+                          <div className="flex items-center gap-1 mr-2">
+                            <button
+                              ref={setActivatorNodeRef}
+                              type="button"
+                              {...attributes}
+                              {...listeners}
+                              className="p-0.5 text-slate-400 hover:text-blue-500 cursor-grab active:cursor-grabbing"
+                              title="拖拽排序"
+                              aria-label="拖拽排序"
+                            >
+                              <GripVertical size={14} />
+                            </button>
+                            <div className="flex flex-col gap-1">
+                              <button
+                                onClick={() => handleMove(index, 'up')}
+                                disabled={index === 0}
+                                className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
+                                title="上移"
+                                aria-label="上移"
+                              >
+                                <ArrowUp size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleMove(index, 'down')}
+                                disabled={index === categories.length - 1}
+                                className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
+                                title="下移"
+                                aria-label="下移"
+                              >
+                                <ArrowDown size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          {editingId === cat.id ? (
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <Icon name={editIcon} size={16} />
+                                <input
+                                  type="text"
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  className="flex-1 p-1.5 px-2 text-sm rounded border border-accent dark:bg-slate-800 dark:text-white outline-none"
+                                  placeholder="分类名称"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                                  onClick={() => openIconSelector('edit')}
+                                  title="选择图标"
+                                >
+                                  <Palette size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Icon name={cat.icon} size={16} />
+                              <span className="font-medium dark:text-slate-200 truncate">
+                                {cat.name}
+                                {cat.id === 'common' && (
+                                  <span className="ml-2 text-xs text-slate-400">(默认分类)</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        {!isBatchMode && (
+                          <div className="flex items-center gap-1 self-start mt-1">
+                            {editingId === cat.id ? (
+                              <button onClick={saveEdit} className="text-green-500 hover:bg-green-50 dark:hover:bg-slate-600 p-1.5 rounded bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-600"><Check size={16} /></button>
+                            ) : (
+                              <>
+                                <button onClick={() => handleStartEdit(cat)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(cat)}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Icon name={cat.icon} size={16} />
-                      <span className="font-medium dark:text-slate-200 truncate">
-                        {cat.name}
-                        {cat.id === 'common' && (
-                          <span className="ml-2 text-xs text-slate-400">(默认分类)</span>
-                        )}
-                      </span>
-                    </div>
                   )}
-                </div>
-
-                {/* Actions */}
-                {!isBatchMode && (
-                  <div className="flex items-center gap-1 self-start mt-1">
-                    {editingId === cat.id ? (
-                      <button onClick={saveEdit} className="text-green-500 hover:bg-green-50 dark:hover:bg-slate-600 p-1.5 rounded bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-600"><Check size={16} /></button>
-                    ) : (
-                      <>
-                        <button onClick={() => handleStartEdit(cat)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(cat)}
-                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+                </SortableItem>
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
           <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">添加新分类</label>

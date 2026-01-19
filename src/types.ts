@@ -10,6 +10,10 @@ export interface LinkItem {
   pinned?: boolean; // New field for pinning
   pinnedOrder?: number; // Field for pinned link sorting order
   order?: number; // Field for sorting order
+  recommended?: boolean; // 手动加入「常用推荐」
+  recommendedOrder?: number; // 手动推荐排序（越小越靠前）
+  adminClicks?: number; // 管理员模式点击次数（用于自动推荐）
+  adminLastClickedAt?: number; // 管理员最近点击时间戳（毫秒）
 }
 
 export interface Category {

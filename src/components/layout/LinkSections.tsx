@@ -45,6 +45,7 @@ interface LinkSectionsProps {
   onSelectAll: () => void;
   onBatchMove: (targetCategoryId: string) => void;
   onAddLink: () => void;
+  onLinkOpen: (link: LinkItem) => void;
   onLinkSelect: (id: string) => void;
   onLinkContextMenu: (e: React.MouseEvent, link: LinkItem) => void;
   onLinkEdit: (link: LinkItem) => void;
@@ -105,6 +106,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   onSelectAll,
   onBatchMove,
   onAddLink,
+  onLinkOpen,
   onLinkSelect,
   onLinkContextMenu,
   onLinkEdit,
@@ -392,6 +394,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     onSelect={onLinkSelect}
                     onContextMenu={onLinkContextMenu}
                     onEdit={onLinkEdit}
+                    onOpenLink={onLinkOpen}
                   />
                 ))}
               </div>
@@ -576,6 +579,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         onSelect={onLinkSelect}
                         onContextMenu={onLinkContextMenu}
                         onEdit={onLinkEdit}
+                        onOpenLink={onLinkOpen}
                       />
                     ))}
                   </div>

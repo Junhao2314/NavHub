@@ -26,6 +26,7 @@ export const PRIVACY_USE_SEPARATE_PASSWORD_KEY = 'ynav_privacy_use_separate_pass
 export const PRIVACY_GROUP_ENABLED_KEY = 'ynav_privacy_group_enabled';
 export const PRIVACY_AUTO_UNLOCK_KEY = 'ynav_privacy_auto_unlock';
 export const PRIVACY_SESSION_UNLOCKED_KEY = 'ynav_privacy_session_unlocked';
+export const COMMON_CATEGORY_ID = 'common';
 export const PRIVATE_CATEGORY_ID = '__private__';
 
 // Sync Configuration
@@ -33,7 +34,7 @@ export const SYNC_DEBOUNCE_MS = 3000; // 3秒内无新操作则触发同步
 export const SYNC_API_ENDPOINT = '/api/sync';
 
 // GitHub Repo URL
-export const GITHUB_REPO_URL = 'https://github.com/yml2213/NavHub.git';
+export const GITHUB_REPO_URL = 'https://github.com/Junhao2314/NavHub';
 
 // 获取浏览器信息
 const getBrowserInfo = (): string => {
