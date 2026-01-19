@@ -17,6 +17,7 @@ interface SidebarProps {
   isPrivateUnlocked: boolean;
   privateCount: number;
   repoUrl: string;
+  isAdmin: boolean;
   onSelectAll: () => void;
   onSelectCategory: (category: Category) => void;
   onSelectPrivate: () => void;
@@ -38,6 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   isPrivateUnlocked,
   privateCount,
   repoUrl,
+  isAdmin,
   onSelectAll,
   onSelectCategory,
   onSelectPrivate,
@@ -259,7 +261,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       <div className="mt-auto">
-        {privacyGroupEnabled && (
+        {isAdmin && privacyGroupEnabled && (
           <div className={`${isSidebarCollapsed ? 'px-2' : 'px-3'} pb-3`}>
             <button
               onClick={onSelectPrivate}

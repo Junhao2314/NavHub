@@ -640,6 +640,13 @@ function App() {
     autoUnlockAttemptedRef.current = false;
   }, [privacyGroupEnabled, privacyAutoUnlockEnabled]);
 
+  // 当从管理员模式切换到用户模式时，如果当前选中的是隐私分组，则自动切换到 'all'
+  useEffect(() => {
+    if (!isAdmin && selectedCategory === PRIVATE_CATEGORY_ID) {
+      setSelectedCategory('all');
+    }
+  }, [isAdmin, selectedCategory, setSelectedCategory]);
+
   // === Handlers ===
   const handleImportConfirm = (newLinks: LinkItem[], newCategories: Category[]) => {
     if (!isAdmin) {
@@ -1315,6 +1322,7 @@ function App() {
         isPrivateUnlocked={isPrivateUnlocked}
         privateCount={privateCount}
         repoUrl={GITHUB_REPO_URL}
+        isAdmin={isAdmin}
         onSelectAll={selectAll}
         onSelectCategory={handleCategoryClick}
         onSelectPrivate={handleSelectPrivate}
