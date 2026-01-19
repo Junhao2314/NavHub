@@ -37,6 +37,8 @@ interface SettingsModalProps {
   onMigratePrivacyMode: (payload: { useSeparatePassword: boolean; oldPassword: string; newPassword: string }) => Promise<boolean>;
   privacyGroupEnabled: boolean;
   onTogglePrivacyGroup: (enabled: boolean) => void;
+  privacyPasswordEnabled: boolean;
+  onTogglePrivacyPassword: (enabled: boolean) => void;
   privacyAutoUnlockEnabled: boolean;
   onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
   closeOnBackdrop?: boolean;
@@ -61,6 +63,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onMigratePrivacyMode,
   privacyGroupEnabled,
   onTogglePrivacyGroup,
+  privacyPasswordEnabled,
+  onTogglePrivacyPassword,
   privacyAutoUnlockEnabled,
   onTogglePrivacyAutoUnlock,
   closeOnBackdrop = true
@@ -231,6 +235,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               onMigratePrivacyMode={onMigratePrivacyMode}
               privacyGroupEnabled={privacyGroupEnabled}
               onTogglePrivacyGroup={onTogglePrivacyGroup}
+              privacyPasswordEnabled={privacyPasswordEnabled}
+              onTogglePrivacyPassword={onTogglePrivacyPassword}
               privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
               onTogglePrivacyAutoUnlock={onTogglePrivacyAutoUnlock}
             />

@@ -153,7 +153,7 @@ export const useDataStore = () => {
             });
             updateData(updatedLinks, categories);
         }
-    }, [links, categories, updateData, notify]);
+    }, [links, categories, updateData]);
 
     const updateLink = useCallback((data: Omit<LinkItem, 'createdAt'>) => {
         let processedUrl = data.url;

@@ -24,6 +24,7 @@ export const PRIVATE_VAULT_KEY = 'ynav_private_vault_v1';
 export const PRIVACY_PASSWORD_KEY = 'ynav_privacy_password';
 export const PRIVACY_USE_SEPARATE_PASSWORD_KEY = 'ynav_privacy_use_separate_password';
 export const PRIVACY_GROUP_ENABLED_KEY = 'ynav_privacy_group_enabled';
+export const PRIVACY_PASSWORD_ENABLED_KEY = 'ynav_privacy_password_enabled';
 export const PRIVACY_AUTO_UNLOCK_KEY = 'ynav_privacy_auto_unlock';
 export const PRIVACY_SESSION_UNLOCKED_KEY = 'ynav_privacy_session_unlocked';
 export const COMMON_CATEGORY_ID = 'common';

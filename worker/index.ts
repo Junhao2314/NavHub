@@ -58,7 +58,7 @@ const KV_MAIN_DATA_KEY = 'ynav:data';
 const KV_BACKUP_PREFIX = 'ynav:backup:';
 const BACKUP_TTL_SECONDS = 30 * 24 * 60 * 60;
 const KV_SYNC_HISTORY_PREFIX = `${KV_BACKUP_PREFIX}history-`;
-const MAX_SYNC_HISTORY = 10;
+const MAX_SYNC_HISTORY = 30;
 
 // Auth Security (brute-force protection)
 const AUTH_MAX_FAILED_ATTEMPTS = 5;

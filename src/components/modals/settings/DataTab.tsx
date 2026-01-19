@@ -28,6 +28,8 @@ interface DataTabProps {
     onMigratePrivacyMode: (payload: { useSeparatePassword: boolean; oldPassword: string; newPassword: string }) => Promise<boolean>;
     privacyGroupEnabled: boolean;
     onTogglePrivacyGroup: (enabled: boolean) => void;
+    privacyPasswordEnabled: boolean;
+    onTogglePrivacyPassword: (enabled: boolean) => void;
     privacyAutoUnlockEnabled: boolean;
     onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
 }
@@ -66,6 +68,8 @@ const DataTab: React.FC<DataTabProps> = ({
     onMigratePrivacyMode,
     privacyGroupEnabled,
     onTogglePrivacyGroup,
+    privacyPasswordEnabled,
+    onTogglePrivacyPassword,
     privacyAutoUnlockEnabled,
     onTogglePrivacyAutoUnlock
 }) => {
@@ -469,12 +473,31 @@ const DataTab: React.FC<DataTabProps> = ({
                         </div>
                     )}
                     <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs text-slate-600 dark:text-slate-300">启用密码</span>
+                        <button
+                            type="button"
+                            onClick={() => onTogglePrivacyPassword(!privacyPasswordEnabled)}
+                            disabled={!privacyGroupEnabled}
+                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyPasswordEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${!privacyGroupEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            aria-pressed={privacyPasswordEnabled}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${privacyPasswordEnabled ? 'translate-x-5' : 'translate-x-1'}`}
+                            />
+                        </button>
+                    </div>
+                    {!privacyPasswordEnabled && privacyGroupEnabled && (
+                        <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            已关闭密码保护，隐私分组将自动解锁
+                        </div>
+                    )}
+                    <div className="mt-3 flex items-center justify-between">
                         <span className="text-xs text-slate-600 dark:text-slate-300">自动解锁</span>
                         <button
                             type="button"
                             onClick={() => onTogglePrivacyAutoUnlock(!privacyAutoUnlockEnabled)}
-                            disabled={!privacyGroupEnabled}
-                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyAutoUnlockEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${!privacyGroupEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!privacyGroupEnabled || !privacyPasswordEnabled}
+                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyAutoUnlockEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${(!privacyGroupEnabled || !privacyPasswordEnabled) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             aria-pressed={privacyAutoUnlockEnabled}
                         >
                             <span
@@ -482,11 +505,13 @@ const DataTab: React.FC<DataTabProps> = ({
                             />
                         </button>
                     </div>
-                    {privacyAutoUnlockEnabled && (
+                    {privacyAutoUnlockEnabled && privacyPasswordEnabled && (
                         <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
                             仅当前标签页有效，关闭标签页后自动加锁
                         </div>
                     )}
+                    {privacyPasswordEnabled && (
+                    <>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                         当前模式：{currentPrivacyMode}
                     </p>
@@ -515,8 +540,10 @@ const DataTab: React.FC<DataTabProps> = ({
                             启用独立密码前请先设置同步密码。
                         </div>
                     )}
+                    </>
+                    )}
 
-                    {privacyTarget && (
+                    {privacyPasswordEnabled && privacyTarget && (
                         <div className="mt-4 space-y-3">
                             <div className="text-xs text-slate-600 dark:text-slate-300">
                                 请输入旧密码与新密码后完成迁移。

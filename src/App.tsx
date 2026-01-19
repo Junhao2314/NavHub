@@ -39,6 +39,7 @@ import {
   PRIVACY_PASSWORD_KEY,
   PRIVACY_AUTO_UNLOCK_KEY,
   PRIVACY_GROUP_ENABLED_KEY,
+  PRIVACY_PASSWORD_ENABLED_KEY,
   PRIVACY_SESSION_UNLOCKED_KEY,
   PRIVACY_USE_SEPARATE_PASSWORD_KEY,
   SYNC_ADMIN_SESSION_KEY,
@@ -88,6 +89,7 @@ function App() {
   const [privateVaultPassword, setPrivateVaultPassword] = useState<string | null>(null);
   const [useSeparatePrivacyPassword, setUseSeparatePrivacyPassword] = useState(false);
   const [privacyGroupEnabled, setPrivacyGroupEnabled] = useState(false);
+  const [privacyPasswordEnabled, setPrivacyPasswordEnabled] = useState(true);
   const [privacyAutoUnlockEnabled, setPrivacyAutoUnlockEnabled] = useState(false);
   const [isPrivateModalOpen, setIsPrivateModalOpen] = useState(false);
   const [editingPrivateLink, setEditingPrivateLink] = useState<LinkItem | null>(null);
@@ -117,6 +119,7 @@ function App() {
     setPrivateVaultCipher(localStorage.getItem(PRIVATE_VAULT_KEY));
     setUseSeparatePrivacyPassword(localStorage.getItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY) === '1');
     setPrivacyGroupEnabled(localStorage.getItem(PRIVACY_GROUP_ENABLED_KEY) === '1');
+    setPrivacyPasswordEnabled(localStorage.getItem(PRIVACY_PASSWORD_ENABLED_KEY) !== '0');
     setPrivacyAutoUnlockEnabled(localStorage.getItem(PRIVACY_AUTO_UNLOCK_KEY) === '1');
   }, []);
 
@@ -289,6 +292,17 @@ function App() {
   }, [useSeparatePrivacyPassword]);
 
   const handleUnlockPrivateVault = useCallback(async (input?: string) => {
+    // 如果密码功能已禁用，直接解锁
+    if (!privacyPasswordEnabled) {
+      setPrivateLinks([]);
+      setIsPrivateUnlocked(true);
+      setPrivateVaultPassword(null);
+      if (privacyAutoUnlockEnabled) {
+        sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+      }
+      return true;
+    }
+
     const password = resolvePrivacyPassword(input);
     if (!password) {
       notify('请先输入隐私分组密码', 'warning');
@@ -330,9 +344,19 @@ function App() {
       notify('密码错误或隐私数据已损坏', 'error');
       return false;
     }
-  }, [privateVaultCipher, notify, resolvePrivacyPassword, useSeparatePrivacyPassword, privacyAutoUnlockEnabled]);
+  }, [privateVaultCipher, notify, resolvePrivacyPassword, useSeparatePrivacyPassword, privacyAutoUnlockEnabled, privacyPasswordEnabled]);
 
   const persistPrivateVault = useCallback(async (nextLinks: LinkItem[], passwordOverride?: string) => {
+    // 如果密码功能已禁用，直接保存链接到本地（不加密）
+    if (!privacyPasswordEnabled) {
+      localStorage.setItem(PRIVATE_VAULT_KEY, JSON.stringify({ links: nextLinks }));
+      setPrivateVaultCipher(JSON.stringify({ links: nextLinks }));
+      setPrivateLinks(nextLinks);
+      setIsPrivateUnlocked(true);
+      setPrivateVaultPassword(null);
+      return true;
+    }
+
     const password = (passwordOverride || privateVaultPassword || resolvePrivacyPassword()).trim();
     if (!password) {
       notify('请先设置隐私分组密码', 'warning');
@@ -351,7 +375,7 @@ function App() {
       notify('隐私分组加密失败，请重试', 'error');
       return false;
     }
-  }, [notify, privateVaultPassword, resolvePrivacyPassword]);
+  }, [notify, privateVaultPassword, resolvePrivacyPassword, privacyPasswordEnabled]);
 
   const handleMigratePrivacyMode = useCallback(async (payload: {
     useSeparatePassword: boolean;
@@ -636,6 +660,13 @@ function App() {
     });
   }, [privacyGroupEnabled, privacyAutoUnlockEnabled, isPrivateUnlocked, handleUnlockPrivateVault]);
 
+  // 当密码禁用且隐私分组启用时，自动解锁
+  useEffect(() => {
+    if (privacyGroupEnabled && !privacyPasswordEnabled && !isPrivateUnlocked) {
+      handleUnlockPrivateVault();
+    }
+  }, [privacyGroupEnabled, privacyPasswordEnabled, isPrivateUnlocked, handleUnlockPrivateVault]);
+
   useEffect(() => {
     autoUnlockAttemptedRef.current = false;
   }, [privacyGroupEnabled, privacyAutoUnlockEnabled]);
@@ -862,6 +893,24 @@ function App() {
       sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
     }
   }, [isPrivateUnlocked]);
+
+  const handleTogglePrivacyPassword = useCallback((enabled: boolean) => {
+    setPrivacyPasswordEnabled(enabled);
+    localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, enabled ? '1' : '0');
+
+    if (!enabled) {
+      // 禁用密码时，自动解锁隐私分组
+      setIsPrivateUnlocked(true);
+      setPrivateVaultPassword(null);
+      sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+    } else {
+      // 启用密码时，锁定隐私分组
+      setIsPrivateUnlocked(false);
+      setPrivateVaultPassword(null);
+      setPrivateLinks([]);
+      sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+    }
+  }, []);
 
   const handleSelectPrivate = useCallback(() => {
     if (!privacyGroupEnabled) {
@@ -1267,6 +1316,8 @@ function App() {
           onMigratePrivacyMode={handleMigratePrivacyMode}
           privacyGroupEnabled={privacyGroupEnabled}
           onTogglePrivacyGroup={handleTogglePrivacyGroup}
+          privacyPasswordEnabled={privacyPasswordEnabled}
+          onTogglePrivacyPassword={handleTogglePrivacyPassword}
           privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
           onTogglePrivacyAutoUnlock={handleTogglePrivacyAutoUnlock}
           closeOnBackdrop={closeOnBackdrop}
