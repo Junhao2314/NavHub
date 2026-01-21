@@ -63,14 +63,6 @@ const LinkCard: React.FC<LinkCardProps> = ({
         }
     `;
 
-    const descriptionClasses = `
-        leading-relaxed line-clamp-2 mt-1.5
-        ${isDetailedView
-            ? 'text-sm text-slate-500 dark:text-slate-400'
-            : 'text-xs text-slate-500 dark:text-slate-400'
-        }
-    `;
-
     const renderContent = () => (
         <>
             {/* Icon + Title Row */}
@@ -89,11 +81,15 @@ const LinkCard: React.FC<LinkCardProps> = ({
                 </h3>
             </div>
 
-            {/* Description */}
-            {isDetailedView && link.description && (
-                <p className={descriptionClasses}>
-                    {link.description}
-                </p>
+            {/* Description - fixed height container for alignment */}
+            {isDetailedView && (
+                <div className="h-[2.75rem] mt-1.5">
+                    {link.description && (
+                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                            {link.description}
+                        </p>
+                    )}
+                </div>
             )}
 
             {/* Tags */}
