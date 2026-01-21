@@ -149,7 +149,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     try {
       const success = await onPrivateUnlock(privatePassword);
       if (!success) {
-        setPrivateUnlockError('瑙ｉ攣澶辫触锛岃妫€鏌ュ瘑鐮?);
+        setPrivateUnlockError('解锁失败，请检查密码');
       } else {
         setPrivatePassword('');
       }
@@ -160,11 +160,11 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 6) return '鍑屾櫒濂?;
-    if (hour < 11) return '涓婂崍濂?;
-    if (hour < 14) return '涓崍濂?;
-    if (hour < 19) return '涓嬪崍濂?;
-    return '鏅氫笂濂?;
+    if (hour < 6) return '凌晨好';
+    if (hour < 11) return '上午好';
+    if (hour < 14) return '中午好';
+    if (hour < 19) return '下午好';
+    return '晚上好';
   };
 
   const readHitokotoCache = () => {
@@ -208,7 +208,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
       writeHitokotoCache(normalized);
     } catch (error) {
       if (notifyOnError) {
-        notify('鑾峰彇涓€瑷€澶辫触锛岃绋嶅悗鍐嶈瘯銆?, 'warning');
+        notify('获取一言失败，请稍后再试。', 'warning');
       }
     } finally {
       hitokotoFetchingRef.current = false;
@@ -231,28 +231,28 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     if (!hitokoto) return '';
     const from = hitokoto.from?.trim();
     const fromWho = hitokoto.from_who?.trim();
-    if (from && fromWho) return `${from} 路 ${fromWho}`;
+    if (from && fromWho) return `${from} · ${fromWho}`;
     if (from) return from;
     if (fromWho) return fromWho;
-    return '浣氬悕';
+    return '佚名';
   }, [hitokoto]);
 
   const hitokotoText = hitokoto?.hitokoto?.trim() || '';
   const activeCategory = React.useMemo(() => {
     if (isPrivateCategory) {
-      return { name: '闅愮鍒嗙粍', icon: 'Lock' };
+      return { name: '隐私分组', icon: 'Lock' };
     }
     return categories.find((c) => c.id === selectedCategory) || null;
   }, [categories, isPrivateCategory, selectedCategory]);
 
   const handleCopyHitokoto = async () => {
     if (!hitokotoText) return;
-    const textToCopy = hitokotoAuthor ? `${hitokotoText} 鈥?${hitokotoAuthor}` : hitokotoText;
+    const textToCopy = hitokotoAuthor ? `${hitokotoText} — ${hitokotoAuthor}` : hitokotoText;
     try {
       await navigator.clipboard.writeText(textToCopy);
-      notify('宸插鍒跺埌鍓创鏉?, 'success');
+      notify('已复制到剪贴板', 'success');
     } catch (error) {
-      notify('澶嶅埗澶辫触锛岃鎵嬪姩澶嶅埗銆?, 'warning');
+      notify('复制失败，请手动复制。', 'warning');
     }
   };
 
@@ -329,10 +329,10 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
           <div className="pt-8 pb-4 flex items-end justify-between">
             <div>
               <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
-                {getGreeting()}锛?span className="text-accent">{siteTitle}</span>
+                {getGreeting()}，<span className="text-accent">{siteTitle}</span>
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm">
-                鍑嗗寮€濮嬮珮鏁堢殑涓€澶╀簡鍚楋紵
+                准备开始高效的一天了吗？
               </p>
             </div>
             {/* Clock Widget */}
@@ -352,14 +352,14 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   <Pin size={16} className="text-accent" />
                 </div>
                 <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-100 dark:to-slate-400">
-                  缃《 / 甯哥敤
+                  置顶 / 常用
                 </h2>
               </div>
               {/* Stats as badge */}
               <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{linksCount} 绔欑偣</span>
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{categories.length} 鍒嗙被</span>
-                <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">{pinnedLinks.length} 缃《</span>
+                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{linksCount} 站点</span>
+                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{categories.length} 分类</span>
+                <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">{pinnedLinks.length} 置顶</span>
               </div>
             </div>
 
@@ -419,8 +419,8 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 )}
                 <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">
                   {selectedCategory === 'all'
-                    ? (searchQuery ? '鎼滅储缁撴灉' : '鎵€鏈夐摼鎺?)
-                    : (activeCategory?.name || '鏈懡鍚嶅垎绫?)
+                    ? (searchQuery ? '搜索结果' : '所有链接')
+                    : (activeCategory?.name || '未命名分类')
                   }
                 </h2>
                 {displayedLinks.length > 0 && (
@@ -437,42 +437,42 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     <button
                       onClick={onToggleBatchEditMode}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-accent hover:border-accent/50 focus:ring-accent/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
-                      title="鎵归噺缂栬緫"
+                      title="批量编辑"
                     >
-                      鎵归噺缂栬緫
+                      批量编辑
                     </button>
                   ) : (
                     <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 shadow-sm backdrop-blur-sm">
                       <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        鎵归噺缂栬緫
+                        批量编辑
                       </span>
                       <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                        宸查€?{selectedLinksCount}
+                        已选 {selectedLinksCount}
                       </span>
                       <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                       <button
                         onClick={onBatchPin}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
-                        title="鎵归噺缃《"
+                        title="批量置顶"
                       >
                         <Pin size={13} />
-                        <span>缃《</span>
+                        <span>置顶</span>
                       </button>
                       <button
                         onClick={onBatchDelete}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="鎵归噺鍒犻櫎"
+                        title="批量删除"
                       >
                         <Trash2 size={13} />
-                        <span>鍒犻櫎</span>
+                        <span>删除</span>
                       </button>
                       <button
                         onClick={onSelectAll}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                        title="鍏ㄩ€?鍙栨秷鍏ㄩ€?
+                        title="全选/取消全选"
                       >
                         <CheckSquare size={13} />
-                        <span>{selectedLinksCount === displayedLinks.length ? '鍙栨秷鍏ㄩ€? : '鍏ㄩ€?}</span>
+                        <span>{selectedLinksCount === displayedLinks.length ? '取消全选' : '全选'}</span>
                       </button>
                       <div
                         className="relative"
@@ -482,16 +482,16 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         <button
                           ref={moveMenuButtonRef}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                          title="鎵归噺绉诲姩"
+                          title="批量移动"
                         >
                           <Upload size={13} />
-                          <span>绉诲姩</span>
+                          <span>移动</span>
                         </button>
                       </div>
                       <button
                         onClick={onToggleBatchEditMode}
                         className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="閫€鍑烘壒閲忕紪杈?
+                        title="退出批量编辑"
                       >
                         <X size={14} />
                       </button>
@@ -515,7 +515,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     type="password"
                     value={privatePassword}
                     onChange={(e) => setPrivatePassword(e.target.value)}
-                    placeholder="璇疯緭鍏ュ瘑鐮?
+                    placeholder="请输入密码"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -532,7 +532,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     disabled={isPrivateUnlocking}
                     className="mt-3 w-full px-3 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isPrivateUnlocking ? '瑙ｉ攣涓?..' : '瑙ｉ攣'}
+                    {isPrivateUnlocking ? '解锁中...' : '解锁'}
                   </button>
                 </div>
               </div>
@@ -542,9 +542,9 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
                     <Search size={32} className="opacity-40" />
                   </div>
-                  <p className="text-sm">娌℃湁鎵惧埌鐩稿叧鍐呭</p>
+                  <p className="text-sm">没有找到相关内容</p>
                   {selectedCategory !== 'all' && (
-                    <button onClick={onAddLink} className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded">娣诲姞涓€涓?</button>
+                    <button onClick={onAddLink} className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded">添加一个?</button>
                   )}
                 </div>
               ) : (
@@ -600,15 +600,15 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               type="button"
               onClick={handleCopyHitokoto}
               className="flex min-w-0 max-w-[70vw] items-center gap-1.5 text-left hover:text-slate-500 dark:hover:text-slate-300 transition-colors"
-              title={hitokotoText || '涓€瑷€鑾峰彇涓?}
-              aria-label="鐐瑰嚮澶嶅埗涓€瑷€"
+              title={hitokotoText || '一言获取中'}
+              aria-label="点击复制一言"
             >
               <span className="truncate">
-                {hitokotoText || (isHitokotoLoading ? '涓€瑷€鑾峰彇涓€? : '鐐瑰嚮鍒锋柊鑾峰彇涓€瑷€')}
+                {hitokotoText || (isHitokotoLoading ? '一言获取中…' : '点击刷新获取一言')}
               </span>
               {hitokotoText && (
                 <span className="shrink-0 text-slate-400/80 dark:text-slate-500">
-                  鈥?{hitokotoAuthor}
+                  — {hitokotoAuthor}
                 </span>
               )}
             </button>
@@ -616,8 +616,8 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               type="button"
               onClick={() => fetchHitokoto(true)}
               className="h-6 w-6 inline-flex items-center justify-center rounded-full text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-60"
-              title="鍒锋柊涓€瑷€"
-              aria-label="鍒锋柊涓€瑷€"
+              title="刷新一言"
+              aria-label="刷新一言"
               disabled={isHitokotoLoading}
             >
               <RefreshCw size={13} className={isHitokotoLoading ? 'animate-spin' : ''} />
