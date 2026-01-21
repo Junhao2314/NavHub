@@ -81,8 +81,10 @@ const LinkCard: React.FC<LinkCardProps> = ({
                         <div className="h-[2.5rem] mt-0.5">
                             {link.description && (
                                 <p 
-                                    className="text-sm text-slate-500 dark:text-slate-400 leading-snug line-clamp-2"
+                                    className="text-sm text-slate-500 dark:text-slate-400 leading-snug line-clamp-2 select-text cursor-text"
                                     title={link.description}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                 >
                                     {link.description}
                                 </p>
