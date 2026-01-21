@@ -41,7 +41,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
     };
 
     const cardClasses = `
-        group relative transition-all duration-300 rounded-2xl
+        group relative transition-all duration-300
         border bg-white dark:bg-slate-900/40 backdrop-blur-sm
         ${isBatchEditMode
             ? 'cursor-pointer border-slate-200 dark:border-white/10'
@@ -51,18 +51,18 @@ const LinkCard: React.FC<LinkCardProps> = ({
             ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50 dark:bg-rose-900/10'
             : 'border-slate-200/60 dark:border-white/5 hover:border-accent/40 dark:hover:border-accent/40'
         }
-        ${isDetailedView ? 'p-4' : 'p-3.5'}
+        ${isDetailedView ? 'p-4 rounded-2xl' : 'px-3 py-1.5 rounded-xl'}
     `;
 
     const customToneStyle = getIconToneStyle(link.iconTone);
     const colorClass = customToneStyle ? '' : getIconToneClass(link.icon, link.url, link.title);
 
     const iconContainerClasses = `
-        flex items-center justify-center shrink-0 rounded-xl overflow-hidden shadow-sm transition-transform duration-300 group-hover:scale-105
+        flex items-center justify-center shrink-0 overflow-hidden transition-transform duration-300 group-hover:scale-105
         ${colorClass}
         ${isDetailedView
-            ? 'w-14 h-14 border border-black/5 dark:border-white/5'
-            : 'w-9 h-9 border border-black/5 dark:border-white/5'
+            ? 'w-14 h-14 rounded-xl shadow-sm border border-black/5 dark:border-white/5'
+            : 'w-7 h-7 rounded-lg'
         }
     `;
 
@@ -83,13 +83,13 @@ const LinkCard: React.FC<LinkCardProps> = ({
         >
             <div className="flex flex-col gap-2">
                 {/* Clickable area: Icon + Title */}
-                <div className="flex items-start gap-3.5 min-w-0 cursor-pointer">
+                <div className={`flex min-w-0 cursor-pointer ${isDetailedView ? 'items-start gap-3.5' : 'items-center gap-2.5'}`}>
                     {/* Icon */}
                     <div className={iconContainerClasses} style={customToneStyle}>
                         {link.icon ? (
-                            <img src={link.icon} alt="" className={isDetailedView ? "w-8 h-8" : "w-5 h-5"} />
+                            <img src={link.icon} alt="" className={isDetailedView ? "w-8 h-8" : "w-4 h-4"} />
                         ) : (
-                            <span className={`font-bold text-slate-400 dark:text-slate-500 uppercase ${isDetailedView ? 'text-xl' : 'text-sm'}`}>
+                            <span className={`font-bold text-slate-400 dark:text-slate-500 uppercase ${isDetailedView ? 'text-xl' : 'text-xs'}`}>
                                 {link.title.charAt(0)}
                             </span>
                         )}
@@ -126,9 +126,9 @@ const LinkCard: React.FC<LinkCardProps> = ({
                         )}
                     </div>
                 </div>
-                {/* Tags row - fixed position */}
-                {isDetailedView && (
-                    <div className="flex flex-wrap gap-1.5 min-h-[1.375rem]">
+                {/* Tags row - only show if has tags */}
+                {isDetailedView && visibleTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
                         {visibleTags.map((tag) => (
                             <span
                                 key={tag}
