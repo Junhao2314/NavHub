@@ -27,7 +27,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
 }) => {
     const isDetailedView = siteCardStyle === 'detailed';
     const safeTags = Array.isArray(link.tags) ? link.tags.filter(Boolean) : [];
-    const visibleTags = isDetailedView ? safeTags.slice(0, 2) : [];
+    const visibleTags = isDetailedView ? safeTags.slice(0, 5) : [];
     const remainingTagsCount = isDetailedView ? Math.max(0, safeTags.length - visibleTags.length) : 0;
 
     const [descExpanded, setDescExpanded] = React.useState(false);
