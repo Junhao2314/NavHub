@@ -2,6 +2,7 @@ import React from 'react';
 import { LinkItem } from '../../types';
 import { Settings } from 'lucide-react';
 import { getIconToneClass, getIconToneStyle } from '../../utils/iconTone';
+import { getTagColorStyle } from '../../utils/tagColors';
 
 interface LinkCardProps {
     link: LinkItem;
@@ -30,6 +31,9 @@ const LinkCard: React.FC<LinkCardProps> = ({
     const remainingTagsCount = isDetailedView ? Math.max(0, safeTags.length - visibleTags.length) : 0;
 
     const [descExpanded, setDescExpanded] = React.useState(false);
+    
+    // 检测深色模式
+    const isDark = document.documentElement.classList.contains('dark');
     
     const handleDescMouseLeave = () => {
         // 如果有文字被选中，保持展开状态
@@ -132,14 +136,15 @@ const LinkCard: React.FC<LinkCardProps> = ({
                         {visibleTags.map((tag) => (
                             <span
                                 key={tag}
-                                className="px-2 py-0.5 rounded-md bg-accent/10 text-accent dark:text-accent/90 text-[11px] font-semibold border border-accent/10"
+                                className="px-2 py-0.5 rounded-md text-[11px] font-semibold border"
+                                style={getTagColorStyle(tag, isDark)}
                                 title={tag}
                             >
                                 {tag}
                             </span>
                         ))}
                         {remainingTagsCount > 0 && (
-                            <span className="px-2 py-0.5 rounded-md bg-accent/5 text-accent/70 text-[11px] font-medium border border-accent/5">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[11px] font-medium border border-slate-200 dark:border-slate-700/50">
                                 +{remainingTagsCount}
                             </span>
                         )}
