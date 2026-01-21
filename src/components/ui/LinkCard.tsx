@@ -114,7 +114,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
                                     <p 
                                         className={`text-sm text-slate-500 dark:text-slate-400 leading-snug select-text cursor-text ${
                                             descExpanded 
-                                                ? 'absolute z-10 bg-white dark:bg-slate-800 p-2 -m-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 max-h-[4.5rem] overflow-y-auto' 
+                                                ? 'absolute z-10 bg-white dark:bg-slate-800 p-2 -m-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 max-h-[5.5rem] overflow-y-auto' 
                                                 : 'line-clamp-2'
                                         }`}
                                         title={!descExpanded ? link.description : undefined}
