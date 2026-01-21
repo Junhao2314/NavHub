@@ -641,6 +641,36 @@ function App() {
     return counts;
   }, [links, categories, commonRecommendedLinks]);
 
+  // 收集所有已有标签（去重）
+  const existingTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    links.forEach(link => {
+      if (Array.isArray(link.tags)) {
+        link.tags.forEach(tag => {
+          if (tag && tag.trim()) {
+            tagSet.add(tag.trim());
+          }
+        });
+      }
+    });
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  }, [links]);
+
+  // 收集隐私分组的已有标签
+  const existingPrivateTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    privateLinks.forEach(link => {
+      if (Array.isArray(link.tags)) {
+        link.tags.forEach(tag => {
+          if (tag && tag.trim()) {
+            tagSet.add(tag.trim());
+          }
+        });
+      }
+    });
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  }, [privateLinks]);
+
   const privateCount = privacyGroupEnabled && isPrivateUnlocked ? privateLinks.length : 0;
   const privateUnlockHint = useSeparatePrivacyPassword
     ? '请输入独立密码解锁隐私分组'
@@ -1557,6 +1587,7 @@ function App() {
           aiConfig={aiConfig}
           defaultCategoryId={selectedCategory !== 'all' && selectedCategory !== PRIVATE_CATEGORY_ID ? selectedCategory : undefined}
           closeOnBackdrop={closeOnBackdrop}
+          existingTags={existingTags}
         />
         <LinkModal
           isOpen={isPrivateModalOpen}
@@ -1568,6 +1599,7 @@ function App() {
           aiConfig={aiConfig}
           defaultCategoryId={PRIVATE_CATEGORY_ID}
           closeOnBackdrop={closeOnBackdrop}
+          existingTags={existingPrivateTags}
         />
       </Suspense>
 

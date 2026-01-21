@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Loader2, Pin, Star, Wand2, Trash2, Upload } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Sparkles, Loader2, Pin, Star, Wand2, Trash2, Upload, Tag } from 'lucide-react';
 import { LinkItem, Category, AIConfig } from '../../types';
 import { generateLinkDescription, suggestCategory } from '../../services/geminiService';
 import { useDialog } from '../ui/DialogProvider';
@@ -17,6 +17,7 @@ interface LinkModalProps {
   aiConfig: AIConfig;
   defaultCategoryId?: string;
   closeOnBackdrop?: boolean;
+  existingTags?: string[];
 }
 
 const LinkModal: React.FC<LinkModalProps> = ({
@@ -28,7 +29,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
   initialData,
   aiConfig,
   defaultCategoryId,
-  closeOnBackdrop = true
+  closeOnBackdrop = true,
+  existingTags = []
 }) => {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
@@ -46,8 +48,20 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const [autoFetchIcon, setAutoFetchIcon] = useState(true);
   const [batchMode, setBatchMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tagInputRef = useRef<HTMLInputElement>(null);
   const { notify } = useDialog();
+
+  // 过滤出未使用且匹配输入的标签建议
+  const filteredTagSuggestions = useMemo(() => {
+    if (!existingTags || existingTags.length === 0) return [];
+    const input = tagInput.toLowerCase().trim();
+    return existingTags
+      .filter(tag => !tags.some(t => t.toLowerCase() === tag.toLowerCase()))
+      .filter(tag => !input || tag.toLowerCase().includes(input))
+      .slice(0, 8);
+  }, [existingTags, tags, tagInput]);
 
   // 当模态框关闭时，重置批量模式为默认关闭状态
   useEffect(() => {
@@ -131,6 +145,13 @@ const LinkModal: React.FC<LinkModalProps> = ({
     setTags(prev => prev.filter(tag => tag !== tagToRemove));
   };
 
+  const selectTagSuggestion = (tag: string) => {
+    setTags(prev => normalizeTags([...prev, tag]));
+    setTagInput('');
+    setShowTagSuggestions(false);
+    tagInputRef.current?.focus();
+  };
+
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
       e.preventDefault();
@@ -140,6 +161,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
     if (e.key === 'Backspace' && tagInput.trim() === '') {
       setTags(prev => prev.slice(0, -1));
+    }
+
+    if (e.key === 'Escape') {
+      setShowTagSuggestions(false);
     }
   };
 
@@ -649,15 +674,46 @@ const LinkModal: React.FC<LinkModalProps> = ({
                   </button>
                 )}
               </div>
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                onBlur={commitTagInput}
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
-                placeholder="输入标签，回车/逗号添加"
-              />
+              <div className="relative">
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => {
+                    setTagInput(e.target.value);
+                    setShowTagSuggestions(true);
+                  }}
+                  onKeyDown={handleTagKeyDown}
+                  onFocus={() => setShowTagSuggestions(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowTagSuggestions(false), 150);
+                    commitTagInput();
+                  }}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
+                  placeholder="输入标签，回车/逗号添加"
+                />
+                {/* 标签建议下拉列表 */}
+                {showTagSuggestions && filteredTagSuggestions.length > 0 && (
+                  <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    <div className="px-3 py-1.5 text-[10px] font-medium text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700 flex items-center gap-1">
+                      <Tag size={10} />
+                      已有标签
+                    </div>
+                    {filteredTagSuggestions.map(tag => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectTagSuggestion(tag)}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {tags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {tags.map((tag) => (
