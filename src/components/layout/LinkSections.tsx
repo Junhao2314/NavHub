@@ -118,7 +118,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   const isPrivateCategory = selectedCategory === PRIVATE_CATEGORY_ID;
   const showPinnedSection = pinnedLinks.length > 0 && !searchQuery && (selectedCategory === 'all');
   const showMainSection = (selectedCategory !== 'all' || searchQuery);
-  const gridClassName = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5';
+  const gridClassName = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
   const { notify } = useDialog();
   const [hitokoto, setHitokoto] = React.useState<HitokotoPayload | null>(null);
   const [isHitokotoLoading, setIsHitokotoLoading] = React.useState(false);

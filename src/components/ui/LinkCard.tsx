@@ -26,7 +26,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
 }) => {
     const isDetailedView = siteCardStyle === 'detailed';
     const safeTags = Array.isArray(link.tags) ? link.tags.filter(Boolean) : [];
-    const visibleTags = isDetailedView ? safeTags.slice(0, 3) : [];
+    const visibleTags = isDetailedView ? safeTags.slice(0, 2) : [];
     const remainingTagsCount = isDetailedView ? Math.max(0, safeTags.length - visibleTags.length) : 0;
 
     const cardClasses = `
@@ -40,7 +40,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
             ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50 dark:bg-rose-900/10'
             : 'border-slate-200/60 dark:border-white/5 hover:border-accent/40 dark:hover:border-accent/40'
         }
-        ${isDetailedView ? 'p-5' : 'p-3.5'}
+        ${isDetailedView ? 'p-4' : 'p-3.5'}
     `;
 
     const customToneStyle = getIconToneStyle(link.iconTone);
@@ -50,51 +50,42 @@ const LinkCard: React.FC<LinkCardProps> = ({
         flex items-center justify-center shrink-0 rounded-xl overflow-hidden shadow-sm transition-transform duration-300 group-hover:scale-105
         ${colorClass}
         ${isDetailedView
-            ? 'w-12 h-12 border border-black/5 dark:border-white/5'
+            ? 'w-14 h-14 border border-black/5 dark:border-white/5'
             : 'w-9 h-9 border border-black/5 dark:border-white/5'
         }
     `;
 
-    const titleClasses = `
-        font-medium truncate transition-colors
-        ${isDetailedView
-            ? 'text-base text-slate-800 dark:text-slate-100 group-hover:text-accent'
-            : 'text-sm text-slate-700 dark:text-slate-200 group-hover:text-accent'
-        }
-    `;
-
     const renderContent = () => (
-        <>
-            {/* Icon + Title Row */}
-            <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3.5 min-w-0">
+                {/* Icon */}
                 <div className={iconContainerClasses} style={customToneStyle}>
                     {link.icon ? (
-                        <img src={link.icon} alt="" className={isDetailedView ? "w-6 h-6" : "w-5 h-5"} />
+                        <img src={link.icon} alt="" className={isDetailedView ? "w-8 h-8" : "w-5 h-5"} />
                     ) : (
-                        <span className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase">
+                        <span className={`font-bold text-slate-400 dark:text-slate-500 uppercase ${isDetailedView ? 'text-xl' : 'text-sm'}`}>
                             {link.title.charAt(0)}
                         </span>
                     )}
                 </div>
-                <h3 className={titleClasses} title={link.title}>
-                    {link.title}
-                </h3>
-            </div>
-
-            {/* Description - fixed height container for alignment */}
-            {isDetailedView && (
-                <div className="h-[2.75rem] mt-1.5">
-                    {link.description && (
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                {/* Title + Description */}
+                <div className="flex-1 min-w-0">
+                    <h3 className={`font-medium truncate transition-colors ${isDetailedView
+                        ? 'text-base text-slate-800 dark:text-slate-100 group-hover:text-accent'
+                        : 'text-sm text-slate-700 dark:text-slate-200 group-hover:text-accent'
+                    }`} title={link.title}>
+                        {link.title}
+                    </h3>
+                    {isDetailedView && link.description && (
+                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-snug line-clamp-2 mt-0.5">
                             {link.description}
                         </p>
                     )}
                 </div>
-            )}
-
-            {/* Tags */}
-            {visibleTags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3">
+            </div>
+            {/* Tags row */}
+            {isDetailedView && visibleTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
                     {visibleTags.map((tag) => (
                         <span
                             key={tag}
@@ -111,7 +102,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
                     )}
                 </div>
             )}
-        </>
+        </div>
     );
 
     return (
@@ -121,16 +112,14 @@ const LinkCard: React.FC<LinkCardProps> = ({
             onContextMenu={(e) => onContextMenu(e, link)}
         >
             {isBatchEditMode ? (
-                <div className={`flex ${isDetailedView ? 'flex-col' : 'items-center'} min-w-0`}>
-                    {renderContent()}
-                </div>
+                renderContent()
             ) : (
                 <a
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`flex ${isDetailedView ? 'flex-col' : 'items-center'} min-w-0`}
-                    title={isDetailedView ? link.url : (link.description || link.url)}
+                    className="block"
+                    title={link.url}
                     onClick={() => onOpenLink?.(link)}
                 >
                     {renderContent()}
@@ -147,10 +136,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
 
             {/* Hover Actions */}
             {!isBatchEditMode && (
-                <div className={`
-                    absolute opacity-0 group-hover:opacity-100 transition-all duration-200
-                    ${isDetailedView ? 'top-3 right-3' : 'top-1/2 -translate-y-1/2 right-2'}
-                `}>
+                <div className="absolute top-1/2 -translate-y-1/2 right-3 opacity-0 group-hover:opacity-100 transition-all duration-200">
                     <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(link); }}
                         className="p-1.5 text-slate-400 hover:text-accent bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-slate-200/50 dark:border-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50"
@@ -166,7 +152,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
                 <div className={`absolute top-2 right-2 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${isSelected
                     ? 'bg-rose-500 border-rose-500 text-white'
                     : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
-                    }`}>
+                }`}>
                     {isSelected && (
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
