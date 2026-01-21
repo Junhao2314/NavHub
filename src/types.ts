@@ -5,6 +5,7 @@ export interface LinkItem {
   icon?: string;
   iconTone?: string;
   description?: string;
+  tags?: string[];
   categoryId: string;
   createdAt: number;
   pinned?: boolean; // New field for pinning

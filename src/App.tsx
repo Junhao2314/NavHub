@@ -473,7 +473,8 @@ function App() {
       result = result.filter(l =>
         l.title.toLowerCase().includes(q) ||
         l.url.toLowerCase().includes(q) ||
-        (l.description && l.description.toLowerCase().includes(q))
+        (l.description && l.description.toLowerCase().includes(q)) ||
+        (Array.isArray(l.tags) && l.tags.some(tag => tag.toLowerCase().includes(q)))
       );
     }
 
@@ -507,7 +508,8 @@ function App() {
       result = result.filter(l =>
         l.title.toLowerCase().includes(q) ||
         l.url.toLowerCase().includes(q) ||
-        (l.description && l.description.toLowerCase().includes(q))
+        (l.description && l.description.toLowerCase().includes(q)) ||
+        (Array.isArray(l.tags) && l.tags.some(tag => tag.toLowerCase().includes(q)))
       );
     }
 
@@ -605,7 +607,6 @@ function App() {
   const canSortPinned = isAdmin && selectedCategory === 'all' && !searchQuery && pinnedLinks.length > 1;
   const canSortCategory = isAdmin && selectedCategory !== 'all'
     && selectedCategory !== PRIVATE_CATEGORY_ID
-    && selectedCategory !== COMMON_CATEGORY_ID
     && displayedLinks.length > 1;
 
   useEffect(() => {
@@ -1496,7 +1497,7 @@ function App() {
                 notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
                 return;
               }
-              if (!isPrivateView && selectedCategory !== COMMON_CATEGORY_ID) {
+              if (!isPrivateView) {
                 startSorting(selectedCategory);
               }
             }}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LinkItem, Category, DEFAULT_CATEGORIES, INITIAL_LINKS } from '../types';
 import { arrayMove } from '@dnd-kit/sortable';
-import { LOCAL_STORAGE_KEY, FAVICON_CACHE_KEY } from '../utils/constants';
+import { LOCAL_STORAGE_KEY, FAVICON_CACHE_KEY, COMMON_CATEGORY_ID } from '../utils/constants';
+import { getCommonRecommendedLinks } from '../utils/recommendation';
 import { useDialog } from '../components/ui/DialogProvider';
 
 export const useDataStore = () => {
@@ -227,6 +228,34 @@ export const useDataStore = () => {
 
     const reorderLinks = useCallback((activeId: string, overId: string, selectedCategory: string) => {
         if (activeId === overId) return;
+
+        if (selectedCategory === COMMON_CATEGORY_ID) {
+            const commonLinks = getCommonRecommendedLinks(links);
+            const activeIndex = commonLinks.findIndex(link => link.id === activeId);
+            const overIndex = commonLinks.findIndex(link => link.id === overId);
+            if (activeIndex === -1 || overIndex === -1) return;
+
+            const reorderedCommonLinks = arrayMove(commonLinks, activeIndex, overIndex) as LinkItem[];
+            const recommendedOrderMap = new Map<string, number>();
+            reorderedCommonLinks.forEach((link, index) => {
+                recommendedOrderMap.set(link.id, index);
+            });
+
+            const updatedLinks = links.map(link => {
+                const nextOrder = recommendedOrderMap.get(link.id);
+                if (nextOrder === undefined) return link;
+
+                const isAlreadyManual = Boolean(link.recommended) || link.categoryId === COMMON_CATEGORY_ID;
+                return {
+                    ...link,
+                    recommended: isAlreadyManual ? link.recommended : true,
+                    recommendedOrder: nextOrder
+                };
+            });
+
+            updateData(updatedLinks, categories);
+            return;
+        }
 
         const getOrderValue = (link: LinkItem) => (
             link.order !== undefined ? link.order : link.createdAt

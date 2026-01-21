@@ -29,6 +29,9 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = ({
     const isDetailedView = siteCardStyle === 'detailed';
     const customToneStyle = getIconToneStyle(link.iconTone);
     const iconToneClass = customToneStyle ? '' : getIconToneClass(link.icon, link.url, link.title);
+    const safeTags = Array.isArray(link.tags) ? link.tags.filter(Boolean) : [];
+    const visibleTags = isDetailedView ? safeTags.slice(0, 3) : [];
+    const remainingTagsCount = isDetailedView ? Math.max(0, safeTags.length - visibleTags.length) : 0;
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -79,6 +82,26 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = ({
                     <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
                         {link.description}
                     </p>
+                )}
+
+                {/* 标签 */}
+                {visibleTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                        {visibleTags.map((tag) => (
+                            <span
+                                key={tag}
+                                className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-medium"
+                                title={tag}
+                            >
+                                {tag}
+                            </span>
+                        ))}
+                        {remainingTagsCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-medium">
+                                +{remainingTagsCount}
+                            </span>
+                        )}
+                    </div>
                 )}
             </div>
         </div>

@@ -33,6 +33,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
   const [categoryId, setCategoryId] = useState(categories[0]?.id || 'common');
   const [pinned, setPinned] = useState(false);
   const [recommended, setRecommended] = useState(false);
@@ -71,6 +73,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
         setTitle(initialData.title);
         setUrl(initialData.url);
         setDescription(initialData.description || '');
+        setTags(initialData.tags || []);
+        setTagInput('');
         setCategoryId(initialData.categoryId);
         setPinned(initialData.pinned || false);
         setRecommended(initialData.recommended || false);
@@ -81,6 +85,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
         setTitle('');
         setUrl('');
         setDescription('');
+        setTags([]);
+        setTagInput('');
         // 如果有默认分类ID且该分类存在，则使用默认分类，否则使用第一个分类
         const defaultCategory = defaultCategoryId && categories.find(cat => cat.id === defaultCategoryId);
         setCategoryId(defaultCategory ? defaultCategoryId : (categories[0]?.id || 'common'));
@@ -92,6 +98,50 @@ const LinkModal: React.FC<LinkModalProps> = ({
       }
     }
   }, [isOpen, initialData, categories, defaultCategoryId]);
+
+  const parseTags = (value: string) => {
+    return value
+      .split(/[,\n，；;]+/g)
+      .map(tag => tag.trim())
+      .filter(Boolean);
+  };
+
+  const normalizeTags = (value: string[]) => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    value.forEach(tag => {
+      const trimmed = tag.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(trimmed);
+    });
+    return result;
+  };
+
+  const commitTagInput = () => {
+    const incoming = parseTags(tagInput);
+    if (incoming.length === 0) return;
+    setTags(prev => normalizeTags([...prev, ...incoming]));
+    setTagInput('');
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags(prev => prev.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
+      e.preventDefault();
+      commitTagInput();
+      return;
+    }
+
+    if (e.key === 'Backspace' && tagInput.trim() === '') {
+      setTags(prev => prev.slice(0, -1));
+    }
+  };
 
   // 当URL变化且启用自动获取图标时，自动获取图标
   useEffect(() => {
@@ -137,6 +187,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
       finalUrl = 'https://' + url;
     }
 
+    const nextTags = normalizeTags([...tags, ...parseTags(tagInput)]);
+
     // 保存链接数据
     onSave({
       id: initialData?.id || '',
@@ -145,6 +197,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
       icon,
       iconTone: iconTone || undefined,
       description,
+      tags: nextTags.length > 0 ? nextTags : undefined,
       categoryId,
       pinned,
       recommended
@@ -163,6 +216,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
       setUrl('');
       setIcon('');
       setDescription('');
+      setTags([]);
+      setTagInput('');
       setPinned(false);
       setIconTone('');
       setIconToneInput('');
@@ -578,6 +633,54 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm min-h-[80px] resize-none"
                 placeholder="添加描述..."
               />
+            </div>
+
+            {/* Tags */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">标签</span>
+                {tags.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setTags([]); setTagInput(''); }}
+                    className="text-[10px] font-medium text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                  >
+                    清空
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                onBlur={commitTagInput}
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
+                placeholder="输入标签，回车/逗号添加"
+              />
+              {tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-medium"
+                    >
+                      <span className="max-w-[180px] truncate">{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="h-4 w-4 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        aria-label={`移除标签 ${tag}`}
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                回车/逗号添加，Backspace 可快速删除最后一个标签
+              </p>
             </div>
           </div>
 
