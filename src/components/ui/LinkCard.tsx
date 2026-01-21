@@ -28,17 +28,6 @@ const LinkCard: React.FC<LinkCardProps> = ({
     const safeTags = Array.isArray(link.tags) ? link.tags.filter(Boolean) : [];
     const visibleTags = isDetailedView ? safeTags.slice(0, 2) : [];
     const remainingTagsCount = isDetailedView ? Math.max(0, safeTags.length - visibleTags.length) : 0;
-    
-    const [showFullDesc, setShowFullDesc] = React.useState(false);
-    const descRef = React.useRef<HTMLParagraphElement>(null);
-    const [isTruncated, setIsTruncated] = React.useState(false);
-    
-    // 检测描述是否被截断
-    React.useEffect(() => {
-        if (descRef.current) {
-            setIsTruncated(descRef.current.scrollHeight > descRef.current.clientHeight);
-        }
-    }, [link.description]);
 
     const cardClasses = `
         group relative transition-all duration-300 rounded-2xl
@@ -89,24 +78,14 @@ const LinkCard: React.FC<LinkCardProps> = ({
                     </h3>
                     {/* Description - fixed 2 lines height */}
                     {isDetailedView && (
-                        <div className="h-[2.5rem] mt-0.5 relative">
+                        <div className="h-[2.5rem] mt-0.5">
                             {link.description && (
-                                <>
-                                    <p 
-                                        ref={descRef}
-                                        className="text-sm text-slate-500 dark:text-slate-400 leading-snug line-clamp-2"
-                                    >
-                                        {link.description}
-                                    </p>
-                                    {isTruncated && (
-                                        <button
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFullDesc(true); }}
-                                            className="absolute bottom-0 right-0 text-xs text-accent hover:text-accent/80 bg-white dark:bg-slate-900 pl-1"
-                                        >
-                                            ...更多
-                                        </button>
-                                    )}
-                                </>
+                                <p 
+                                    className="text-sm text-slate-500 dark:text-slate-400 leading-snug line-clamp-2"
+                                    title={link.description}
+                                >
+                                    {link.description}
+                                </p>
                             )}
                         </div>
                     )}
@@ -190,28 +169,6 @@ const LinkCard: React.FC<LinkCardProps> = ({
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
                     )}
-                </div>
-            )}
-
-            {/* Full description popup */}
-            {showFullDesc && (
-                <div 
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm"
-                    onClick={() => setShowFullDesc(false)}
-                >
-                    <div 
-                        className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-4 max-w-md mx-4 border border-slate-200 dark:border-slate-700"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <h4 className="font-medium text-slate-800 dark:text-slate-100 mb-2">{link.title}</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{link.description}</p>
-                        <button 
-                            onClick={() => setShowFullDesc(false)}
-                            className="mt-3 text-xs text-slate-500 hover:text-accent"
-                        >
-                            关闭
-                        </button>
-                    </div>
                 </div>
             )}
         </div>
