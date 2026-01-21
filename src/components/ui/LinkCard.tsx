@@ -89,14 +89,14 @@ const LinkCard: React.FC<LinkCardProps> = ({
                     {visibleTags.map((tag) => (
                         <span
                             key={tag}
-                            className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-medium"
+                            className="px-2 py-0.5 rounded-md bg-accent/10 text-accent dark:text-accent/90 text-[11px] font-semibold border border-accent/10"
                             title={tag}
                         >
                             {tag}
                         </span>
                     ))}
                     {remainingTagsCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-medium">
+                        <span className="px-2 py-0.5 rounded-md bg-accent/5 text-accent/70 text-[11px] font-medium border border-accent/5">
                             +{remainingTagsCount}
                         </span>
                     )}
@@ -136,7 +136,10 @@ const LinkCard: React.FC<LinkCardProps> = ({
 
             {/* Hover Actions */}
             {!isBatchEditMode && (
-                <div className="absolute top-1/2 -translate-y-1/2 right-3 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                <div className={`
+                    absolute opacity-0 group-hover:opacity-100 transition-all duration-200
+                    ${isDetailedView ? 'top-3 right-3' : 'top-1/2 -translate-y-1/2 right-2'}
+                `}>
                     <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(link); }}
                         className="p-1.5 text-slate-400 hover:text-accent bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-slate-200/50 dark:border-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50"
