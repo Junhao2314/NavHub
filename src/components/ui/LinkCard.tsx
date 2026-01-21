@@ -1,7 +1,7 @@
 import React from 'react';
 import { LinkItem } from '../../types';
 import { Settings } from 'lucide-react';
-import { getIconToneClass, getIconToneStyle } from '../../utils/iconTone';
+import { getIconToneClass, getIconToneStyle, analyzeIconColor } from '../../utils/iconTone';
 import { getTagColorStyle } from '../../utils/tagColors';
 
 interface LinkCardProps {
@@ -31,9 +31,19 @@ const LinkCard: React.FC<LinkCardProps> = ({
     const remainingTagsCount = isDetailedView ? Math.max(0, safeTags.length - visibleTags.length) : 0;
 
     const [descExpanded, setDescExpanded] = React.useState(false);
+    const [analyzedBg, setAnalyzedBg] = React.useState<{ bg: string; text: string } | null>(null);
     
     // 检测深色模式
     const isDark = document.documentElement.classList.contains('dark');
+    
+    // 深色模式下分析图标颜色
+    React.useEffect(() => {
+        if (isDark && link.icon && !link.iconTone) {
+            analyzeIconColor(link.icon).then(setAnalyzedBg);
+        } else {
+            setAnalyzedBg(null);
+        }
+    }, [isDark, link.icon, link.iconTone]);
     
     const handleDescMouseLeave = () => {
         // 如果有文字被选中，保持展开状态
@@ -46,20 +56,26 @@ const LinkCard: React.FC<LinkCardProps> = ({
 
     const cardClasses = `
         group relative transition-all duration-300
-        border bg-white dark:bg-slate-900/40 backdrop-blur-sm
+        border bg-white dark:bg-slate-800/50 backdrop-blur-sm
         ${isBatchEditMode
             ? 'cursor-pointer border-slate-200 dark:border-white/10'
             : 'hover:-translate-y-1 hover:shadow-xl hover:shadow-accent/10 shadow-sm shadow-slate-200/50 dark:shadow-none'
         }
         ${isSelected
             ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50 dark:bg-rose-900/10'
-            : 'border-slate-200/60 dark:border-white/5 hover:border-accent/40 dark:hover:border-accent/40'
+            : 'border-slate-200/60 dark:border-white/8 hover:border-accent/40 dark:hover:border-accent/40'
         }
         ${isDetailedView ? 'p-4 rounded-2xl' : 'px-3 py-1.5 rounded-xl'}
     `;
 
-    const customToneStyle = getIconToneStyle(link.iconTone);
-    const colorClass = customToneStyle ? '' : getIconToneClass(link.icon, link.url, link.title);
+    const customToneStyle = getIconToneStyle(link.iconTone, isDark, link.icon, link.url, link.title);
+    
+    // 深色模式下优先使用分析出的对比色背景
+    const iconStyle = isDark && analyzedBg 
+        ? { backgroundColor: analyzedBg.bg, color: analyzedBg.text }
+        : customToneStyle;
+    
+    const colorClass = iconStyle ? '' : getIconToneClass(link.icon, link.url, link.title);
 
     const iconContainerClasses = `
         flex items-center justify-center shrink-0 overflow-hidden transition-transform duration-300 group-hover:scale-105
@@ -89,7 +105,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
                 {/* Clickable area: Icon + Title */}
                 <div className={`flex min-w-0 cursor-pointer ${isDetailedView ? 'items-start gap-3.5' : 'items-center gap-2.5'}`}>
                     {/* Icon */}
-                    <div className={iconContainerClasses} style={customToneStyle}>
+                    <div className={iconContainerClasses} style={iconStyle}>
                         {link.icon ? (
                             <img src={link.icon} alt="" className={isDetailedView ? "w-8 h-8" : "w-4 h-4"} />
                         ) : (
