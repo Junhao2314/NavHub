@@ -26,6 +26,7 @@ interface SettingsModalProps {
   onSave: (config: AIConfig, siteSettings: SiteSettings) => void;
   links: LinkItem[];
   onUpdateLinks: (links: LinkItem[]) => void;
+  onDeleteLink: (id: string) => void;
   onOpenImport: () => void;
   onRestoreBackup: (backupKey: string) => Promise<boolean>;
   onDeleteBackup: (backupKey: string) => Promise<boolean>;
@@ -52,6 +53,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onSave,
   links,
   onUpdateLinks,
+  onDeleteLink,
   onOpenImport,
   onRestoreBackup,
   onDeleteBackup,
@@ -239,6 +241,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               onTogglePrivacyPassword={onTogglePrivacyPassword}
               privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
               onTogglePrivacyAutoUnlock={onTogglePrivacyAutoUnlock}
+              links={links}
+              onDeleteLink={onDeleteLink}
             />
           )}
         </div>

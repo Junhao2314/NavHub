@@ -1357,6 +1357,7 @@ function App({ onReady }: AppProps) {
           onSave={handleSaveSettings}
           links={links}
           onUpdateLinks={(newLinks) => updateData(newLinks, categories)}
+          onDeleteLink={deleteLink}
           onOpenImport={() => setIsImportModalOpen(true)}
           onRestoreBackup={handleRestoreBackup}
           onDeleteBackup={handleDeleteBackup}

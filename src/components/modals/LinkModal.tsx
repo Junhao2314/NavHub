@@ -101,9 +101,11 @@ const LinkModal: React.FC<LinkModalProps> = ({
         setDescription('');
         setTags([]);
         setTagInput('');
-        // 如果有默认分类ID且该分类存在，则使用默认分类，否则使用第一个分类
+        // 如果有默认分类ID且该分类存在，则使用默认分类
+        // 否则选择第一个非"常用推荐"的分类，避免用户不知道链接保存到哪里
         const defaultCategory = defaultCategoryId && categories.find(cat => cat.id === defaultCategoryId);
-        setCategoryId(defaultCategory ? defaultCategoryId : (categories[0]?.id || 'common'));
+        const fallbackCategory = categories.find(cat => cat.id !== 'common') || categories[0];
+        setCategoryId(defaultCategory ? defaultCategoryId : (fallbackCategory?.id || 'common'));
         setPinned(false);
         setRecommended(false);
         setIcon('');

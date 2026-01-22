@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudDownload, Trash2, LogOut, Download } from 'lucide-react';
 import { SYNC_ADMIN_SESSION_KEY, SYNC_API_ENDPOINT, SYNC_PASSWORD_KEY, SYNC_PASSWORD_LOCK_UNTIL_KEY } from '../../../utils/constants';
 import { downloadJsonFile } from '../../../services/exportService';
+import { LinkItem } from '../../../types';
+import DuplicateChecker from './DuplicateChecker';
 
 type SyncRole = 'admin' | 'user';
 
@@ -32,6 +34,8 @@ interface DataTabProps {
     onTogglePrivacyPassword: (enabled: boolean) => void;
     privacyAutoUnlockEnabled: boolean;
     onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
+    links?: LinkItem[];
+    onDeleteLink?: (id: string) => void;
 }
 
 interface BackupItem {
@@ -71,7 +75,9 @@ const DataTab: React.FC<DataTabProps> = ({
     privacyPasswordEnabled,
     onTogglePrivacyPassword,
     privacyAutoUnlockEnabled,
-    onTogglePrivacyAutoUnlock
+    onTogglePrivacyAutoUnlock,
+    links = [],
+    onDeleteLink
 }) => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -617,6 +623,13 @@ const DataTab: React.FC<DataTabProps> = ({
                         </div>
                     )}
                 </div>
+                )}
+
+                {/* Duplicate Checker - Admin Only */}
+                {syncRole === 'admin' && onDeleteLink && (
+                    <div className="mb-4">
+                        <DuplicateChecker links={links} onDeleteLink={onDeleteLink} />
+                    </div>
                 )}
 
                 {/* Backup List */}
