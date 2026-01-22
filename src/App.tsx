@@ -472,14 +472,20 @@ function App({ onReady }: AppProps) {
     // 站内搜索模式且有搜索词时，搜索全站资源
     const isInternalSearchWithQuery = searchMode === 'internal' && q;
     
+    // 管理员模式 + 隐私分组启用 + 密码保护关闭 + 已解锁 → 站内搜索包含隐私分组
+    const canSearchPrivate = isAdmin && privacyGroupEnabled && !privacyPasswordEnabled && isPrivateUnlocked;
+    
     const baseLinks = selectedCategory === COMMON_CATEGORY_ID ? commonRecommendedLinks : links;
 
     let result = baseLinks;
 
     // Search Filter
     if (q) {
-      // 站内搜索时搜索全站资源
-      const searchBase = isInternalSearchWithQuery ? links : baseLinks;
+      // 站内搜索时搜索全站资源，符合条件时包含隐私分组
+      let searchBase = isInternalSearchWithQuery ? links : baseLinks;
+      if (isInternalSearchWithQuery && canSearchPrivate) {
+        searchBase = [...links, ...privateLinks];
+      }
       result = searchBase.filter(l =>
         l.title.toLowerCase().includes(q) ||
         l.url.toLowerCase().includes(q) ||
@@ -510,7 +516,7 @@ function App({ onReady }: AppProps) {
       const bOrder = b.order !== undefined ? b.order : b.createdAt;
       return aOrder - bOrder;
     });
-  }, [links, selectedCategory, searchQuery, commonRecommendedLinks, searchMode]);
+  }, [links, selectedCategory, searchQuery, commonRecommendedLinks, searchMode, isAdmin, privacyGroupEnabled, privacyPasswordEnabled, isPrivateUnlocked, privateLinks]);
 
   const displayedPrivateLinks = useMemo(() => {
     let result = privateLinks;
@@ -1356,8 +1362,13 @@ function App({ onReady }: AppProps) {
           siteSettings={siteSettings}
           onSave={handleSaveSettings}
           links={links}
+          categories={categories}
           onUpdateLinks={(newLinks) => updateData(newLinks, categories)}
           onDeleteLink={deleteLink}
+          onNavigateToCategory={(categoryId) => {
+            setSelectedCategory(categoryId);
+            setIsSettingsModalOpen(false);
+          }}
           onOpenImport={() => setIsImportModalOpen(true)}
           onRestoreBackup={handleRestoreBackup}
           onDeleteBackup={handleDeleteBackup}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Copy, Trash2, ChevronDown, ChevronUp, ExternalLink, AlertTriangle } from 'lucide-react';
-import { LinkItem } from '../../../types';
+import { Copy, Trash2, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, FolderOpen } from 'lucide-react';
+import { LinkItem, Category } from '../../../types';
 
 interface DuplicateGroup {
   key: string;
@@ -10,7 +10,9 @@ interface DuplicateGroup {
 
 interface DuplicateCheckerProps {
   links: LinkItem[];
+  categories: Category[];
   onDeleteLink: (id: string) => void;
+  onNavigateToCategory?: (categoryId: string) => void;
 }
 
 // 标准化 URL 用于比较
@@ -62,10 +64,27 @@ const similarity = (s1: string, s2: string): number => {
   return (longer.length - costs[longer.length]) / longer.length;
 };
 
-const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, onDeleteLink }) => {
+const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, onDeleteLink, onNavigateToCategory }) => {
   const [expanded, setExpanded] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSimilar, setShowSimilar] = useState(true);
+
+  // 创建分类 ID 到名称的映射
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, string>();
+    categories.forEach(cat => map.set(cat.id, cat.name));
+    return map;
+  }, [categories]);
+
+  const getCategoryName = useCallback((categoryId: string) => {
+    return categoryMap.get(categoryId) || '未知分类';
+  }, [categoryMap]);
+
+  const handleNavigate = useCallback((categoryId: string) => {
+    if (onNavigateToCategory) {
+      onNavigateToCategory(categoryId);
+    }
+  }, [onNavigateToCategory]);
 
   // 检测重复和相似的链接
   const duplicateGroups = useMemo<DuplicateGroup[]>(() => {
@@ -232,16 +251,27 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, onDeleteLink
                             {link.icon && <img src={link.icon} alt="" className="w-4 h-4 rounded" />}
                             <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{link.title}</span>
                           </div>
-                          <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 hover:text-accent truncate mt-0.5">
-                            <ExternalLink size={10} />
-                            <span className="truncate">{link.url}</span>
-                          </a>
+                          <div className="flex items-center gap-2 mt-1">
+                            <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 hover:text-accent truncate">
+                              <ExternalLink size={10} />
+                              <span className="truncate max-w-[150px]">{link.url}</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleNavigate(link.categoryId)}
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-accent/10 hover:text-accent transition-colors shrink-0"
+                              title={`跳转到「${getCategoryName(link.categoryId)}」分类`}
+                            >
+                              <FolderOpen size={10} />
+                              <span className="truncate max-w-[60px]">{getCategoryName(link.categoryId)}</span>
+                            </button>
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleDelete(link.id)}
                           disabled={deletingId === link.id}
-                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shrink-0"
                           title="删除此卡片"
                         >
                           <Trash2 size={14} className={deletingId === link.id ? 'animate-spin' : ''} />

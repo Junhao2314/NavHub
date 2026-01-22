@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Bot, Globe, Palette, Database } from 'lucide-react';
-import { AIConfig, LinkItem, SiteSettings } from '../../types';
+import { AIConfig, LinkItem, Category, SiteSettings } from '../../types';
 import SiteTab from './settings/SiteTab';
 import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
@@ -25,8 +25,10 @@ interface SettingsModalProps {
   siteSettings: SiteSettings;
   onSave: (config: AIConfig, siteSettings: SiteSettings) => void;
   links: LinkItem[];
+  categories: Category[];
   onUpdateLinks: (links: LinkItem[]) => void;
   onDeleteLink: (id: string) => void;
+  onNavigateToCategory?: (categoryId: string) => void;
   onOpenImport: () => void;
   onRestoreBackup: (backupKey: string) => Promise<boolean>;
   onDeleteBackup: (backupKey: string) => Promise<boolean>;
@@ -52,8 +54,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   siteSettings,
   onSave,
   links,
+  categories,
   onUpdateLinks,
   onDeleteLink,
+  onNavigateToCategory,
   onOpenImport,
   onRestoreBackup,
   onDeleteBackup,
@@ -242,7 +246,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
               onTogglePrivacyAutoUnlock={onTogglePrivacyAutoUnlock}
               links={links}
+              categories={categories}
               onDeleteLink={onDeleteLink}
+              onNavigateToCategory={onNavigateToCategory}
             />
           )}
         </div>
