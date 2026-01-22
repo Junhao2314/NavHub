@@ -27,37 +27,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 24px;
-    }
-    .loader-logo {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      font-weight: 700;
-      animation: pulse 2s ease-in-out infinite;
-      overflow: hidden;
-    }
-    .loader-logo img {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
-    }
-    .loader-logo-text {
-      color: white;
-    }
-    .light-mode .loader-logo {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      color: white;
-      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
-    }
-    .dark-mode .loader-logo {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      color: white;
-      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2);
+      gap: 16px;
     }
     .loader-bar-container {
       width: 200px;
@@ -89,10 +59,6 @@
     .dark-mode .loader-text {
       color: #94a3b8;
     }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
     @keyframes loading {
       0% { transform: scaleX(0); }
       50% { transform: scaleX(0.7); }
@@ -113,14 +79,6 @@
         var root = document.documentElement;
         window.__INITIAL_DARK_MODE__ = shouldDark;
         
-        // 尝试读取用户配置的 favicon
-        try {
-          var settings = JSON.parse(localStorage.getItem('ynav_site_settings') || '{}');
-          if (settings.favicon) {
-            window.__SITE_FAVICON__ = settings.favicon;
-          }
-        } catch (e) {}
-        
         if (shouldDark) {
           root.classList.add('dark');
           root.style.backgroundColor = '#05070f';
@@ -140,9 +98,6 @@
   <!-- 加载动画 -->
   <div id="app-loader">
     <div class="loader-content">
-      <div class="loader-logo" id="loader-logo">
-        <span class="loader-logo-text">N</span>
-      </div>
       <div class="loader-bar-container">
         <div class="loader-bar"></div>
       </div>
@@ -150,23 +105,11 @@
     </div>
   </div>
   <script>
-    // 根据主题设置加载器样式，并尝试使用用户配置的 favicon
+    // 根据主题设置加载器样式
     (function() {
       var loader = document.getElementById('app-loader');
-      var logoEl = document.getElementById('loader-logo');
       if (loader) {
         loader.className = window.__INITIAL_DARK_MODE__ ? 'dark-mode' : 'light-mode';
-      }
-      if (logoEl && window.__SITE_FAVICON__) {
-        var img = document.createElement('img');
-        img.src = window.__SITE_FAVICON__;
-        img.alt = '';
-        img.onerror = function() {
-          // 图片加载失败时保持默认文字
-          this.style.display = 'none';
-        };
-        logoEl.innerHTML = '';
-        logoEl.appendChild(img);
       }
     })();
   </script>
