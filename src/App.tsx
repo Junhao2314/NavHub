@@ -63,7 +63,11 @@ type VerifySyncPasswordResult = {
   maxAttempts?: number;
 };
 
-function App() {
+interface AppProps {
+  onReady?: () => void;
+}
+
+function App({ onReady }: AppProps) {
   // === Core Data ===
   const {
     links,
@@ -1016,6 +1020,15 @@ function App() {
   const backgroundImage = siteSettings.backgroundImage?.trim();
   const useCustomBackground = !!siteSettings.backgroundImageEnabled && !!backgroundImage;
   const backgroundMotion = siteSettings.backgroundMotion ?? false;
+
+  // === 数据加载完成后隐藏加载动画 ===
+  useEffect(() => {
+    if (isLoaded && onReady) {
+      // 稍微延迟以确保UI渲染完成
+      const timer = setTimeout(onReady, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoaded, onReady]);
 
   // === KV Sync: Initial Load ===
   useEffect(() => {

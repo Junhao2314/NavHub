@@ -15,20 +15,57 @@ const DARK_BG_PALETTE = [
 // 中性背景（用于灰度图标）
 const NEUTRAL_BG = { bg: '#f1f5f9', text: '#475569' };
 
-const PALETTE = [
-  'bg-blue-100/60 text-blue-600',
-  'bg-emerald-100/60 text-emerald-600',
-  'bg-amber-100/60 text-amber-600',
-  'bg-rose-100/60 text-rose-600',
-  'bg-indigo-100/60 text-indigo-600',
-  'bg-cyan-100/60 text-cyan-600',
-  'bg-violet-100/60 text-violet-600',
-  'bg-orange-100/60 text-orange-600',
-  'bg-teal-100/60 text-teal-600',
-  'bg-fuchsia-100/60 text-fuchsia-600',
+// 卡片背景调色板 - 浅色模式（非常淡的色调）
+const LIGHT_CARD_BG_PALETTE = [
+  'rgba(254, 226, 226, 0.35)', // rose-100
+  'rgba(255, 237, 213, 0.35)', // orange-100
+  'rgba(254, 243, 199, 0.35)', // amber-100
+  'rgba(209, 250, 229, 0.35)', // emerald-100
+  'rgba(204, 251, 241, 0.35)', // teal-100
+  'rgba(207, 250, 254, 0.35)', // cyan-100
+  'rgba(219, 234, 254, 0.35)', // blue-100
+  'rgba(224, 231, 255, 0.35)', // indigo-100
+  'rgba(237, 233, 254, 0.35)', // violet-100
+  'rgba(250, 232, 255, 0.35)', // fuchsia-100
 ];
 
-const DEFAULT_TONE = 'bg-slate-100/60 text-slate-600';
+// 卡片背景调色板 - 深色模式（非常淡的色调，保持对比度）
+const DARK_CARD_BG_PALETTE = [
+  'rgba(159, 18, 57, 0.12)',   // rose
+  'rgba(154, 52, 18, 0.12)',   // orange
+  'rgba(146, 64, 14, 0.12)',   // amber
+  'rgba(6, 95, 70, 0.12)',     // emerald
+  'rgba(17, 94, 89, 0.12)',    // teal
+  'rgba(21, 94, 117, 0.12)',   // cyan
+  'rgba(30, 64, 175, 0.12)',   // blue
+  'rgba(55, 48, 163, 0.12)',   // indigo
+  'rgba(91, 33, 182, 0.12)',   // violet
+  'rgba(134, 25, 143, 0.12)',  // fuchsia
+];
+
+// 获取卡片背景色
+export const getCardBgStyle = (icon?: string, url?: string, title?: string, isDark?: boolean) => {
+  const seed = [icon, url, title].filter(Boolean).join('|');
+  if (!seed) return undefined;
+  const palette = isDark ? DARK_CARD_BG_PALETTE : LIGHT_CARD_BG_PALETTE;
+  const index = hashString(seed) % palette.length;
+  return { backgroundColor: palette[index] };
+};
+
+const PALETTE = [
+  'bg-blue-100/80 text-blue-700',
+  'bg-emerald-100/80 text-emerald-700',
+  'bg-amber-100/80 text-amber-700',
+  'bg-rose-100/80 text-rose-700',
+  'bg-indigo-100/80 text-indigo-700',
+  'bg-cyan-100/80 text-cyan-700',
+  'bg-violet-100/80 text-violet-700',
+  'bg-orange-100/80 text-orange-700',
+  'bg-teal-100/80 text-teal-700',
+  'bg-fuchsia-100/80 text-fuchsia-700',
+];
+
+const DEFAULT_TONE = 'bg-slate-100/80 text-slate-700';
 
 const hashString = (value: string) => {
   let hash = 0;
@@ -96,29 +133,27 @@ const rgbToHsl = (r: number, g: number, b: number) => {
   return { h: h * 360, s, l };
 };
 
-// 根据图标主色调选择对比背景色
-const getContrastingBg = (dominantHue: number, saturation: number) => {
-  // 如果饱和度很低（灰度图标），使用中性背景
-  if (saturation < 0.15) {
-    return NEUTRAL_BG;
-  }
-  
-  // 找到色相差距最大的背景色（对比色）
-  let bestMatch = DARK_BG_PALETTE[0];
-  let maxDistance = 0;
-  
-  for (const palette of DARK_BG_PALETTE) {
-    // 计算色相距离（考虑色环循环）
-    let distance = Math.abs(palette.hue - dominantHue);
-    if (distance > 180) distance = 360 - distance;
-    
-    if (distance > maxDistance) {
-      maxDistance = distance;
-      bestMatch = palette;
-    }
-  }
-  
-  return bestMatch;
+// 根据图标主色调选择对比背景色（加入种子，避免大量同色图标映射到同一个背景）
+const getContrastingBg = (dominantHue: number, seed: string): { bg: string; text: string } => {
+  const ranked = DARK_BG_PALETTE
+    .map((palette) => {
+      let distance = Math.abs(palette.hue - dominantHue);
+      if (distance > 180) distance = 360 - distance;
+      return { palette, distance };
+    })
+    .sort((a, b) => b.distance - a.distance);
+
+  const poolSize = Math.min(3, ranked.length);
+  const index = hashString(seed || String(dominantHue)) % poolSize;
+  const chosen = ranked[index]?.palette || DARK_BG_PALETTE[0];
+  return { bg: chosen.bg, text: chosen.text };
+};
+
+const getSeededDarkBg = (seed: string): { bg: string; text: string } => {
+  if (!seed) return NEUTRAL_BG;
+  const index = hashString(seed) % DARK_BG_PALETTE.length;
+  const colors = DARK_BG_PALETTE[index];
+  return { bg: colors.bg, text: colors.text };
 };
 
 // 图标颜色缓存
@@ -132,6 +167,12 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
   }
   
   return new Promise((resolve) => {
+    const fallback = () => {
+      const seeded = getSeededDarkBg(iconUrl);
+      iconColorCache.set(iconUrl, seeded);
+      resolve(seeded);
+    };
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     
@@ -140,7 +181,7 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve(NEUTRAL_BG);
+          fallback();
           return;
         }
         
@@ -177,8 +218,7 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
         }
         
         if (colors.length === 0) {
-          iconColorCache.set(iconUrl, NEUTRAL_BG);
-          resolve(NEUTRAL_BG);
+          fallback();
           return;
         }
         
@@ -191,16 +231,18 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
         const avgHue = sumHue / colors.length;
         const avgSat = sumSat / colors.length;
         
-        const result = getContrastingBg(avgHue, avgSat);
+        const result = avgSat < 0.15
+          ? getSeededDarkBg(iconUrl)
+          : getContrastingBg(avgHue, iconUrl);
         iconColorCache.set(iconUrl, result);
         resolve(result);
       } catch {
-        resolve(NEUTRAL_BG);
+        fallback();
       }
     };
     
     img.onerror = () => {
-      resolve(NEUTRAL_BG);
+      fallback();
     };
     
     img.src = iconUrl;

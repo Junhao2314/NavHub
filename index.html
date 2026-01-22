@@ -5,6 +5,104 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="https://lucide.dev/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <style>
+    /* 加载动画样式 */
+    #app-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.3s ease-out;
+    }
+    #app-loader.light-mode {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+    #app-loader.dark-mode {
+      background: linear-gradient(135deg, #05070f 0%, #0f172a 100%);
+    }
+    .loader-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    .loader-logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 700;
+      animation: pulse 2s ease-in-out infinite;
+      overflow: hidden;
+    }
+    .loader-logo img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+    .loader-logo-text {
+      color: white;
+    }
+    .light-mode .loader-logo {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+    }
+    .dark-mode .loader-logo {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2);
+    }
+    .loader-bar-container {
+      width: 200px;
+      height: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .light-mode .loader-bar-container {
+      background: #e2e8f0;
+    }
+    .dark-mode .loader-bar-container {
+      background: #1e293b;
+    }
+    .loader-bar {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+      animation: loading 1.5s ease-in-out infinite;
+      transform-origin: left;
+    }
+    .loader-text {
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0.7;
+    }
+    .light-mode .loader-text {
+      color: #64748b;
+    }
+    .dark-mode .loader-text {
+      color: #94a3b8;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    @keyframes loading {
+      0% { transform: scaleX(0); }
+      50% { transform: scaleX(0.7); }
+      100% { transform: scaleX(1); }
+    }
+    #app-loader.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
   <script>
     (function () {
       try {
@@ -13,14 +111,22 @@
         var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         var shouldDark = mode === 'dark' || (mode === 'system' && prefersDark);
         var root = document.documentElement;
+        window.__INITIAL_DARK_MODE__ = shouldDark;
+        
+        // 尝试读取用户配置的 favicon
+        try {
+          var settings = JSON.parse(localStorage.getItem('ynav_site_settings') || '{}');
+          if (settings.favicon) {
+            window.__SITE_FAVICON__ = settings.favicon;
+          }
+        } catch (e) {}
+        
         if (shouldDark) {
           root.classList.add('dark');
           root.style.backgroundColor = '#05070f';
-          document.body.style.backgroundColor = '#05070f';
         } else {
           root.classList.remove('dark');
           root.style.backgroundColor = '#f8fafc';
-          document.body.style.backgroundColor = '#f8fafc';
         }
       } catch (e) {
         // Ignore and fall back to default styling.
@@ -31,6 +137,39 @@
 </head>
 
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+  <!-- 加载动画 -->
+  <div id="app-loader">
+    <div class="loader-content">
+      <div class="loader-logo" id="loader-logo">
+        <span class="loader-logo-text">N</span>
+      </div>
+      <div class="loader-bar-container">
+        <div class="loader-bar"></div>
+      </div>
+      <div class="loader-text">加载中...</div>
+    </div>
+  </div>
+  <script>
+    // 根据主题设置加载器样式，并尝试使用用户配置的 favicon
+    (function() {
+      var loader = document.getElementById('app-loader');
+      var logoEl = document.getElementById('loader-logo');
+      if (loader) {
+        loader.className = window.__INITIAL_DARK_MODE__ ? 'dark-mode' : 'light-mode';
+      }
+      if (logoEl && window.__SITE_FAVICON__) {
+        var img = document.createElement('img');
+        img.src = window.__SITE_FAVICON__;
+        img.alt = '';
+        img.onerror = function() {
+          // 图片加载失败时保持默认文字
+          this.style.display = 'none';
+        };
+        logoEl.innerHTML = '';
+        logoEl.appendChild(img);
+      }
+    })();
+  </script>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

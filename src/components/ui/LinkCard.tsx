@@ -1,7 +1,7 @@
 import React from 'react';
 import { LinkItem } from '../../types';
 import { Settings } from 'lucide-react';
-import { getIconToneClass, getIconToneStyle, analyzeIconColor } from '../../utils/iconTone';
+import { getIconToneClass, getIconToneStyle, analyzeIconColor, getCardBgStyle } from '../../utils/iconTone';
 import { getTagColorStyle } from '../../utils/tagColors';
 
 interface LinkCardProps {
@@ -56,19 +56,22 @@ const LinkCard: React.FC<LinkCardProps> = ({
 
     const cardClasses = `
         group relative transition-all duration-300
-        border bg-white dark:bg-slate-800/50 backdrop-blur-sm
+        border backdrop-blur-sm
         ${isBatchEditMode
             ? 'cursor-pointer border-slate-200 dark:border-white/10'
             : 'hover:-translate-y-1 hover:shadow-xl hover:shadow-accent/10 shadow-sm shadow-slate-200/50 dark:shadow-none'
         }
         ${isSelected
-            ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50 dark:bg-rose-900/10'
+            ? 'border-rose-500 ring-2 ring-rose-500/20 !bg-rose-50 dark:!bg-rose-900/10'
             : 'border-slate-200/60 dark:border-white/8 hover:border-accent/40 dark:hover:border-accent/40'
         }
         ${isDetailedView ? 'p-4 rounded-2xl' : 'px-3 py-1.5 rounded-xl'}
     `;
 
     const customToneStyle = getIconToneStyle(link.iconTone, isDark, link.icon, link.url, link.title);
+    
+    // 获取卡片差异化背景色
+    const cardBgStyle = getCardBgStyle(link.icon, link.url, link.title, isDark);
     
     // 深色模式下优先使用分析出的对比色背景
     const iconStyle = isDark && analyzedBg 
@@ -98,6 +101,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
     return (
         <div
             className={cardClasses}
+            style={cardBgStyle}
             onClick={handleCardClick}
             onContextMenu={(e) => onContextMenu(e, link)}
         >
@@ -109,7 +113,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
                         {link.icon ? (
                             <img src={link.icon} alt="" className={isDetailedView ? "w-8 h-8" : "w-4 h-4"} />
                         ) : (
-                            <span className={`font-bold text-slate-400 dark:text-slate-500 uppercase ${isDetailedView ? 'text-xl' : 'text-xs'}`}>
+                            <span className={`font-bold uppercase ${isDetailedView ? 'text-xl' : 'text-xs'}`}>
                                 {link.title.charAt(0)}
                             </span>
                         )}

@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { LinkItem } from '../../types';
-import { getIconToneClass, getIconToneStyle, analyzeIconColor } from '../../utils/iconTone';
+import { getIconToneClass, getIconToneStyle, analyzeIconColor, getCardBgStyle } from '../../utils/iconTone';
 
 interface SortableLinkCardProps {
     link: LinkItem;
@@ -40,6 +40,9 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = ({
     }, [isDark, link.icon, link.iconTone]);
     
     const customToneStyle = getIconToneStyle(link.iconTone, isDark, link.icon, link.url, link.title);
+    const cardBgStyle = (isSortingMode || isSortingPinned)
+        ? undefined
+        : getCardBgStyle(link.icon, link.url, link.title, isDark);
     
     // 深色模式下优先使用分析出的对比色背景
     const iconStyle = isDark && analyzedBg 
@@ -56,6 +59,7 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = ({
         transition: isDragging ? 'none' : transition,
         opacity: isDragging ? 0.5 : 1,
         zIndex: isDragging ? 1000 : 'auto',
+        ...(cardBgStyle || {}),
     };
 
     return (
@@ -65,7 +69,7 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = ({
             className={`group relative transition-all duration-300 cursor-grab active:cursor-grabbing min-w-0 max-w-full overflow-hidden backdrop-blur-md rounded-2xl
                 ${isSortingMode || isSortingPinned
                     ? 'bg-emerald-500/10 border-emerald-400/50 ring-2 ring-emerald-500/20'
-                    : 'bg-white/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-white/5'
+                    : 'border border-slate-200/60 dark:border-white/5'
                 }
                 ${isDragging ? 'shadow-2xl scale-105 z-50 ring-2 ring-accent' : 'hover:-translate-y-1 hover:shadow-xl hover:shadow-accent/10'}
                 ${isDetailedView ? 'flex flex-col p-5 min-h-[120px]' : 'flex items-center p-3.5'}
