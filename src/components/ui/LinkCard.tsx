@@ -9,6 +9,7 @@ interface LinkCardProps {
     siteCardStyle: 'detailed' | 'simple';
     isBatchEditMode: boolean;
     isSelected: boolean;
+    categoryName?: string; // 搜索结果中显示的分类名称
     onSelect: (id: string) => void;
     onContextMenu: (e: React.MouseEvent, link: LinkItem) => void;
     onEdit: (link: LinkItem) => void;
@@ -20,6 +21,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
     siteCardStyle,
     isBatchEditMode,
     isSelected,
+    categoryName,
     onSelect,
     onContextMenu,
     onEdit,
@@ -32,6 +34,9 @@ const LinkCard: React.FC<LinkCardProps> = ({
 
     const [descExpanded, setDescExpanded] = React.useState(false);
     const [analyzedBg, setAnalyzedBg] = React.useState<{ bg: string; text: string } | null>(null);
+    
+    // 判断是否有标签，用于调整描述扩展窗口的高度
+    const hasTags = visibleTags.length > 0;
     
     // 检测深色模式
     const isDark = document.documentElement.classList.contains('dark');
@@ -138,7 +143,7 @@ const LinkCard: React.FC<LinkCardProps> = ({
                                     <p 
                                         className={`text-sm text-slate-500 dark:text-slate-400 leading-snug select-text cursor-text ${
                                             descExpanded 
-                                                ? 'absolute z-10 left-0 right-0 bg-white dark:bg-slate-800 p-2 -mx-2 -my-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 max-h-[5.5rem] overflow-y-auto break-words' 
+                                                ? `absolute z-10 left-0 right-0 bg-white dark:bg-slate-800 p-2 -mx-2 -my-2 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-y-auto break-words ${hasTags ? 'max-h-[5.5rem]' : 'max-h-[3.5rem]'}` 
                                                 : 'line-clamp-2'
                                         }`}
                                         title={!descExpanded ? link.description : undefined}
@@ -150,9 +155,17 @@ const LinkCard: React.FC<LinkCardProps> = ({
                         )}
                     </div>
                 </div>
-                {/* Tags row - only show if has tags */}
-                {isDetailedView && visibleTags.length > 0 && (
+                {/* Tags row - only show if has tags or categoryName */}
+                {isDetailedView && (visibleTags.length > 0 || categoryName) && (
                     <div className="flex flex-wrap gap-1.5">
+                        {categoryName && (
+                            <span
+                                className="px-2 py-0.5 rounded-md text-[11px] font-semibold border bg-accent/10 text-accent border-accent/20"
+                                title={`分类: ${categoryName}`}
+                            >
+                                {categoryName}
+                            </span>
+                        )}
                         {visibleTags.map((tag) => (
                             <span
                                 key={tag}

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { DndContext, DragEndEvent, closestCorners, SensorDescriptor } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { Pin, Trash2, CheckSquare, Upload, Search, X, RefreshCw } from 'lucide-react';
-import { Category, LinkItem } from '../../types';
+import { Category, LinkItem, SearchMode } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
@@ -28,6 +28,7 @@ interface LinkSectionsProps {
   displayedLinks: LinkItem[];
   selectedCategory: string;
   searchQuery: string;
+  searchMode: 'internal' | 'external'; // 搜索模式
   categories: Category[];
   siteTitle: string;
   siteCardStyle: 'detailed' | 'simple';
@@ -89,6 +90,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   displayedLinks,
   selectedCategory,
   searchQuery,
+  searchMode,
   categories,
   siteTitle,
   siteCardStyle,
@@ -124,6 +126,17 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
   const gridGap = isSimpleView ? 'gap-2.5' : 'gap-4';
   const { notify } = useDialog();
+  
+  // 站内搜索时显示分类名称
+  const isInternalSearchWithQuery = searchMode === 'internal' && searchQuery.trim();
+  const categoryMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.forEach(cat => {
+      map[cat.id] = cat.name;
+    });
+    return map;
+  }, [categories]);
+  
   const [hitokoto, setHitokoto] = React.useState<HitokotoPayload | null>(null);
   const [isHitokotoLoading, setIsHitokotoLoading] = React.useState(false);
   const hitokotoFetchingRef = React.useRef(false);
@@ -580,6 +593,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         siteCardStyle={siteCardStyle}
                         isBatchEditMode={isBatchEditMode}
                         isSelected={selectedLinks.has(link.id)}
+                        categoryName={isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined}
                         onSelect={onLinkSelect}
                         onContextMenu={onLinkContextMenu}
                         onEdit={onLinkEdit}

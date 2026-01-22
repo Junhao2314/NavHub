@@ -468,13 +468,19 @@ function App({ onReady }: AppProps) {
 
   const displayedLinks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    
+    // 站内搜索模式且有搜索词时，搜索全站资源
+    const isInternalSearchWithQuery = searchMode === 'internal' && q;
+    
     const baseLinks = selectedCategory === COMMON_CATEGORY_ID ? commonRecommendedLinks : links;
 
     let result = baseLinks;
 
     // Search Filter
     if (q) {
-      result = result.filter(l =>
+      // 站内搜索时搜索全站资源
+      const searchBase = isInternalSearchWithQuery ? links : baseLinks;
+      result = searchBase.filter(l =>
         l.title.toLowerCase().includes(q) ||
         l.url.toLowerCase().includes(q) ||
         (l.description && l.description.toLowerCase().includes(q)) ||
@@ -482,16 +488,18 @@ function App({ onReady }: AppProps) {
       );
     }
 
-    // Category Filter (exclude common：常用推荐为“叠加集合”，不走 categoryId 过滤)
+    // Category Filter (exclude common：常用推荐为"叠加集合"，不走 categoryId 过滤)
+    // 站内搜索模式下不过滤分类，显示全站搜索结果
     if (
-      selectedCategory !== 'all'
+      !isInternalSearchWithQuery
+      && selectedCategory !== 'all'
       && selectedCategory !== PRIVATE_CATEGORY_ID
       && selectedCategory !== COMMON_CATEGORY_ID
     ) {
       result = result.filter(l => l.categoryId === selectedCategory);
     }
 
-    if (selectedCategory === COMMON_CATEGORY_ID) {
+    if (selectedCategory === COMMON_CATEGORY_ID && !isInternalSearchWithQuery) {
       // 常用推荐已在 getCommonRecommendedLinks 内完成排序
       return result;
     }
@@ -502,7 +510,7 @@ function App({ onReady }: AppProps) {
       const bOrder = b.order !== undefined ? b.order : b.createdAt;
       return aOrder - bOrder;
     });
-  }, [links, selectedCategory, searchQuery, commonRecommendedLinks]);
+  }, [links, selectedCategory, searchQuery, commonRecommendedLinks, searchMode]);
 
   const displayedPrivateLinks = useMemo(() => {
     let result = privateLinks;
@@ -1559,6 +1567,7 @@ function App({ onReady }: AppProps) {
             displayedLinks={activeDisplayedLinks}
             selectedCategory={selectedCategory}
             searchQuery={searchQuery}
+            searchMode={searchMode}
             categories={categories}
             siteTitle={siteSettings.title}
             siteCardStyle={siteSettings.cardStyle}
