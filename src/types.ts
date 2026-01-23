@@ -131,6 +131,14 @@ export interface CustomFaviconCache {
   updatedAt: number;
 }
 
+// 隐私分组配置（仅管理员模式同步）
+export interface PrivacyConfig {
+  groupEnabled?: boolean;
+  passwordEnabled?: boolean;
+  autoUnlockEnabled?: boolean;
+  useSeparatePassword?: boolean;
+}
+
 // 同步元数据
 export interface SyncMetadata {
   updatedAt: number;      // 最后更新时间戳 (毫秒)
@@ -149,6 +157,7 @@ export interface NavHubSyncData {
   aiConfig?: AIConfig;
   siteSettings?: SiteSettings;
   privateVault?: string;
+  privacyConfig?: PrivacyConfig;
   meta: SyncMetadata;
   // 新增同步字段
   themeMode?: ThemeMode;

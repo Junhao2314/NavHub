@@ -20,7 +20,8 @@ import {
     AIConfig,
     SiteSettings,
     ThemeMode,
-    CustomFaviconCache
+    CustomFaviconCache,
+    PrivacyConfig
 } from '../types';
 import {
     SYNC_DEBOUNCE_MS,
@@ -416,6 +417,7 @@ export function buildSyncData(
     siteSettings?: SiteSettings,
     privateVault?: string,
     // 新增参数
+    privacyConfig?: PrivacyConfig,
     themeMode?: ThemeMode,
     encryptedSensitiveConfig?: string,
     customFaviconCache?: CustomFaviconCache
@@ -427,6 +429,7 @@ export function buildSyncData(
         aiConfig,
         siteSettings,
         privateVault,
+        privacyConfig,
         themeMode,
         encryptedSensitiveConfig,
         customFaviconCache

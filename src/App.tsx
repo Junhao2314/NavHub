@@ -196,6 +196,68 @@ function App({ onReady }: AppProps) {
     // 用户模式：仅展示管理员最新内容，不覆盖本地敏感配置（如 AI Key、隐私分组）
     if (role !== 'admin') return;
 
+    // Apply privacyConfig from sync (admin only)
+    if (data.privacyConfig && typeof data.privacyConfig === 'object') {
+      const cfg = data.privacyConfig;
+      const nextGroupEnabled = typeof cfg.groupEnabled === 'boolean' ? cfg.groupEnabled : undefined;
+      const effectiveGroupEnabled = nextGroupEnabled ?? privacyGroupEnabled;
+
+      if (typeof cfg.useSeparatePassword === 'boolean') {
+        setUseSeparatePrivacyPassword(cfg.useSeparatePassword);
+        localStorage.setItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY, cfg.useSeparatePassword ? '1' : '0');
+      }
+
+      if (typeof nextGroupEnabled === 'boolean') {
+        setPrivacyGroupEnabled(nextGroupEnabled);
+        localStorage.setItem(PRIVACY_GROUP_ENABLED_KEY, nextGroupEnabled ? '1' : '0');
+
+        if (!nextGroupEnabled) {
+          sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          if (selectedCategory === PRIVATE_CATEGORY_ID) {
+            setSelectedCategory('all');
+          }
+          setIsPrivateUnlocked(false);
+          setPrivateVaultPassword(null);
+          setPrivateLinks([]);
+          setIsPrivateModalOpen(false);
+          setEditingPrivateLink(null);
+          setPrefillPrivateLink(null);
+        }
+      }
+
+      if (typeof cfg.passwordEnabled === 'boolean') {
+        setPrivacyPasswordEnabled(cfg.passwordEnabled);
+        localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, cfg.passwordEnabled ? '1' : '0');
+
+        // Only apply lock/unlock side-effects when privacy group is enabled
+        if (effectiveGroupEnabled) {
+          if (!cfg.passwordEnabled) {
+            setIsPrivateUnlocked(true);
+            setPrivateVaultPassword(null);
+            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+          } else {
+            setIsPrivateUnlocked(false);
+            setPrivateVaultPassword(null);
+            setPrivateLinks([]);
+            sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          }
+        }
+      }
+
+      if (typeof cfg.autoUnlockEnabled === 'boolean') {
+        setPrivacyAutoUnlockEnabled(cfg.autoUnlockEnabled);
+        localStorage.setItem(PRIVACY_AUTO_UNLOCK_KEY, cfg.autoUnlockEnabled ? '1' : '0');
+
+        if (effectiveGroupEnabled) {
+          if (!cfg.autoUnlockEnabled) {
+            sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          } else if (isPrivateUnlocked) {
+            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+          }
+        }
+      }
+    }
+
     if (data.aiConfig) {
       restoreAIConfig(data.aiConfig);
     }
@@ -235,7 +297,7 @@ function App({ onReady }: AppProps) {
           });
       }
     }
-  }, [updateData, restoreSiteSettings, restoreAIConfig, isPrivateUnlocked, notify, privateVaultPassword, applyFromSync]);
+  }, [updateData, restoreSiteSettings, restoreAIConfig, isPrivateUnlocked, notify, privateVaultPassword, applyFromSync, privacyGroupEnabled, selectedCategory, setSelectedCategory]);
 
   const handleSyncComplete = useCallback((data: YNavSyncData) => {
     applyCloudData(data, syncRole);
@@ -1137,6 +1199,7 @@ function App({ onReady }: AppProps) {
             aiConfig,
             siteSettings,
             privateVaultCipher || undefined,
+            isAdmin ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
             themeMode,
             encryptedConfig,
             buildSyncCache()
@@ -1150,7 +1213,7 @@ function App({ onReady }: AppProps) {
     };
 
     checkCloudData();
-  }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, getLocalSyncMeta, refreshSyncAuth, applyCloudData, themeMode]);
+  }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, buildSyncData, handleSyncConflict, getLocalSyncMeta, refreshSyncAuth, applyCloudData, themeMode, isAdmin]);
 
   // === KV Sync: Auto-sync on data change ===
   const prevSyncDataRef = useRef<string | null>(null);
@@ -1180,6 +1243,7 @@ function App({ onReady }: AppProps) {
         aiConfig,
         siteSettings,
         privateVaultCipher || undefined,
+        isAdmin ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
         themeMode,
         encryptedConfig,
         buildSyncCache()
@@ -1193,7 +1257,7 @@ function App({ onReady }: AppProps) {
     };
 
     performSync();
-  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, schedulePush, buildSyncData, currentConflict, isAdmin, themeMode]);
+  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, schedulePush, buildSyncData, currentConflict, isAdmin, themeMode]);
 
   const handleSaveSettings = useCallback(async (nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
     saveAIConfig(nextConfig, nextSiteSettings);
@@ -1219,6 +1283,7 @@ function App({ onReady }: AppProps) {
       nextConfig,
       nextSiteSettings,
       privateVaultCipher || undefined,
+      isAdmin ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
       themeMode,
       encryptedConfig,
       buildSyncCache()
@@ -1228,7 +1293,7 @@ function App({ onReady }: AppProps) {
     prevSyncDataRef.current = JSON.stringify(syncData);
     cancelPendingSync();
     void pushToCloud(syncData, false, 'manual');
-  }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, buildSyncData, cancelPendingSync, pushToCloud, themeMode]);
+  }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, buildSyncData, cancelPendingSync, pushToCloud, themeMode]);
 
   // === Sync Conflict Resolution ===
   const handleResolveConflict = useCallback((choice: 'local' | 'remote') => {
@@ -1266,6 +1331,7 @@ function App({ onReady }: AppProps) {
       aiConfig,
       siteSettings,
       privateVaultCipher || undefined,
+      isAdmin ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
       themeMode,
       encryptedConfig,
       buildSyncCache()

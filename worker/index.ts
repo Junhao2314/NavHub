@@ -40,6 +40,13 @@ interface SyncMetadata {
     syncKind?: 'auto' | 'manual';
 }
 
+interface PrivacyConfig {
+    groupEnabled?: boolean;
+    passwordEnabled?: boolean;
+    autoUnlockEnabled?: boolean;
+    useSeparatePassword?: boolean;
+}
+
 interface NavHubSyncData {
     links: any[];
     categories: any[];
@@ -47,6 +54,7 @@ interface NavHubSyncData {
     aiConfig?: any;
     siteSettings?: any;
     privateVault?: string;
+    privacyConfig?: PrivacyConfig;
     meta: SyncMetadata;
     // New fields for sync-data-enhancement
     themeMode?: 'light' | 'dark' | 'system';
@@ -399,6 +407,8 @@ function sanitizePublicData(data: NavHubSyncData): NavHubSyncData {
         aiConfig: safeAiConfig,
         // privateVault contains encrypted private links - admin only
         privateVault: undefined,
+        // privacyConfig is admin-only (contains privacy-group settings)
+        privacyConfig: undefined,
         // encryptedSensitiveConfig is preserved (already encrypted, safe for non-admin)
         // themeMode is preserved (non-sensitive)
         // customFaviconCache is preserved (non-sensitive)

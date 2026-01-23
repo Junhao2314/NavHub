@@ -31,6 +31,13 @@ interface SyncMetadata {
     syncKind?: 'auto' | 'manual';
 }
 
+interface PrivacyConfig {
+    groupEnabled?: boolean;
+    passwordEnabled?: boolean;
+    autoUnlockEnabled?: boolean;
+    useSeparatePassword?: boolean;
+}
+
 interface NavHubSyncData {
     links: any[];
     categories: any[];
@@ -38,7 +45,11 @@ interface NavHubSyncData {
     aiConfig?: any;
     siteSettings?: any;
     privateVault?: string;
+    privacyConfig?: PrivacyConfig;
     meta: SyncMetadata;
+    themeMode?: 'light' | 'dark' | 'system';
+    encryptedSensitiveConfig?: string;
+    customFaviconCache?: any;
 }
 
 // KV Key 常量
@@ -299,7 +310,8 @@ const sanitizePublicData = (data: NavHubSyncData): NavHubSyncData => {
     return {
         ...data,
         aiConfig: safeAiConfig,
-        privateVault: undefined
+        privateVault: undefined,
+        privacyConfig: undefined
     };
 };
 
