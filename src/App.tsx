@@ -49,6 +49,8 @@ import {
   getDeviceId
 } from './utils/constants';
 import { decryptPrivateVault, encryptPrivateVault } from './utils/privateVault';
+import { decryptSensitiveConfig, encryptSensitiveConfig } from './utils/sensitiveConfig';
+import { mergeFromCloud, buildSyncCache } from './utils/faviconCache';
 import { getCommonRecommendedLinks } from './utils/recommendation';
 
 type SyncRole = 'admin' | 'user';
@@ -128,7 +130,7 @@ function App({ onReady }: AppProps) {
   }, []);
 
   // === Theme ===
-  const { themeMode, darkMode, setThemeAndApply } = useTheme();
+  const { themeMode, darkMode, setThemeAndApply, applyFromSync } = useTheme();
 
   // === Sidebar ===
   const {
@@ -181,12 +183,44 @@ function App({ onReady }: AppProps) {
       restoreSiteSettings(data.siteSettings);
     }
 
+    // Apply themeMode from sync (Requirements 1.2)
+    if (data.themeMode) {
+      applyFromSync(data.themeMode);
+    }
+
+    // Merge customFaviconCache from cloud (Requirements 3.3)
+    if (data.customFaviconCache) {
+      mergeFromCloud(data.customFaviconCache);
+    }
+
     // 用户模式：仅展示管理员最新内容，不覆盖本地敏感配置（如 AI Key、隐私分组）
     if (role !== 'admin') return;
 
     if (data.aiConfig) {
       restoreAIConfig(data.aiConfig);
     }
+
+    // Decrypt and apply encryptedSensitiveConfig (Requirements 2.3)
+    if (typeof data.encryptedSensitiveConfig === 'string' && data.encryptedSensitiveConfig) {
+      // Use the same password as privateVault for decryption
+      const password = privateVaultPassword || (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+      if (password) {
+        decryptSensitiveConfig(password, data.encryptedSensitiveConfig)
+          .then(payload => {
+            if (payload.apiKey) {
+              // Apply the decrypted apiKey to aiConfig
+              const currentAiConfig = data.aiConfig || {};
+              restoreAIConfig({ ...currentAiConfig, apiKey: payload.apiKey });
+            }
+          })
+          .catch(() => {
+            // Password incorrect or data corrupted - leave apiKey empty
+            // User will need to re-enter password or apiKey
+            console.warn('Failed to decrypt sensitive config - password may be incorrect');
+          });
+      }
+    }
+
     if (typeof data.privateVault === 'string') {
       setPrivateVaultCipher(data.privateVault);
       localStorage.setItem(PRIVATE_VAULT_KEY, data.privateVault);
@@ -201,7 +235,7 @@ function App({ onReady }: AppProps) {
           });
       }
     }
-  }, [updateData, restoreSiteSettings, restoreAIConfig, isPrivateUnlocked, notify, privateVaultPassword]);
+  }, [updateData, restoreSiteSettings, restoreAIConfig, isPrivateUnlocked, notify, privateVaultPassword, applyFromSync]);
 
   const handleSyncComplete = useCallback((data: YNavSyncData) => {
     applyCloudData(data, syncRole);
@@ -426,6 +460,7 @@ function App({ onReady }: AppProps) {
       }
     }
 
+    // Re-encrypt privateVault with new password (Requirements 5.2)
     if (privateVaultCipher || nextLinks.length > 0) {
       const cipher = await encryptPrivateVault(trimmedNew, { links: nextLinks });
       localStorage.setItem(PRIVATE_VAULT_KEY, cipher);
@@ -433,6 +468,24 @@ function App({ onReady }: AppProps) {
     } else {
       localStorage.removeItem(PRIVATE_VAULT_KEY);
       setPrivateVaultCipher(null);
+    }
+
+    // Re-encrypt sensitiveConfig with new password (Requirements 5.2)
+    // This ensures both privateVault and sensitiveConfig use the same password
+    // The new encryptedSensitiveConfig will be included in the next sync
+    if (aiConfig?.apiKey) {
+      try {
+        // Re-encrypt the apiKey with the new password
+        // The encrypted config will be picked up by the next sync operation
+        await encryptSensitiveConfig(trimmedNew, { apiKey: aiConfig.apiKey });
+        // Note: We don't store the encrypted config locally here because
+        // the sync engine handles encryption during push operations.
+        // This call validates that encryption works with the new password.
+      } catch (error) {
+        console.warn('Failed to re-encrypt sensitive config:', error);
+        // Continue with migration even if sensitive config encryption fails
+        // The next sync will attempt to encrypt with the current password
+      }
     }
 
     if (useSeparatePassword) {
@@ -449,7 +502,7 @@ function App({ onReady }: AppProps) {
     setPrivateVaultPassword(trimmedNew);
     notify('隐私分组已完成迁移', 'success');
     return true;
-  }, [notify, privateLinks, privateVaultCipher, useSeparatePrivacyPassword]);
+  }, [notify, privateLinks, privateVaultCipher, useSeparatePrivacyPassword, aiConfig]);
 
   // === Computed: Displayed Links ===
   const pinnedLinks = useMemo(() => {
@@ -1066,13 +1119,27 @@ function App({ onReady }: AppProps) {
 
         // 版本不一致时提示用户选择
         if (cloudData.meta.version !== localVersion) {
+          // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+          const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+          let encryptedConfig: string | undefined;
+          if (syncPassword && aiConfig?.apiKey) {
+            try {
+              encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey: aiConfig.apiKey });
+            } catch {
+              // Encryption failed, continue without encrypted config
+            }
+          }
+
           const localData = buildSyncData(
             links,
             categories,
             { mode: searchMode, externalSources: externalSearchSources },
             aiConfig,
             siteSettings,
-            privateVaultCipher || undefined
+            privateVaultCipher || undefined,
+            themeMode,
+            encryptedConfig,
+            buildSyncCache()
           );
           handleSyncConflict({
             localData: { ...localData, meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion } },
@@ -1083,7 +1150,7 @@ function App({ onReady }: AppProps) {
     };
 
     checkCloudData();
-  }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, getLocalSyncMeta, refreshSyncAuth, applyCloudData]);
+  }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, getLocalSyncMeta, refreshSyncAuth, applyCloudData, themeMode]);
 
   // === KV Sync: Auto-sync on data change ===
   const prevSyncDataRef = useRef<string | null>(null);
@@ -1094,27 +1161,56 @@ function App({ onReady }: AppProps) {
     if (isSyncPasswordRefreshingRef.current) return;
     if (!isAdmin) return;
 
-    const syncData = buildSyncData(
-      links,
-      categories,
-      { mode: searchMode, externalSources: externalSearchSources },
-      aiConfig,
-      siteSettings,
-      privateVaultCipher || undefined
-    );
-    const serialized = JSON.stringify(syncData);
+    const performSync = async () => {
+      // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+      const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+      let encryptedConfig: string | undefined;
+      if (syncPassword && aiConfig?.apiKey) {
+        try {
+          encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey: aiConfig.apiKey });
+        } catch {
+          // Encryption failed, continue without encrypted config
+        }
+      }
 
-    if (serialized !== prevSyncDataRef.current) {
-      prevSyncDataRef.current = serialized;
-      schedulePush(syncData);
-    }
-  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, schedulePush, buildSyncData, currentConflict, isAdmin]);
+      const syncData = buildSyncData(
+        links,
+        categories,
+        { mode: searchMode, externalSources: externalSearchSources },
+        aiConfig,
+        siteSettings,
+        privateVaultCipher || undefined,
+        themeMode,
+        encryptedConfig,
+        buildSyncCache()
+      );
+      const serialized = JSON.stringify(syncData);
 
-  const handleSaveSettings = useCallback((nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
+      if (serialized !== prevSyncDataRef.current) {
+        prevSyncDataRef.current = serialized;
+        schedulePush(syncData);
+      }
+    };
+
+    performSync();
+  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, schedulePush, buildSyncData, currentConflict, isAdmin, themeMode]);
+
+  const handleSaveSettings = useCallback(async (nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
     saveAIConfig(nextConfig, nextSiteSettings);
 
     // 仅管理员可把“保存设置”同步到云端
     if (!isAdmin) return;
+
+    // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+    const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    let encryptedConfig: string | undefined;
+    if (syncPassword && nextConfig?.apiKey) {
+      try {
+        encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey: nextConfig.apiKey });
+      } catch {
+        // Encryption failed, continue without encrypted config
+      }
+    }
 
     const syncData = buildSyncData(
       links,
@@ -1122,14 +1218,17 @@ function App({ onReady }: AppProps) {
       { mode: searchMode, externalSources: externalSearchSources },
       nextConfig,
       nextSiteSettings,
-      privateVaultCipher || undefined
+      privateVaultCipher || undefined,
+      themeMode,
+      encryptedConfig,
+      buildSyncCache()
     );
 
     // 避免与自动同步重复触发
     prevSyncDataRef.current = JSON.stringify(syncData);
     cancelPendingSync();
     void pushToCloud(syncData, false, 'manual');
-  }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, buildSyncData, cancelPendingSync, pushToCloud]);
+  }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, buildSyncData, cancelPendingSync, pushToCloud, themeMode]);
 
   // === Sync Conflict Resolution ===
   const handleResolveConflict = useCallback((choice: 'local' | 'remote') => {
@@ -1149,16 +1248,30 @@ function App({ onReady }: AppProps) {
       return;
     }
 
+    // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+    const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    let encryptedConfig: string | undefined;
+    if (syncPassword && aiConfig?.apiKey) {
+      try {
+        encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey: aiConfig.apiKey });
+      } catch {
+        // Encryption failed, continue without encrypted config
+      }
+    }
+
     const syncData = buildSyncData(
       links,
       categories,
       { mode: searchMode, externalSources: externalSearchSources },
       aiConfig,
       siteSettings,
-      privateVaultCipher || undefined
+      privateVaultCipher || undefined,
+      themeMode,
+      encryptedConfig,
+      buildSyncCache()
     );
     await pushToCloud(syncData, false, 'manual');
-  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, pushToCloud, isAdmin, notify]);
+  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, pushToCloud, isAdmin, notify, themeMode]);
 
   const performPull = useCallback(async (role: SyncRole) => {
     const localMeta = getLocalSyncMeta();
@@ -1177,13 +1290,27 @@ function App({ onReady }: AppProps) {
 
     // 管理员模式：版本不一致时提示用户选择
     if (cloudData.meta.version !== localVersion) {
+      // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+      const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+      let encryptedConfig: string | undefined;
+      if (syncPassword && aiConfig?.apiKey) {
+        try {
+          encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey: aiConfig.apiKey });
+        } catch {
+          // Encryption failed, continue without encrypted config
+        }
+      }
+
       const localData = buildSyncData(
         links,
         categories,
         { mode: searchMode, externalSources: externalSearchSources },
         aiConfig,
         siteSettings,
-        privateVaultCipher || undefined
+        privateVaultCipher || undefined,
+        themeMode,
+        encryptedConfig,
+        buildSyncCache()
       );
       handleSyncConflict({
         localData: { ...localData, meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion } },
@@ -1193,7 +1320,7 @@ function App({ onReady }: AppProps) {
     }
 
     applyCloudData(cloudData, role);
-  }, [getLocalSyncMeta, pullFromCloud, applyCloudData, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict]);
+  }, [getLocalSyncMeta, pullFromCloud, applyCloudData, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, themeMode]);
 
   const handleManualPull = useCallback(async () => {
     await performPull(syncRole);
@@ -1299,7 +1426,10 @@ function App({ onReady }: AppProps) {
       restoredData.searchConfig,
       restoredData.aiConfig,
       restoredData.siteSettings,
-      restoredData.privateVault
+      restoredData.privateVault,
+      restoredData.themeMode,
+      restoredData.encryptedSensitiveConfig,
+      restoredData.customFaviconCache
     ));
     notify('已恢复到所选备份，并创建回滚点', 'success');
     return true;

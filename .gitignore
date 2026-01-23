@@ -3,6 +3,7 @@ node_modules
 .gemini-clipboard
 .ace-tool/
 .claude
+.kiro/
 .vscode/
 .idea/
 .DS_Store

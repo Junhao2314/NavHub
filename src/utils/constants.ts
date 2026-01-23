@@ -3,6 +3,7 @@ export const LOCAL_STORAGE_KEY = 'ynav_data_cache_v2';
 export const AI_CONFIG_KEY = 'ynav_ai_config';
 export const SEARCH_CONFIG_KEY = 'ynav_search_config';
 export const FAVICON_CACHE_KEY = 'ynav_favicon_cache';
+export const FAVICON_CUSTOM_KEY = 'ynav_favicon_custom';  // List of hostnames with user-customized icons
 export const SITE_SETTINGS_KEY = 'ynav_site_settings';
 export const THEME_KEY = 'theme';
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { THEME_KEY } from '../utils/constants';
+import type { ThemeMode } from '../types';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type { ThemeMode };
 
 export function useTheme() {
     const [themeMode, setThemeMode] = useState<ThemeMode>('system');
@@ -33,6 +34,17 @@ export function useTheme() {
                 : 'light';
         setThemeAndApply(nextMode);
     }, [themeMode, setThemeAndApply]);
+
+    // Apply theme from sync data (Requirements 1.2)
+    const applyFromSync = useCallback((syncedThemeMode: ThemeMode) => {
+        // Validate the synced theme mode
+        if (syncedThemeMode !== 'light' && syncedThemeMode !== 'dark' && syncedThemeMode !== 'system') {
+            return;
+        }
+        setThemeMode(syncedThemeMode);
+        localStorage.setItem(THEME_KEY, syncedThemeMode);
+        applyThemeMode(syncedThemeMode);
+    }, [applyThemeMode]);
 
     // Initialize theme on mount
     useEffect(() => {
@@ -73,6 +85,7 @@ export function useTheme() {
         themeMode,
         darkMode,
         toggleTheme,
-        setThemeAndApply
+        setThemeAndApply,
+        applyFromSync
     };
 }

@@ -31,7 +31,7 @@ interface SyncMetadata {
     syncKind?: 'auto' | 'manual';
 }
 
-interface YNavSyncData {
+interface NavHubSyncData {
     links: any[];
     categories: any[];
     searchConfig?: any;
@@ -49,10 +49,16 @@ const KV_SYNC_HISTORY_PREFIX = `${KV_BACKUP_PREFIX}history-`;
 const SYNC_HISTORY_RESPONSE_LIMIT = 20;
 const SYNC_HISTORY_RETENTION_LIMIT = 30;
 
+// Legacy keys (backwards compatibility for older deployments)
+const LEGACY_KV_MAIN_DATA_KEY = 'navhub:data';
+const LEGACY_KV_BACKUP_PREFIX = 'navhub:backup:';
+const LEGACY_KV_SYNC_HISTORY_PREFIX = `${LEGACY_KV_BACKUP_PREFIX}history-`;
+
 // Auth Security (brute-force protection)
 const AUTH_MAX_FAILED_ATTEMPTS = 5;
 const AUTH_LOCKOUT_SECONDS = 60 * 60; // 1 hour
 const KV_AUTH_ATTEMPT_PREFIX = 'ynav:auth_attempt:';
+const LEGACY_KV_AUTH_ATTEMPT_PREFIX = 'navhub:auth_attempt:';
 
 interface AuthAttemptRecord {
     failedCount: number;
@@ -65,9 +71,76 @@ type BackupKind = 'auto' | 'manual' | 'rollback';
 const getBackupKindFromKey = (backupKey: string): BackupKind => {
     const suffix = backupKey.startsWith(KV_BACKUP_PREFIX)
         ? backupKey.slice(KV_BACKUP_PREFIX.length)
-        : backupKey;
+        : backupKey.startsWith(LEGACY_KV_BACKUP_PREFIX)
+            ? backupKey.slice(LEGACY_KV_BACKUP_PREFIX.length)
+            : backupKey;
     if (suffix.startsWith('history-')) return 'auto';
     return suffix.startsWith('rollback-') ? 'rollback' : 'manual';
+};
+
+const isBackupKey = (key: string): boolean => {
+    return key.startsWith(KV_BACKUP_PREFIX) || key.startsWith(LEGACY_KV_BACKUP_PREFIX);
+};
+
+const isSyncHistoryKey = (key: string): boolean => {
+    return key.startsWith(KV_SYNC_HISTORY_PREFIX) || key.startsWith(LEGACY_KV_SYNC_HISTORY_PREFIX);
+};
+
+const stripBackupPrefix = (key: string): string => {
+    if (key.startsWith(KV_BACKUP_PREFIX)) return key.slice(KV_BACKUP_PREFIX.length);
+    if (key.startsWith(LEGACY_KV_BACKUP_PREFIX)) return key.slice(LEGACY_KV_BACKUP_PREFIX.length);
+    return key;
+};
+
+const getMainData = async (env: Env): Promise<NavHubSyncData | null> => {
+    const current = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as NavHubSyncData | null;
+    if (current) return current;
+
+    const legacy = await env.YNAV_KV.get(LEGACY_KV_MAIN_DATA_KEY, 'json') as NavHubSyncData | null;
+    if (!legacy) return null;
+
+    // Write-through migration (best-effort)
+    try {
+        await env.YNAV_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(legacy));
+    } catch {
+        // ignore migration failures
+    }
+
+    return legacy;
+};
+
+const mapLegacyBackupKeyToCurrent = (key: string): string | null => {
+    if (!key.startsWith(LEGACY_KV_BACKUP_PREFIX)) return null;
+    return `${KV_BACKUP_PREFIX}${key.slice(LEGACY_KV_BACKUP_PREFIX.length)}`;
+};
+
+const migrateLegacyBackupKeys = async (env: Env): Promise<void> => {
+    const legacyList = await env.YNAV_KV.list({ prefix: LEGACY_KV_BACKUP_PREFIX });
+    const keys = legacyList?.keys || [];
+    if (keys.length === 0) return;
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    for (const key of keys) {
+        const targetKey = mapLegacyBackupKeyToCurrent(key.name);
+        if (!targetKey) continue;
+
+        const existing = await env.YNAV_KV.get(targetKey, 'text') as string | null;
+        if (existing != null) continue;
+
+        const legacyValue = await env.YNAV_KV.get(key.name, 'text') as string | null;
+        if (legacyValue == null) continue;
+
+        if (typeof key.expiration === 'number') {
+            const ttl = key.expiration - nowSeconds;
+            if (ttl > 0) {
+                await env.YNAV_KV.put(targetKey, legacyValue, { expirationTtl: ttl });
+            }
+            continue;
+        }
+
+        await env.YNAV_KV.put(targetKey, legacyValue);
+    }
 };
 
 type SyncHistoryKind = 'auto' | 'manual';
@@ -90,9 +163,9 @@ const trimSyncHistory = async (env: Env): Promise<void> => {
     await Promise.all(toDelete.map((key) => env.YNAV_KV.delete(key.name)));
 };
 
-const saveSyncHistory = async (env: Env, data: YNavSyncData, kind: SyncHistoryKind): Promise<string> => {
+const saveSyncHistory = async (env: Env, data: NavHubSyncData, kind: SyncHistoryKind): Promise<string> => {
     const key = buildHistoryKey(data.meta?.updatedAt || Date.now());
-    const payload: YNavSyncData = {
+    const payload: NavHubSyncData = {
         ...data,
         meta: {
             ...data.meta,
@@ -120,6 +193,10 @@ const getClientIp = (request: Request): string => {
 
 const getAuthAttemptKey = (request: Request): string => {
     return `${KV_AUTH_ATTEMPT_PREFIX}${getClientIp(request)}`;
+};
+
+const getLegacyAuthAttemptKey = (request: Request): string => {
+    return `${LEGACY_KV_AUTH_ATTEMPT_PREFIX}${getClientIp(request)}`;
 };
 
 const buildLockoutResponse = (lockedUntil: number, now: number): Response => {
@@ -154,8 +231,12 @@ const requireAdminAccess = async (request: Request, env: Env): Promise<Response 
     }
 
     const attemptKey = getAuthAttemptKey(request);
+    const legacyAttemptKey = getLegacyAuthAttemptKey(request);
     const now = Date.now();
-    const record = await env.YNAV_KV.get(attemptKey, 'json') as AuthAttemptRecord | null;
+    let record = await env.YNAV_KV.get(attemptKey, 'json') as AuthAttemptRecord | null;
+    if (!record) {
+        record = await env.YNAV_KV.get(legacyAttemptKey, 'json') as AuthAttemptRecord | null;
+    }
 
     if (record?.lockedUntil && now < record.lockedUntil) {
         return buildLockoutResponse(record.lockedUntil, now);
@@ -193,6 +274,7 @@ const requireAdminAccess = async (request: Request, env: Env): Promise<Response 
     // 登录成功/密码正确，清空错误计数
     if (record) {
         await env.YNAV_KV.delete(attemptKey);
+        await env.YNAV_KV.delete(legacyAttemptKey);
     }
 
     return null;
@@ -209,7 +291,7 @@ const isAdminRequest = (request: Request, env: Env): boolean => {
     return authHeader === env.SYNC_PASSWORD;
 };
 
-const sanitizePublicData = (data: YNavSyncData): YNavSyncData => {
+const sanitizePublicData = (data: NavHubSyncData): NavHubSyncData => {
     const safeAiConfig = data.aiConfig && typeof data.aiConfig === 'object'
         ? { ...data.aiConfig, apiKey: '' }
         : undefined;
@@ -232,7 +314,7 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
     const isAdmin = isAdminRequest(request, env);
 
     try {
-        const data = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
+        const data = await getMainData(env);
 
         if (!data) {
             return new Response(JSON.stringify({
@@ -311,7 +393,7 @@ async function handlePost(request: Request, env: Env): Promise<Response> {
 
     try {
         const body = await request.json() as {
-            data: YNavSyncData;
+            data: NavHubSyncData;
             expectedVersion?: number;  // 用于乐观锁校验
             syncKind?: SyncHistoryKind;
         };
@@ -327,7 +409,7 @@ async function handlePost(request: Request, env: Env): Promise<Response> {
         }
 
         // 获取当前云端数据进行版本校验
-        const existingData = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
+        const existingData = await getMainData(env);
 
         // 如果云端有数据且客户端提供了期望版本号，进行冲突检测
         if (existingData && body.expectedVersion !== undefined) {
@@ -349,7 +431,7 @@ async function handlePost(request: Request, env: Env): Promise<Response> {
         const newVersion = existingData ? existingData.meta.version + 1 : 1;
         const now = Date.now();
         const kind = normalizeSyncKind(body.syncKind);
-        const dataToSave: YNavSyncData = {
+        const dataToSave: NavHubSyncData = {
             ...body.data,
             meta: {
                 ...body.data.meta,
@@ -394,7 +476,7 @@ async function handleBackup(request: Request, env: Env): Promise<Response> {
     if (authError) return authError;
 
     try {
-        const body = await request.json() as { data: YNavSyncData };
+        const body = await request.json() as { data: NavHubSyncData };
 
         if (!body.data) {
             return new Response(JSON.stringify({
@@ -444,7 +526,7 @@ async function handleRestoreBackup(request: Request, env: Env): Promise<Response
         const body = await request.json() as { backupKey?: string; deviceId?: string };
         const backupKey = body.backupKey;
 
-        if (!backupKey || !backupKey.startsWith(KV_BACKUP_PREFIX)) {
+        if (!backupKey || !isBackupKey(backupKey)) {
             return new Response(JSON.stringify({
                 success: false,
                 error: '无效的备份 key'
@@ -454,7 +536,7 @@ async function handleRestoreBackup(request: Request, env: Env): Promise<Response
             });
         }
 
-        const backupData = await env.YNAV_KV.get(backupKey, 'json') as YNavSyncData | null;
+        const backupData = await env.YNAV_KV.get(backupKey, 'json') as NavHubSyncData | null;
         if (!backupData) {
             return new Response(JSON.stringify({
                 success: false,
@@ -465,14 +547,14 @@ async function handleRestoreBackup(request: Request, env: Env): Promise<Response
             });
         }
 
-        const existingData = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
+        const existingData = await getMainData(env);
         const now = Date.now();
         let rollbackKey: string | null = null;
 
         if (existingData) {
             const rollbackTimestamp = new Date(now).toISOString().replace(/[:.]/g, '-');
             rollbackKey = `${KV_BACKUP_PREFIX}rollback-${rollbackTimestamp}`;
-            const rollbackData: YNavSyncData = {
+            const rollbackData: NavHubSyncData = {
                 ...existingData,
                 meta: {
                     ...existingData.meta,
@@ -486,7 +568,7 @@ async function handleRestoreBackup(request: Request, env: Env): Promise<Response
         }
 
         const newVersion = (existingData?.meta?.version ?? 0) + 1;
-        const restoredData: YNavSyncData = {
+        const restoredData: NavHubSyncData = {
             ...backupData,
             meta: {
                 ...(backupData.meta || {}),
@@ -531,7 +613,7 @@ async function handleGetBackup(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const backupKey = url.searchParams.get('backupKey') || url.searchParams.get('key');
 
-    if (!backupKey || !backupKey.startsWith(KV_BACKUP_PREFIX)) {
+    if (!backupKey || !isBackupKey(backupKey)) {
         return new Response(JSON.stringify({
             success: false,
             error: '无效的备份 key'
@@ -542,7 +624,7 @@ async function handleGetBackup(request: Request, env: Env): Promise<Response> {
     }
 
     try {
-        const backupData = await env.YNAV_KV.get(backupKey, 'json') as YNavSyncData | null;
+        const backupData = await env.YNAV_KV.get(backupKey, 'json') as NavHubSyncData | null;
         if (!backupData) {
             return new Response(JSON.stringify({
                 success: false,
@@ -576,16 +658,31 @@ async function handleListBackups(request: Request, env: Env): Promise<Response> 
     if (authError) return authError;
 
     try {
+        await migrateLegacyBackupKeys(env);
         await trimSyncHistory(env);
-        const currentData = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
+        const currentData = await getMainData(env);
         const currentVersion = currentData?.meta?.version;
 
-        const list = await env.YNAV_KV.list({ prefix: KV_SYNC_HISTORY_PREFIX });
+        const [list, legacyList] = await Promise.all([
+            env.YNAV_KV.list({ prefix: KV_SYNC_HISTORY_PREFIX }),
+            env.YNAV_KV.list({ prefix: LEGACY_KV_SYNC_HISTORY_PREFIX })
+        ]);
 
-        const backups = await Promise.all(list.keys.map(async (key: { name: string; expiration?: number }) => {
+        const currentKeyNames = new Set((list?.keys || []).map((k) => k.name));
+        const legacyKeys = (legacyList?.keys || []).filter((k) => {
+            const mapped = mapLegacyBackupKeyToCurrent(k.name);
+            return !mapped || !currentKeyNames.has(mapped);
+        });
+
+        const allKeys = [
+            ...(list?.keys || []),
+            ...legacyKeys
+        ];
+
+        const backups = await Promise.all(allKeys.map(async (key: { name: string; expiration?: number }) => {
             let meta: SyncMetadata | null = null;
             try {
-                const data = await env.YNAV_KV.get(key.name, 'json') as YNavSyncData | null;
+                const data = await env.YNAV_KV.get(key.name, 'json') as NavHubSyncData | null;
                 meta = data?.meta || null;
             } catch {
                 meta = null;
@@ -595,7 +692,7 @@ async function handleListBackups(request: Request, env: Env): Promise<Response> 
 
             return {
                 key: key.name,
-                timestamp: key.name.replace(KV_BACKUP_PREFIX, ''),
+                timestamp: stripBackupPrefix(key.name),
                 expiration: key.expiration,
                 kind,
                 deviceId: meta?.deviceId,
@@ -635,7 +732,7 @@ async function handleDeleteBackup(request: Request, env: Env): Promise<Response>
         const body = await request.json() as { backupKey?: string };
         const backupKey = body.backupKey;
 
-        if (!backupKey || !backupKey.startsWith(KV_BACKUP_PREFIX)) {
+        if (!backupKey || !isBackupKey(backupKey)) {
             return new Response(JSON.stringify({
                 success: false,
                 error: '无效的备份 key'
@@ -646,7 +743,7 @@ async function handleDeleteBackup(request: Request, env: Env): Promise<Response>
         }
 
         // 检查备份是否存在
-        const backupData = await env.YNAV_KV.get(backupKey, 'json') as YNavSyncData | null;
+        const backupData = await env.YNAV_KV.get(backupKey, 'json') as NavHubSyncData | null;
         if (!backupData) {
             return new Response(JSON.stringify({
                 success: false,
@@ -657,8 +754,8 @@ async function handleDeleteBackup(request: Request, env: Env): Promise<Response>
             });
         }
 
-        if (backupKey.startsWith(KV_SYNC_HISTORY_PREFIX)) {
-            const currentData = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as YNavSyncData | null;
+        if (isSyncHistoryKey(backupKey)) {
+            const currentData = await getMainData(env);
             const currentVersion = currentData?.meta?.version;
             if (typeof currentVersion === 'number' && backupData?.meta?.version === currentVersion) {
                 return new Response(JSON.stringify({

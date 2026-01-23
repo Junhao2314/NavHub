@@ -4,8 +4,7 @@ import { LinkItem, Category, AIConfig } from '../../types';
 import { generateLinkDescription, suggestCategory } from '../../services/geminiService';
 import { useDialog } from '../ui/DialogProvider';
 import { getIconToneStyle, normalizeHexColor } from '../../utils/iconTone';
-
-const FAVICON_CACHE_KEY = 'ynav_favicon_cache';
+import { setIcon as setFaviconIcon, getIcon as getFaviconIcon } from '../../utils/faviconCache';
 
 interface LinkModalProps {
   isOpen: boolean;
@@ -194,10 +193,9 @@ const LinkModal: React.FC<LinkModalProps> = ({
         const urlObj = new URL(domain);
         domain = urlObj.hostname;
       }
-      const stored = localStorage.getItem(FAVICON_CACHE_KEY);
-      const cache = stored ? JSON.parse(stored) : {};
-      cache[domain] = iconUrl;
-      localStorage.setItem(FAVICON_CACHE_KEY, JSON.stringify(cache));
+      // Use faviconCache module with isCustom: true for user-set icons
+      // Requirements: 3.2 - Mark icon as user-customized
+      setFaviconIcon(domain, iconUrl, true);
     } catch (error) {
       // Failed to cache custom icon - silently ignore
     }
@@ -302,30 +300,21 @@ const LinkModal: React.FC<LinkModalProps> = ({
       }
 
       // 先尝试从本地缓存获取图标
-      try {
-        const stored = localStorage.getItem(FAVICON_CACHE_KEY);
-        const cache = stored ? JSON.parse(stored) : {};
-        if (cache[domain]) {
-          setIcon(cache[domain]);
-          setIsFetchingIcon(false);
-          return;
-        }
-      } catch (error) {
-        // Failed to fetch cached icon, will generate new one
+      // Use faviconCache module to check cache
+      const cachedIcon = getFaviconIcon(domain);
+      if (cachedIcon) {
+        setIcon(cachedIcon);
+        setIsFetchingIcon(false);
+        return;
       }
 
       // 如果缓存中没有，则生成新图标
       const iconUrl = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
       setIcon(iconUrl);
       // 将图标保存到本地缓存
-      try {
-        const stored = localStorage.getItem(FAVICON_CACHE_KEY);
-        const cache = stored ? JSON.parse(stored) : {};
-        cache[domain] = iconUrl;
-        localStorage.setItem(FAVICON_CACHE_KEY, JSON.stringify(cache));
-      } catch (error) {
-        // Failed to cache icon - silently ignore
-      }
+      // Use faviconCache module with isCustom: false for auto-fetched icons
+      // Requirements: 3.2 - Auto-fetched icons are NOT marked as custom
+      setFaviconIcon(domain, iconUrl, false);
     } catch (e) {
       console.error("Failed to fetch icon", e);
       notify("无法获取图标，请检查URL是否正确", 'error');
@@ -361,6 +350,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
       setIsFetchingIcon(false);
 
       // 如果有URL，缓存到本地
+      // Use faviconCache module with isCustom: true for uploaded icons
+      // Requirements: 3.2 - Uploaded icons are marked as user-customized
       if (url) {
         let domain = url;
         if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -369,7 +360,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
         try {
           const urlObj = new URL(domain);
           domain = urlObj.hostname;
-          cacheCustomIcon(domain, base64String);
+          setFaviconIcon(domain, base64String, true);
         } catch (error) {
           // Failed to parse URL for caching - silently ignore
         }

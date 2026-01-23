@@ -108,6 +108,29 @@ export const INITIAL_LINKS: LinkItem[] = [
 
 // ============ 同步系统类型定义 ============
 
+// 主题模式类型
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+// 敏感配置载荷（用于加密同步 API Key 等敏感数据）
+export interface SensitiveConfigPayload {
+  apiKey?: string;
+  // 未来可扩展其他敏感配置
+}
+
+// Favicon 缓存条目
+export interface FaviconCacheEntry {
+  hostname: string;
+  iconUrl: string;
+  isCustom: boolean;  // true = 用户手动设置, false = 自动获取
+  updatedAt: number;
+}
+
+// 自定义 Favicon 缓存（用于同步）
+export interface CustomFaviconCache {
+  entries: FaviconCacheEntry[];
+  updatedAt: number;
+}
+
 // 同步元数据
 export interface SyncMetadata {
   updatedAt: number;      // 最后更新时间戳 (毫秒)
@@ -119,7 +142,7 @@ export interface SyncMetadata {
 }
 
 // Main sync data structure
-export interface YNavSyncData {
+export interface NavHubSyncData {
   links: LinkItem[];
   categories: Category[];
   searchConfig?: SearchConfig;
@@ -127,12 +150,16 @@ export interface YNavSyncData {
   siteSettings?: SiteSettings;
   privateVault?: string;
   meta: SyncMetadata;
+  // 新增同步字段
+  themeMode?: ThemeMode;
+  encryptedSensitiveConfig?: string;
+  customFaviconCache?: CustomFaviconCache;
 }
 
 // 同步冲突信息
 export interface SyncConflict {
-  localData: YNavSyncData;
-  remoteData: YNavSyncData;
+  localData: NavHubSyncData;
+  remoteData: NavHubSyncData;
 }
 
 // 同步状态枚举

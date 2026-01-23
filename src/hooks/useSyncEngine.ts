@@ -10,7 +10,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
-    YNavSyncData,
+    NavHubSyncData,
     SyncStatus,
     SyncConflict,
     SyncMetadata,
@@ -18,7 +18,9 @@ import {
     Category,
     SearchConfig,
     AIConfig,
-    SiteSettings
+    SiteSettings,
+    ThemeMode,
+    CustomFaviconCache
 } from '../types';
 import {
     SYNC_DEBOUNCE_MS,
@@ -33,7 +35,7 @@ import {
 // 同步引擎配置
 interface UseSyncEngineOptions {
     onConflict?: (conflict: SyncConflict) => void;
-    onSyncComplete?: (data: YNavSyncData) => void;
+    onSyncComplete?: (data: NavHubSyncData) => void;
     onError?: (error: string) => void;
 }
 
@@ -52,11 +54,11 @@ interface UseSyncEngineReturn {
     lastSyncTime: number | null;
 
     // 操作
-    pullFromCloud: () => Promise<YNavSyncData | null>;
-    pushToCloud: (data: Omit<YNavSyncData, 'meta'>, force?: boolean, syncKind?: 'auto' | 'manual') => Promise<boolean>;
-    schedulePush: (data: Omit<YNavSyncData, 'meta'>) => void;
-    createBackup: (data: Omit<YNavSyncData, 'meta'>) => Promise<boolean>;
-    restoreBackup: (backupKey: string) => Promise<YNavSyncData | null>;
+    pullFromCloud: () => Promise<NavHubSyncData | null>;
+    pushToCloud: (data: Omit<NavHubSyncData, 'meta'>, force?: boolean, syncKind?: 'auto' | 'manual') => Promise<boolean>;
+    schedulePush: (data: Omit<NavHubSyncData, 'meta'>) => void;
+    createBackup: (data: Omit<NavHubSyncData, 'meta'>) => Promise<boolean>;
+    restoreBackup: (backupKey: string) => Promise<NavHubSyncData | null>;
     deleteBackup: (backupKey: string) => Promise<boolean>;
 
     // 冲突解决
@@ -104,10 +106,10 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
     // Refs for debounce
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-    const pendingData = useRef<Omit<YNavSyncData, 'meta'> | null>(null);
+    const pendingData = useRef<Omit<NavHubSyncData, 'meta'> | null>(null);
 
     // 从云端拉取数据
-    const pullFromCloud = useCallback(async (): Promise<YNavSyncData | null> => {
+    const pullFromCloud = useCallback(async (): Promise<NavHubSyncData | null> => {
         setSyncStatus('syncing');
 
         try {
@@ -166,7 +168,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
     // 推送数据到云端
     const pushToCloud = useCallback(async (
-        data: Omit<YNavSyncData, 'meta'>,
+        data: Omit<NavHubSyncData, 'meta'>,
         force: boolean = false,
         syncKind: 'auto' | 'manual' = 'auto'
     ): Promise<boolean> => {
@@ -178,7 +180,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
         // 构建完整的同步数据
         const now = Date.now();
-        const syncData: YNavSyncData = {
+        const syncData: NavHubSyncData = {
             ...data,
             meta: {
                 updatedAt: now,
@@ -238,7 +240,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     }, [onConflict, onSyncComplete, onError]);
 
     // 带 debounce 的推送调度
-    const schedulePush = useCallback((data: Omit<YNavSyncData, 'meta'>) => {
+    const schedulePush = useCallback((data: Omit<NavHubSyncData, 'meta'>) => {
         // 存储待推送数据
         pendingData.current = data;
         setSyncStatus('pending');
@@ -269,13 +271,13 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
     // 创建备份
     const createBackup = useCallback(async (
-        data: Omit<YNavSyncData, 'meta'>
+        data: Omit<NavHubSyncData, 'meta'>
     ): Promise<boolean> => {
         setSyncStatus('syncing');
 
         const deviceId = getDeviceId();
         const deviceInfo = getDeviceInfo();
-        const syncData: YNavSyncData = {
+        const syncData: NavHubSyncData = {
             ...data,
             meta: {
                 updatedAt: Date.now(),
@@ -311,7 +313,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     }, [onError]);
 
     // 从备份恢复（服务端会创建回滚点）
-    const restoreBackup = useCallback(async (backupKey: string): Promise<YNavSyncData | null> => {
+    const restoreBackup = useCallback(async (backupKey: string): Promise<NavHubSyncData | null> => {
         setSyncStatus('syncing');
 
         try {
@@ -412,14 +414,21 @@ export function buildSyncData(
     searchConfig?: SearchConfig,
     aiConfig?: AIConfig,
     siteSettings?: SiteSettings,
-    privateVault?: string
-): Omit<YNavSyncData, 'meta'> {
+    privateVault?: string,
+    // 新增参数
+    themeMode?: ThemeMode,
+    encryptedSensitiveConfig?: string,
+    customFaviconCache?: CustomFaviconCache
+): Omit<NavHubSyncData, 'meta'> {
     return {
         links,
         categories,
         searchConfig,
         aiConfig,
         siteSettings,
-        privateVault
+        privateVault,
+        themeMode,
+        encryptedSensitiveConfig,
+        customFaviconCache
     };
 }

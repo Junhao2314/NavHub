@@ -13,7 +13,7 @@ compatibility_date = "2024-01-01"
 [site]
 bucket = "./dist"
 
-# KV 命名空间绑定 (Workers 专用，与 Pages 的 YNAV_KV 区分)
+# KV 命名空间绑定 (Workers 专用)
 # 若需创建新的 KV: wrangler kv:namespace create YNAV_WORKER_KV
 [[kv_namespaces]]
 binding = "YNAV_WORKER_KV"
