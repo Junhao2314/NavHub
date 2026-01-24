@@ -108,6 +108,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     // Refs for debounce
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
     const pendingData = useRef<Omit<NavHubSyncData, 'meta'> | null>(null);
+    const pushChainRef = useRef<Promise<void>>(Promise.resolve());
 
     // 从云端拉取数据
     const pullFromCloud = useCallback(async (): Promise<NavHubSyncData | null> => {
@@ -167,8 +168,8 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         }
     }, []);
 
-    // 推送数据到云端
-    const pushToCloud = useCallback(async (
+    // 实际执行推送（不做并发控制）
+    const doPushToCloud = useCallback(async (
         data: Omit<NavHubSyncData, 'meta'>,
         force: boolean = false,
         syncKind: 'auto' | 'manual' = 'auto'
@@ -230,15 +231,29 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
                 setLastSyncTime(result.data.meta.updatedAt);
             }
 
+            // 注意：这里不会调用 onSyncComplete 将 result.data 回写到业务状态。
+            // push 成功返回的数据会包含服务端生成的 meta（updatedAt/version），若回写会触发上层的 auto-sync effect，
+            // 导致“push → 回写 → 再 push”的循环同步。业务数据的覆盖/合并应由 pull/restore/冲突解决流程处理。
             setSyncStatus('synced');
-            onSyncComplete?.(result.data);
             return true;
         } catch (error: any) {
             setSyncStatus('error');
             onError?.(error.message || '网络错误');
             return false;
         }
-    }, [onConflict, onSyncComplete, onError]);
+    }, [onConflict, onError]);
+
+    // 推送数据到云端（串行化，避免并发推送导致 expectedVersion 冲突/交错）
+    const pushToCloud = useCallback(async (
+        data: Omit<NavHubSyncData, 'meta'>,
+        force: boolean = false,
+        syncKind: 'auto' | 'manual' = 'auto'
+    ): Promise<boolean> => {
+        const run = () => doPushToCloud(data, force, syncKind);
+        const resultPromise = pushChainRef.current.then(run, run);
+        pushChainRef.current = resultPromise.then(() => undefined, () => undefined);
+        return resultPromise;
+    }, [doPushToCloud]);
 
     // 带 debounce 的推送调度
     const schedulePush = useCallback((data: Omit<NavHubSyncData, 'meta'>) => {

@@ -129,6 +129,17 @@ describe('faviconCache', () => {
       
       expect(customIcons[0].isCustom).toBe(true);
     });
+
+    it('should keep stable updatedAt for custom icons', () => {
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      setIcon('github.com', 'data:image/png;base64,custom', true);
+
+      dateNowSpy.mockReturnValue(2000);
+      const customIcons = getCustomIcons();
+
+      expect(customIcons[0].updatedAt).toBe(1000);
+      dateNowSpy.mockRestore();
+    });
   });
 
   describe('buildSyncCache', () => {
@@ -136,7 +147,7 @@ describe('faviconCache', () => {
       const syncCache = buildSyncCache();
       
       expect(syncCache.entries).toEqual([]);
-      expect(syncCache.updatedAt).toBeGreaterThan(0);
+      expect(syncCache.updatedAt).toBe(0);
     });
 
     it('should only include custom icons in sync cache', () => {
@@ -147,6 +158,19 @@ describe('faviconCache', () => {
       
       expect(syncCache.entries.length).toBe(1);
       expect(syncCache.entries[0].hostname).toBe('github.com');
+    });
+
+    it('should keep stable sync cache when nothing changes', () => {
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      setIcon('github.com', 'data:image/png;base64,custom', true);
+
+      const first = buildSyncCache();
+
+      dateNowSpy.mockReturnValue(2000);
+      const second = buildSyncCache();
+
+      expect(second).toEqual(first);
+      dateNowSpy.mockRestore();
     });
   });
 
@@ -173,6 +197,41 @@ describe('faviconCache', () => {
       
       expect(getIcon('github.com')).toBe('data:image/png;base64,cloud');
       expect(isCustomIcon('github.com')).toBe(true);
+    });
+
+    it('should persist cloud updatedAt into local custom meta', () => {
+      const cloudCache: CustomFaviconCache = {
+        entries: [
+          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: 1234 }
+        ],
+        updatedAt: 1234
+      };
+
+      mergeFromCloud(cloudCache);
+
+      const syncCache = buildSyncCache();
+      expect(syncCache.updatedAt).toBe(1234);
+      expect(syncCache.entries[0].updatedAt).toBe(1234);
+    });
+
+    it('should overwrite local updatedAt with cloud updatedAt when merging', () => {
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      setIcon('github.com', 'data:image/png;base64,local', true);
+      dateNowSpy.mockRestore();
+
+      const cloudCache: CustomFaviconCache = {
+        entries: [
+          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: 2000 }
+        ],
+        updatedAt: 2000
+      };
+
+      mergeFromCloud(cloudCache);
+
+      const syncCache = buildSyncCache();
+      expect(getIcon('github.com')).toBe('data:image/png;base64,cloud');
+      expect(syncCache.updatedAt).toBe(2000);
+      expect(syncCache.entries[0].updatedAt).toBe(2000);
     });
 
     it('should preserve local auto-fetched icons not in cloud', () => {

@@ -1,5 +1,5 @@
 import { CustomFaviconCache, FaviconCacheEntry } from '../types';
-import { FAVICON_CACHE_KEY, FAVICON_CUSTOM_KEY } from './constants';
+import { FAVICON_CACHE_KEY, FAVICON_CUSTOM_KEY, FAVICON_CUSTOM_META_KEY } from './constants';
 
 /**
  * Favicon Cache Management Module
@@ -57,6 +57,34 @@ const getCustomHostnames = (): string[] => {
   }
 };
 
+const getCustomIconMeta = (): Record<string, number> => {
+  try {
+    const cached = localStorage.getItem(FAVICON_CUSTOM_META_KEY);
+    if (!cached) {
+      return {};
+    }
+    const parsed = JSON.parse(cached);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const meta: Record<string, number> = {};
+    for (const [hostname, updatedAt] of Object.entries(parsed)) {
+      if (typeof hostname === 'string' && typeof updatedAt === 'number') {
+        meta[hostname] = updatedAt;
+      }
+    }
+
+    return meta;
+  } catch {
+    return {};
+  }
+};
+
+const saveCustomIconMeta = (meta: Record<string, number>): void => {
+  localStorage.setItem(FAVICON_CUSTOM_META_KEY, JSON.stringify(meta));
+};
+
 /**
  * Save the list of custom hostnames to localStorage
  */
@@ -82,7 +110,7 @@ const saveLocalCache = (cache: Record<string, string>): void => {
 export const getCustomIcons = (): FaviconCacheEntry[] => {
   const cache = getLocalCache();
   const customHostnames = getCustomHostnames();
-  const now = Date.now();
+  const meta = getCustomIconMeta();
   
   return customHostnames
     .filter(hostname => hostname in cache)
@@ -90,7 +118,7 @@ export const getCustomIcons = (): FaviconCacheEntry[] => {
       hostname,
       iconUrl: cache[hostname],
       isCustom: true,
-      updatedAt: now
+      updatedAt: meta[hostname] ?? 0
     }));
 };
 
@@ -112,15 +140,26 @@ export const setIcon = (hostname: string, iconUrl: string, isCustom: boolean): v
   // Update the custom hostnames list
   const customHostnames = getCustomHostnames();
   const isInCustomList = customHostnames.includes(hostname);
+  const meta = getCustomIconMeta();
   
   if (isCustom && !isInCustomList) {
     // Add to custom list
     customHostnames.push(hostname);
     saveCustomHostnames(customHostnames);
+    meta[hostname] = Date.now();
+    saveCustomIconMeta(meta);
   } else if (!isCustom && isInCustomList) {
     // Remove from custom list
     const filtered = customHostnames.filter(h => h !== hostname);
     saveCustomHostnames(filtered);
+    if (hostname in meta) {
+      delete meta[hostname];
+      saveCustomIconMeta(meta);
+    }
+  } else if (isCustom) {
+    // Refresh the custom icon timestamp when updating an existing custom icon
+    meta[hostname] = Date.now();
+    saveCustomIconMeta(meta);
   }
 };
 
@@ -140,6 +179,7 @@ export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
   
   const localCache = getLocalCache();
   const localCustomHostnames = getCustomHostnames();
+  const meta = getCustomIconMeta();
   
   // Process cloud entries
   for (const entry of cloudCache.entries) {
@@ -166,6 +206,11 @@ export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
           localCustomHostnames.push(entry.hostname);
         }
       }
+
+      // Persist updatedAt from cloud so new devices keep stable timestamps.
+      if (typeof entry.updatedAt === 'number' && entry.updatedAt > 0) {
+        meta[entry.hostname] = entry.updatedAt;
+      }
     }
     // If cloud entry is not custom, we don't sync it (Requirement 3.4)
     // Local auto-fetched icons are preserved (Requirement 3.5)
@@ -174,6 +219,7 @@ export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
   // Save updated cache and custom list
   saveLocalCache(localCache);
   saveCustomHostnames(localCustomHostnames);
+  saveCustomIconMeta(meta);
 };
 
 /**
@@ -187,9 +233,11 @@ export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
 export const buildSyncCache = (): CustomFaviconCache => {
   const customIcons = getCustomIcons();
   
+  const updatedAt = customIcons.reduce((max, entry) => Math.max(max, entry.updatedAt), 0);
+
   return {
     entries: customIcons,
-    updatedAt: Date.now()
+    updatedAt
   };
 };
 
@@ -220,6 +268,12 @@ export const removeIcon = (hostname: string): void => {
   const filtered = customHostnames.filter(h => h !== hostname);
   if (filtered.length !== customHostnames.length) {
     saveCustomHostnames(filtered);
+  }
+
+  const meta = getCustomIconMeta();
+  if (hostname in meta) {
+    delete meta[hostname];
+    saveCustomIconMeta(meta);
   }
 };
 

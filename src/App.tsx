@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, lazy, Suspense, useState, useCallback, useRef } from 'react';
-import { LinkItem, Category, SyncConflict, YNavSyncData, AIConfig, SiteSettings } from './types';
+import { LinkItem, Category, SyncConflict, NavHubSyncData, AIConfig, SiteSettings } from './types';
 
 // Lazy load modal components for better code splitting
 const LinkModal = lazy(() => import('./components/modals/LinkModal'));
@@ -46,6 +46,7 @@ import {
   SYNC_API_ENDPOINT,
   SYNC_META_KEY,
   SYNC_PASSWORD_KEY,
+  SYNC_STATS_DEBOUNCE_MS,
   getDeviceId
 } from './utils/constants';
 import { decryptPrivateVault, encryptPrivateVault } from './utils/privateVault';
@@ -54,6 +55,25 @@ import { mergeFromCloud, buildSyncCache } from './utils/faviconCache';
 import { getCommonRecommendedLinks } from './utils/recommendation';
 
 type SyncRole = 'admin' | 'user';
+
+type SyncPayload = Omit<NavHubSyncData, 'meta'>;
+
+const buildSyncFullSignature = (payload: SyncPayload): string => {
+  const { encryptedSensitiveConfig, ...rest } = payload;
+  return JSON.stringify(rest);
+};
+
+const buildSyncBusinessSignature = (payload: SyncPayload): string => {
+  const { encryptedSensitiveConfig, links, ...rest } = payload;
+  const strippedLinks = Array.isArray(links)
+    ? links.map(({ adminClicks, adminLastClickedAt, ...link }) => link)
+    : links;
+
+  return JSON.stringify({
+    ...rest,
+    links: strippedLinks
+  });
+};
 
 type VerifySyncPasswordResult = {
   success: boolean;
@@ -172,7 +192,7 @@ function App({ onReady }: AppProps) {
     setSyncConflictOpen(true);
   }, []);
 
-  const applyCloudData = useCallback((data: YNavSyncData, role: SyncRole) => {
+  const applyCloudData = useCallback((data: NavHubSyncData, role: SyncRole) => {
     if (data.links && data.categories) {
       updateData(data.links, data.categories);
     }
@@ -299,7 +319,7 @@ function App({ onReady }: AppProps) {
     }
   }, [updateData, restoreSiteSettings, restoreAIConfig, isPrivateUnlocked, notify, privateVaultPassword, applyFromSync, privacyGroupEnabled, selectedCategory, setSelectedCategory]);
 
-  const handleSyncComplete = useCallback((data: YNavSyncData) => {
+  const handleSyncComplete = useCallback((data: NavHubSyncData) => {
     applyCloudData(data, syncRole);
   }, [applyCloudData, syncRole]);
 
@@ -1216,7 +1236,37 @@ function App({ onReady }: AppProps) {
   }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, buildSyncData, handleSyncConflict, getLocalSyncMeta, refreshSyncAuth, applyCloudData, themeMode, isAdmin]);
 
   // === KV Sync: Auto-sync on data change ===
-  const prevSyncDataRef = useRef<string | null>(null);
+  const prevBusinessSignatureRef = useRef<string | null>(null);
+  const prevFullSignatureRef = useRef<string | null>(null);
+  const encryptedSensitiveConfigCacheRef = useRef<{ password: string; apiKey: string; encrypted: string } | null>(null);
+  const statsSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingStatsSyncDataRef = useRef<SyncPayload | null>(null);
+  const isAdminRef = useRef(isAdmin);
+  const hasConflictRef = useRef(!!currentConflict);
+
+  isAdminRef.current = isAdmin;
+  hasConflictRef.current = !!currentConflict;
+
+  const cancelPendingStatsSync = useCallback(() => {
+    if (statsSyncTimerRef.current) {
+      clearTimeout(statsSyncTimerRef.current);
+      statsSyncTimerRef.current = null;
+    }
+    pendingStatsSyncDataRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    // 退出管理员模式 / 进入冲突状态时，避免后台仍在批量同步点击统计
+    if (!isAdmin || currentConflict) {
+      cancelPendingStatsSync();
+    }
+  }, [isAdmin, currentConflict, cancelPendingStatsSync]);
+
+  useEffect(() => {
+    return () => {
+      cancelPendingStatsSync();
+    };
+  }, [cancelPendingStatsSync]);
 
   useEffect(() => {
     // 跳过初始加载阶段
@@ -1225,18 +1275,7 @@ function App({ onReady }: AppProps) {
     if (!isAdmin) return;
 
     const performSync = async () => {
-      // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-      const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
-      let encryptedConfig: string | undefined;
-      if (syncPassword && aiConfig?.apiKey) {
-        try {
-          encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey: aiConfig.apiKey });
-        } catch {
-          // Encryption failed, continue without encrypted config
-        }
-      }
-
-      const syncData = buildSyncData(
+      const syncDataBase = buildSyncData(
         links,
         categories,
         { mode: searchMode, externalSources: externalSearchSources },
@@ -1245,19 +1284,91 @@ function App({ onReady }: AppProps) {
         privateVaultCipher || undefined,
         isAdmin ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
         themeMode,
-        encryptedConfig,
+        undefined,
         buildSyncCache()
       );
-      const serialized = JSON.stringify(syncData);
+      const businessSignature = buildSyncBusinessSignature(syncDataBase);
+      const fullSignature = buildSyncFullSignature(syncDataBase);
 
-      if (serialized !== prevSyncDataRef.current) {
-        prevSyncDataRef.current = serialized;
-        schedulePush(syncData);
+      const businessChanged = businessSignature !== prevBusinessSignatureRef.current;
+      const fullChanged = fullSignature !== prevFullSignatureRef.current;
+
+      if (!businessChanged && !fullChanged) return;
+
+      // 业务数据变更：立即走 3s debounce 同步
+      if (businessChanged) {
+        prevBusinessSignatureRef.current = businessSignature;
+        prevFullSignatureRef.current = fullSignature;
+        cancelPendingStatsSync();
+      } else if (fullChanged) {
+        // 只有点击统计等“高频字段”变化：走更长的批量上报
+        prevFullSignatureRef.current = fullSignature;
+        pendingStatsSyncDataRef.current = syncDataBase;
+
+        if (statsSyncTimerRef.current) {
+          clearTimeout(statsSyncTimerRef.current);
+        }
+
+        statsSyncTimerRef.current = setTimeout(async () => {
+          statsSyncTimerRef.current = null;
+          if (!isAdminRef.current || hasConflictRef.current) return;
+          if (isSyncPasswordRefreshingRef.current) return;
+
+          const pending = pendingStatsSyncDataRef.current;
+          pendingStatsSyncDataRef.current = null;
+          if (!pending) return;
+
+          // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+          const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+          const apiKey = pending.aiConfig?.apiKey?.trim();
+          let encryptedConfig: string | undefined;
+          if (syncPassword && apiKey) {
+            const cached = encryptedSensitiveConfigCacheRef.current;
+            if (cached && cached.password === syncPassword && cached.apiKey === apiKey) {
+              encryptedConfig = cached.encrypted;
+            } else {
+              try {
+                encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey });
+                encryptedSensitiveConfigCacheRef.current = { password: syncPassword, apiKey, encrypted: encryptedConfig };
+              } catch {
+                encryptedConfig = undefined;
+              }
+            }
+          }
+
+          void pushToCloud(
+            encryptedConfig ? { ...pending, encryptedSensitiveConfig: encryptedConfig } : pending,
+            false,
+            'auto'
+          );
+        }, SYNC_STATS_DEBOUNCE_MS);
+
+        return;
       }
+
+      // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+      const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+      const apiKey = aiConfig?.apiKey?.trim();
+      let encryptedConfig: string | undefined;
+      if (syncPassword && apiKey) {
+        const cached = encryptedSensitiveConfigCacheRef.current;
+        if (cached && cached.password === syncPassword && cached.apiKey === apiKey) {
+          encryptedConfig = cached.encrypted;
+        } else {
+          try {
+            encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey });
+            encryptedSensitiveConfigCacheRef.current = { password: syncPassword, apiKey, encrypted: encryptedConfig };
+          } catch {
+            encryptedConfig = undefined;
+          }
+        }
+      }
+
+      schedulePush(encryptedConfig ? { ...syncDataBase, encryptedSensitiveConfig: encryptedConfig } : syncDataBase);
     };
 
     performSync();
-  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, schedulePush, buildSyncData, currentConflict, isAdmin, themeMode]);
+  }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, schedulePush, buildSyncData, currentConflict, isAdmin, themeMode, cancelPendingStatsSync, pushToCloud]);
 
   const handleSaveSettings = useCallback(async (nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
     saveAIConfig(nextConfig, nextSiteSettings);
@@ -1290,21 +1401,27 @@ function App({ onReady }: AppProps) {
     );
 
     // 避免与自动同步重复触发
-    prevSyncDataRef.current = JSON.stringify(syncData);
+    prevBusinessSignatureRef.current = buildSyncBusinessSignature(syncData);
+    prevFullSignatureRef.current = buildSyncFullSignature(syncData);
     cancelPendingSync();
+    cancelPendingStatsSync();
     void pushToCloud(syncData, false, 'manual');
-  }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, buildSyncData, cancelPendingSync, pushToCloud, themeMode]);
+  }, [saveAIConfig, isAdmin, links, categories, searchMode, externalSearchSources, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, buildSyncData, cancelPendingSync, cancelPendingStatsSync, pushToCloud, themeMode]);
 
   // === Sync Conflict Resolution ===
   const handleResolveConflict = useCallback((choice: 'local' | 'remote') => {
-    if (choice === 'remote' && currentConflict) {
-      // 使用云端数据
-      handleSyncComplete(currentConflict.remoteData);
+    if (currentConflict) {
+      const { meta: _meta, ...payload } = choice === 'remote' ? currentConflict.remoteData : currentConflict.localData;
+      prevBusinessSignatureRef.current = buildSyncBusinessSignature(payload);
+      prevFullSignatureRef.current = buildSyncFullSignature(payload);
     }
+
+    cancelPendingSync();
+    cancelPendingStatsSync();
     resolveSyncConflict(choice);
     setSyncConflictOpen(false);
     setCurrentConflict(null);
-  }, [currentConflict, handleSyncComplete, resolveSyncConflict]);
+  }, [currentConflict, cancelPendingSync, cancelPendingStatsSync, resolveSyncConflict]);
 
   // 手动触发同步
   const handleManualSync = useCallback(async () => {
@@ -1336,8 +1453,14 @@ function App({ onReady }: AppProps) {
       encryptedConfig,
       buildSyncCache()
     );
+
+    // 避免与自动同步重复触发
+    prevBusinessSignatureRef.current = buildSyncBusinessSignature(syncData);
+    prevFullSignatureRef.current = buildSyncFullSignature(syncData);
+    cancelPendingSync();
+    cancelPendingStatsSync();
     await pushToCloud(syncData, false, 'manual');
-  }, [links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, pushToCloud, isAdmin, notify, themeMode]);
+  }, [isAdmin, notify, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, themeMode, buildSyncData, cancelPendingSync, cancelPendingStatsSync, pushToCloud]);
 
   const performPull = useCallback(async (role: SyncRole) => {
     const localMeta = getLocalSyncMeta();
@@ -1350,6 +1473,8 @@ function App({ onReady }: AppProps) {
 
     // 用户模式：直接以云端为准，不弹冲突
     if (role !== 'admin') {
+      cancelPendingSync();
+      cancelPendingStatsSync();
       applyCloudData(cloudData, role);
       return;
     }
@@ -1374,10 +1499,13 @@ function App({ onReady }: AppProps) {
         aiConfig,
         siteSettings,
         privateVaultCipher || undefined,
+        { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword },
         themeMode,
         encryptedConfig,
         buildSyncCache()
       );
+      cancelPendingSync();
+      cancelPendingStatsSync();
       handleSyncConflict({
         localData: { ...localData, meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion } },
         remoteData: cloudData
@@ -1385,8 +1513,13 @@ function App({ onReady }: AppProps) {
       return;
     }
 
+    cancelPendingSync();
+    cancelPendingStatsSync();
+    const { meta: _meta, ...payload } = cloudData;
+    prevBusinessSignatureRef.current = buildSyncBusinessSignature(payload);
+    prevFullSignatureRef.current = buildSyncFullSignature(payload);
     applyCloudData(cloudData, role);
-  }, [getLocalSyncMeta, pullFromCloud, applyCloudData, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, themeMode]);
+  }, [getLocalSyncMeta, pullFromCloud, applyCloudData, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, buildSyncData, handleSyncConflict, themeMode, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, cancelPendingSync, cancelPendingStatsSync]);
 
   const handleManualPull = useCallback(async () => {
     await performPull(syncRole);
@@ -1400,11 +1533,12 @@ function App({ onReady }: AppProps) {
     // 任何密码变更都会退出管理员会话，需要重新点击“登录”验证
     localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
     cancelPendingSync();
+    cancelPendingStatsSync();
 
     if (syncRole === 'admin' && isSyncProtected) {
       setSyncRole('user');
     }
-  }, [cancelPendingSync, isSyncProtected, syncRole]);
+  }, [cancelPendingSync, cancelPendingStatsSync, isSyncProtected, syncRole]);
 
   const handleVerifySyncPassword = useCallback(async (): Promise<VerifySyncPasswordResult> => {
     if (!isSyncProtected) {
@@ -1421,6 +1555,7 @@ function App({ onReady }: AppProps) {
     }
 
     cancelPendingSync();
+    cancelPendingStatsSync();
     isSyncPasswordRefreshingRef.current = true;
 
     try {
@@ -1462,7 +1597,7 @@ function App({ onReady }: AppProps) {
     } finally {
       isSyncPasswordRefreshingRef.current = false;
     }
-  }, [cancelPendingSync, isSyncProtected, refreshSyncAuth, performPull]);
+  }, [cancelPendingSync, cancelPendingStatsSync, isSyncProtected, refreshSyncAuth, performPull]);
 
   const handleRestoreBackup = useCallback(async (backupKey: string) => {
     if (!isAdmin) {
@@ -1479,6 +1614,9 @@ function App({ onReady }: AppProps) {
     });
     if (!confirmed) return false;
 
+    cancelPendingSync();
+    cancelPendingStatsSync();
+
     const restoredData = await restoreBackup(backupKey);
     if (!restoredData) {
       notify('恢复失败，请稍后重试', 'error');
@@ -1486,20 +1624,23 @@ function App({ onReady }: AppProps) {
     }
 
     handleSyncComplete(restoredData);
-    prevSyncDataRef.current = JSON.stringify(buildSyncData(
+    const restoredPayload = buildSyncData(
       restoredData.links,
       restoredData.categories,
       restoredData.searchConfig,
       restoredData.aiConfig,
       restoredData.siteSettings,
       restoredData.privateVault,
+      restoredData.privacyConfig,
       restoredData.themeMode,
       restoredData.encryptedSensitiveConfig,
       restoredData.customFaviconCache
-    ));
+    );
+    prevBusinessSignatureRef.current = buildSyncBusinessSignature(restoredPayload);
+    prevFullSignatureRef.current = buildSyncFullSignature(restoredPayload);
     notify('已恢复到所选备份，并创建回滚点', 'success');
     return true;
-  }, [confirm, restoreBackup, handleSyncComplete, notify, buildSyncData, isAdmin]);
+  }, [confirm, restoreBackup, handleSyncComplete, notify, buildSyncData, isAdmin, cancelPendingSync, cancelPendingStatsSync]);
 
   const handleDeleteBackup = useCallback(async (backupKey: string) => {
     if (!isAdmin) {

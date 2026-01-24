@@ -4,6 +4,7 @@ export const AI_CONFIG_KEY = 'ynav_ai_config';
 export const SEARCH_CONFIG_KEY = 'ynav_search_config';
 export const FAVICON_CACHE_KEY = 'ynav_favicon_cache';
 export const FAVICON_CUSTOM_KEY = 'ynav_favicon_custom';  // List of hostnames with user-customized icons
+export const FAVICON_CUSTOM_META_KEY = 'ynav_favicon_custom_meta';  // Record<string, number> hostname -> updatedAt
 export const SITE_SETTINGS_KEY = 'ynav_site_settings';
 export const THEME_KEY = 'theme';
 
@@ -33,6 +34,7 @@ export const PRIVATE_CATEGORY_ID = '__private__';
 
 // Sync Configuration
 export const SYNC_DEBOUNCE_MS = 3000; // 3秒内无新操作则触发同步
+export const SYNC_STATS_DEBOUNCE_MS = 60 * 1000; // 点击统计等高频字段的批量同步间隔
 export const SYNC_API_ENDPOINT = '/api/sync';
 
 // GitHub Repo URL
