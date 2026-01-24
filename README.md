@@ -3,7 +3,7 @@
 <div align="center">
 
 ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?style=flat-square&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=flat-square&logo=tailwindcss)
 ![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%7C%20Pages-orange?style=flat-square&logo=cloudflare)
 
@@ -18,14 +18,21 @@
 
 ## ✨ 核心特性
 
-| 特性            | 说明                                             |
-| --------------- | ------------------------------------------------ |
-| 🚀 **极简设计** | React 19 + Tailwind CSS v4，极速启动，丝滑交互   |
-| ☁️ **云端同步** | Cloudflare KV 实现多设备实时同步                 |
-| 🧠 **AI 整理**  | Google Gemini 一键生成网站简介，智能推荐分类     |
-| 🔒 **安全隐私** | Local-First 架构，数据优先本地存储，支持同步密码 |
-| 🎨 **个性化**   | 深色模式、自定义主题色、背景风格、卡片布局       |
-| 📱 **响应式**   | 完美适配桌面端和移动端                           |
+| 特性                | 说明                                                       |
+| ------------------- | ---------------------------------------------------------- |
+| 🚀 **极简设计**     | React 19 + Tailwind CSS v4，极速启动，丝滑交互             |
+| ☁️ **云端同步**     | Cloudflare KV 实现多设备实时同步，支持冲突检测与解决       |
+| 🧠 **AI 整理**      | Google Gemini 一键生成网站简介，智能推荐分类               |
+| 🔒 **安全隐私**     | Local-First 架构，数据优先本地存储，支持同步密码与隐私分组 |
+| 🎨 **个性化**       | 深色/浅色/跟随系统主题、自定义主题色、背景风格、卡片布局   |
+| 📱 **响应式**       | 完美适配桌面端和移动端                                     |
+| 🔐 **权限管理**     | 管理员/用户双角色，管理员可编辑，用户只读                  |
+| 🔍 **多源搜索**     | 内置 10+ 搜索引擎，支持站内搜索与外部搜索切换              |
+| ⭐ **常用推荐**     | 手动推荐 + 基于点击次数的智能推荐                          |
+| 📦 **导入导出**     | 支持浏览器书签 HTML 导入，JSON/HTML 格式导出               |
+| 🏷️ **标签系统**    | 链接支持多标签，便于分类和搜索                             |
+| 📌 **置顶功能**     | 重要链接可置顶显示，支持拖拽排序                           |
+| 🔄 **备份恢复**     | 云端备份管理，支持一键恢复历史版本                         |
 
 ---
 
@@ -184,7 +191,9 @@ id = "你的 Namespace ID"  # ← 替换这里
 
 ---
 
-## 🔐 同步密码设置
+## 🔐 同步与权限
+
+### 同步密码设置
 
 同步密码用于保护你的导航数据，防止他人通过 API 修改。
 
@@ -195,9 +204,40 @@ id = "你的 Namespace ID"  # ← 替换这里
 
 设置后，在网站的 **设置** → **数据** 中输入相同密码即可开启同步。
 
+### 管理员与用户模式
+
+| 模式   | 权限                                       |
+| ------ | ------------------------------------------ |
+| 管理员 | 完整读写权限，可编辑链接、分类、设置等     |
+| 用户   | 只读权限，仅可浏览和搜索，数据自动同步更新 |
+
+- 设置同步密码后，输入正确密码进入管理员模式
+- 未设置密码或密码错误时为用户模式
+
 ---
 
-## 🔄 同步上游更新
+## 🔒 隐私分组
+
+隐私分组用于存储敏感链接，支持独立密码保护。
+
+### 功能特性
+
+- 独立的链接存储空间，与普通链接分离
+- 支持两种密码模式：
+  - **同步密码模式**：使用同步密码解锁
+  - **独立密码模式**：使用单独设置的密码
+- 会话内自动解锁（可选）
+- 管理员可禁用密码保护（方便个人使用）
+
+### 数据安全
+
+- 隐私链接使用 AES-256-GCM 加密存储
+- 密码通过 PBKDF2 派生密钥（100,000 次迭代）
+- 加密数据可同步到云端，但只有知道密码才能解密
+
+---
+
+## � 同步上游更新
 
 当原仓库有新版本时：
 
@@ -231,11 +271,14 @@ npm install
 # 启动开发服务器
 npm run dev
 
+# 运行测试
+npm run test
+
 # 启动 Workers 模拟环境（需要先 wrangler login）
 npm run dev:workers
 ```
 
-本地服务运行在 `http://localhost:3000`
+本地服务运行在 `http://localhost:5173`
 
 ---
 
@@ -244,8 +287,31 @@ npm run dev:workers
 ```
 NavHub/
 ├── src/                    # React 前端源码
+│   ├── components/         # UI 组件
+│   │   ├── layout/         # 布局组件（侧边栏、头部等）
+│   │   ├── modals/         # 弹窗组件
+│   │   └── ui/             # 通用 UI 组件
+│   ├── hooks/              # 自定义 Hooks
+│   │   ├── useDataStore.ts # 数据存储
+│   │   ├── useSyncEngine.ts# 同步引擎
+│   │   ├── useTheme.ts     # 主题管理
+│   │   ├── useSearch.ts    # 搜索功能
+│   │   └── ...
+│   ├── services/           # 服务层
+│   │   ├── bookmarkParser.ts  # 书签解析
+│   │   ├── exportService.ts   # 导出服务
+│   │   └── geminiService.ts   # AI 服务
+│   ├── utils/              # 工具函数
+│   │   ├── privateVault.ts    # 隐私分组加密
+│   │   ├── sensitiveConfig.ts # 敏感配置加密
+│   │   ├── faviconCache.ts    # 图标缓存
+│   │   ├── recommendation.ts  # 推荐算法
+│   │   └── ...
+│   └── types.ts            # TypeScript 类型定义
 ├── functions/              # Cloudflare Pages Functions (API)
-│   └── api/sync.ts
+│   └── api/
+│       ├── sync.ts         # 同步 API
+│       └── ai.ts           # AI API
 ├── worker/                 # Cloudflare Workers 入口
 │   └── index.ts
 ├── .github/workflows/      # CI/CD 自动部署
@@ -258,13 +324,53 @@ NavHub/
 
 ## 🛠️ 技术栈
 
-| 层级      | 技术                                      |
-| --------- | ----------------------------------------- |
-| 前端      | React 19, TypeScript, Vite                |
-| 样式      | Tailwind CSS v4, Lucide Icons             |
-| 状态/同步 | LocalStorage + 自定义同步引擎             |
-| 后端      | Cloudflare Workers / Pages Functions + KV |
-| AI        | Google Generative AI SDK                  |
+| 层级      | 技术                                                |
+| --------- | --------------------------------------------------- |
+| 前端      | React 19, TypeScript 5.8, Vite 6                    |
+| 样式      | Tailwind CSS v4, Lucide Icons                       |
+| 拖拽排序  | @dnd-kit/core, @dnd-kit/sortable                    |
+| 状态/同步 | LocalStorage + 自定义同步引擎 + Cloudflare KV       |
+| 后端      | Cloudflare Workers / Pages Functions + KV           |
+| AI        | Google Generative AI SDK (@google/genai)            |
+| 加密      | Web Crypto API (AES-GCM, PBKDF2)                    |
+| 测试      | Vitest, fast-check (属性测试)                       |
+
+---
+
+## 📋 数据类型
+
+### LinkItem（链接）
+
+```typescript
+interface LinkItem {
+  id: string;
+  title: string;
+  url: string;
+  icon?: string;           // Favicon URL
+  iconTone?: string;       // 图标色调
+  description?: string;    // 描述
+  tags?: string[];         // 标签
+  categoryId: string;      // 分类 ID
+  createdAt: number;       // 创建时间
+  pinned?: boolean;        // 是否置顶
+  pinnedOrder?: number;    // 置顶排序
+  order?: number;          // 分类内排序
+  recommended?: boolean;   // 手动推荐
+  recommendedOrder?: number;  // 推荐排序
+  adminClicks?: number;    // 管理员点击次数
+  adminLastClickedAt?: number; // 最近点击时间
+}
+```
+
+### Category（分类）
+
+```typescript
+interface Category {
+  id: string;
+  name: string;
+  icon: string;  // Lucide 图标名或 Emoji
+}
+```
 
 ---
 
