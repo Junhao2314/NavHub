@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encryptSensitiveConfig, decryptSensitiveConfig } from './sensitiveConfig';
+import { encryptSensitiveConfig, decryptSensitiveConfig, decryptSensitiveConfigWithFallback } from './sensitiveConfig';
 
 describe('sensitiveConfig', () => {
   describe('encryptSensitiveConfig', () => {
@@ -99,6 +99,50 @@ describe('sensitiveConfig', () => {
       
       await expect(decryptSensitiveConfig(password, 'v1.salt'))
         .rejects.toThrow('Invalid sensitive config payload');
+    });
+  });
+
+  describe('decryptSensitiveConfigWithFallback', () => {
+    it('should decrypt using the first working password candidate', async () => {
+      const password = 'correctPassword';
+      const payload = { apiKey: 'sk-test-api-key-12345' };
+      const encrypted = await encryptSensitiveConfig(password, payload);
+
+      const decrypted = await decryptSensitiveConfigWithFallback(
+        ['wrongPassword', password],
+        encrypted
+      );
+
+      expect(decrypted).toEqual(payload);
+    });
+
+    it('should ignore empty candidates and handle duplicates', async () => {
+      const password = 'testPassword123';
+      const payload = { apiKey: 'sk-test-key' };
+      const encrypted = await encryptSensitiveConfig(password, payload);
+
+      const decrypted = await decryptSensitiveConfigWithFallback(
+        ['', '  ', password, password],
+        encrypted
+      );
+
+      expect(decrypted).toEqual(payload);
+    });
+
+    it('should throw error when no password candidate works', async () => {
+      const password = 'correctPassword';
+      const payload = { apiKey: 'sk-test-api-key-12345' };
+      const encrypted = await encryptSensitiveConfig(password, payload);
+
+      await expect(
+        decryptSensitiveConfigWithFallback(['wrongPassword1', 'wrongPassword2'], encrypted)
+      ).rejects.toThrow('No valid password');
+    });
+
+    it('should throw error for invalid ciphertext format', async () => {
+      await expect(
+        decryptSensitiveConfigWithFallback(['testPassword123'], 'invalid')
+      ).rejects.toThrow('Invalid sensitive config payload');
     });
   });
 

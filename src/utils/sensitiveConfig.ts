@@ -132,3 +132,33 @@ export const decryptSensitiveConfig = async (
   
   return parsed;
 };
+
+/**
+ * Decrypt sensitive configuration data using a list of password candidates.
+ *
+ * Tries each candidate in order until decryption succeeds.
+ * - Ignores empty/whitespace passwords
+ * - De-duplicates candidates while preserving order
+ *
+ * @throws Error if no candidate works
+ */
+export const decryptSensitiveConfigWithFallback = async (
+  passwords: string[],
+  cipherText: string
+): Promise<SensitiveConfigPayload> => {
+  const candidates = Array.from(
+    new Set(passwords.map(password => password.trim()).filter(Boolean))
+  );
+
+  for (const candidate of candidates) {
+    try {
+      return await decryptSensitiveConfig(candidate, cipherText);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid sensitive config payload') {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('No valid password');
+};

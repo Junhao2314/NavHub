@@ -2,20 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudDownload, Trash2, LogOut, Download } from 'lucide-react';
 import { SYNC_ADMIN_SESSION_KEY, SYNC_API_ENDPOINT, SYNC_PASSWORD_KEY, SYNC_PASSWORD_LOCK_UNTIL_KEY } from '../../../utils/constants';
 import { downloadJsonFile } from '../../../services/exportService';
-import { LinkItem, Category } from '../../../types';
+import { LinkItem, Category, SyncRole, VerifySyncPasswordResult } from '../../../types';
 import DuplicateChecker from './DuplicateChecker';
-
-type SyncRole = 'admin' | 'user';
-
-type VerifySyncPasswordResult = {
-    success: boolean;
-    role: SyncRole;
-    error?: string;
-    lockedUntil?: number;
-    retryAfterSeconds?: number;
-    remainingAttempts?: number;
-    maxAttempts?: number;
-};
 
 interface DataTabProps {
     onOpenImport: () => void;
@@ -31,6 +19,7 @@ interface DataTabProps {
     privacyGroupEnabled: boolean;
     onTogglePrivacyGroup: (enabled: boolean) => void;
     privacyPasswordEnabled: boolean;
+    isTogglingPrivacyPassword: boolean;
     onTogglePrivacyPassword: (enabled: boolean) => void;
     privacyAutoUnlockEnabled: boolean;
     onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
@@ -75,6 +64,7 @@ const DataTab: React.FC<DataTabProps> = ({
     privacyGroupEnabled,
     onTogglePrivacyGroup,
     privacyPasswordEnabled,
+    isTogglingPrivacyPassword,
     onTogglePrivacyPassword,
     privacyAutoUnlockEnabled,
     onTogglePrivacyAutoUnlock,
@@ -89,6 +79,8 @@ const DataTab: React.FC<DataTabProps> = ({
     const [syncPasswordMessage, setSyncPasswordMessage] = useState<string | null>(null);
     const [loginLockedUntil, setLoginLockedUntil] = useState<number | null>(null);
     const [backups, setBackups] = useState<BackupItem[]>([]);
+    const [isSyncHistoryVisible, setIsSyncHistoryVisible] = useState(false);
+    const [hasLoadedBackups, setHasLoadedBackups] = useState(false);
     const [syncHistoryPage, setSyncHistoryPage] = useState(1);
     const [isLoadingBackups, setIsLoadingBackups] = useState(false);
     const [backupError, setBackupError] = useState<string | null>(null);
@@ -206,6 +198,7 @@ const DataTab: React.FC<DataTabProps> = ({
             setBackupError(error.message || '网络错误');
         } finally {
             setIsLoadingBackups(false);
+            setHasLoadedBackups(true);
         }
     }, [getAuthHeaders]);
 
@@ -213,13 +206,13 @@ const DataTab: React.FC<DataTabProps> = ({
         setRestoringKey(backupKey);
         try {
             const success = await onRestoreBackup(backupKey);
-            if (success) {
+            if (success && isSyncHistoryVisible) {
                 await fetchBackups();
             }
         } finally {
             setRestoringKey(null);
         }
-    }, [fetchBackups, onRestoreBackup]);
+    }, [fetchBackups, onRestoreBackup, isSyncHistoryVisible]);
 
     const handleDeleteBackup = useCallback(async (backupKey: string) => {
         const current = backups.find(item => item.key === backupKey);
@@ -228,13 +221,13 @@ const DataTab: React.FC<DataTabProps> = ({
         setDeletingKey(backupKey);
         try {
             const success = await onDeleteBackup(backupKey);
-            if (success) {
+            if (success && isSyncHistoryVisible) {
                 await fetchBackups();
             }
         } finally {
             setDeletingKey(null);
         }
-    }, [fetchBackups, onDeleteBackup, backups]);
+    }, [fetchBackups, onDeleteBackup, backups, isSyncHistoryVisible]);
 
     const handleExportBackup = useCallback(async (backup: BackupItem) => {
         setExportingKey(backup.key);
@@ -345,13 +338,26 @@ const DataTab: React.FC<DataTabProps> = ({
     }, [privacyTarget, privacyOldPassword, privacyNewPassword, onMigratePrivacyMode, resetPrivacyMigration]);
 
     useEffect(() => {
-        if (syncRole !== 'admin') {
-            setBackups([]);
-            setBackupError(null);
+        if (syncRole === 'admin') return;
+        setBackups([]);
+        setBackupError(null);
+        setIsLoadingBackups(false);
+        setSyncHistoryPage(1);
+        setIsSyncHistoryVisible(false);
+        setHasLoadedBackups(false);
+    }, [syncRole]);
+
+    const handleToggleSyncHistory = useCallback(async () => {
+        if (syncRole !== 'admin') return;
+        if (isSyncHistoryVisible) {
+            setIsSyncHistoryVisible(false);
             return;
         }
-        fetchBackups();
-    }, [fetchBackups, syncRole]);
+        setIsSyncHistoryVisible(true);
+        if (!hasLoadedBackups) {
+            await fetchBackups();
+        }
+    }, [fetchBackups, hasLoadedBackups, isSyncHistoryVisible, syncRole]);
 
     useEffect(() => {
         const display = backups.slice(0, SYNC_HISTORY_DISPLAY_LIMIT);
@@ -469,7 +475,8 @@ const DataTab: React.FC<DataTabProps> = ({
                         <button
                             type="button"
                             onClick={() => onTogglePrivacyGroup(!privacyGroupEnabled)}
-                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyGroupEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'}`}
+                            disabled={isTogglingPrivacyPassword}
+                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyGroupEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${isTogglingPrivacyPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
                             aria-pressed={privacyGroupEnabled}
                         >
                             <span
@@ -487,13 +494,18 @@ const DataTab: React.FC<DataTabProps> = ({
                         <button
                             type="button"
                             onClick={() => onTogglePrivacyPassword(!privacyPasswordEnabled)}
-                            disabled={!privacyGroupEnabled}
-                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyPasswordEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${!privacyGroupEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!privacyGroupEnabled || isTogglingPrivacyPassword}
+                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyPasswordEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${(!privacyGroupEnabled || isTogglingPrivacyPassword) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             aria-pressed={privacyPasswordEnabled}
+                            aria-busy={isTogglingPrivacyPassword}
                         >
                             <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${privacyPasswordEnabled ? 'translate-x-5' : 'translate-x-1'}`}
-                            />
+                                className={`inline-flex h-4 w-4 transform items-center justify-center rounded-full bg-white shadow transition-transform ${privacyPasswordEnabled ? 'translate-x-5' : 'translate-x-1'}`}
+                            >
+                                {isTogglingPrivacyPassword && (
+                                    <RefreshCw size={10} className="animate-spin text-slate-500" />
+                                )}
+                            </span>
                         </button>
                     </div>
                     {!privacyPasswordEnabled && privacyGroupEnabled && (
@@ -506,8 +518,8 @@ const DataTab: React.FC<DataTabProps> = ({
                         <button
                             type="button"
                             onClick={() => onTogglePrivacyAutoUnlock(!privacyAutoUnlockEnabled)}
-                            disabled={!privacyGroupEnabled || !privacyPasswordEnabled}
-                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyAutoUnlockEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${(!privacyGroupEnabled || !privacyPasswordEnabled) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!privacyGroupEnabled || !privacyPasswordEnabled || isTogglingPrivacyPassword}
+                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyAutoUnlockEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${(!privacyGroupEnabled || !privacyPasswordEnabled || isTogglingPrivacyPassword) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             aria-pressed={privacyAutoUnlockEnabled}
                         >
                             <span
@@ -530,7 +542,7 @@ const DataTab: React.FC<DataTabProps> = ({
                         <button
                             type="button"
                             onClick={() => handleStartPrivacyMigration('separate')}
-                            disabled={useSeparatePrivacyPassword || !isSyncPasswordReady}
+                            disabled={isTogglingPrivacyPassword || useSeparatePrivacyPassword || !isSyncPasswordReady}
                             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             切换为独立密码
@@ -538,7 +550,7 @@ const DataTab: React.FC<DataTabProps> = ({
                         <button
                             type="button"
                             onClick={() => handleStartPrivacyMigration('sync')}
-                            disabled={!useSeparatePrivacyPassword}
+                            disabled={isTogglingPrivacyPassword || !useSeparatePrivacyPassword}
                             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             切换为同步密码
@@ -649,6 +661,16 @@ const DataTab: React.FC<DataTabProps> = ({
                         <div className="flex items-center gap-3 flex-wrap justify-end">
                             <button
                                 type="button"
+                                onClick={handleToggleSyncHistory}
+                                disabled={isLoadingBackups}
+                                className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60"
+                            >
+                                <Cloud size={12} />
+                                {isSyncHistoryVisible ? '隐藏' : '显示'}
+                            </button>
+                            {isSyncHistoryVisible && (
+                            <button
+                                type="button"
                                 onClick={fetchBackups}
                                 disabled={isLoadingBackups}
                                 className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60"
@@ -656,6 +678,7 @@ const DataTab: React.FC<DataTabProps> = ({
                                 <RefreshCw size={12} className={isLoadingBackups ? 'animate-spin' : ''} />
                                 刷新
                             </button>
+                            )}
                         </div>
                         )}
                     </div>
@@ -666,124 +689,135 @@ const DataTab: React.FC<DataTabProps> = ({
                         </div>
                     ) : (
                     <>
-                    {exportError && (
-                        <div className="mb-2 text-xs text-red-600 dark:text-red-400">{exportError}</div>
-                    )}
-
-                    {isLoadingBackups && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">加载中...</div>
-                    )}
-
-                    {!isLoadingBackups && backupError && (
-                        <div className="text-xs text-red-600 dark:text-red-400">{backupError}</div>
-                    )}
-
-                    {!isLoadingBackups && !backupError && displayBackups.length === 0 && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">暂无记录</div>
-                    )}
-
-                    {!isLoadingBackups && !backupError && displayBackups.length > 0 && (
-                        <>
-                        <div className="space-y-2">
-                            {pagedBackups.map((backup) => {
-                                const deviceLabel = formatDeviceLabel(backup.deviceId, backup.browser, backup.os);
-                                const showDeviceId = backup.deviceId && !backup.browser && !backup.os && deviceLabel !== backup.deviceId;
-                                const kind = getBackupKind(backup);
-                                const isCurrent = !!backup.isCurrent;
-                                return (
-                                <div
-                                    key={backup.key}
-                                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-3 py-2"
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                                            <Clock size={12} />
-                                            <span>{formatBackupTime(backup)}</span>
-                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${kind === 'auto'
-                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
-                                                : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
-                                                }`}>
-                                                {kind === 'auto' ? '自动同步' : '手动同步'}
-                                            </span>
-                                            {isCurrent && (
-                                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100">
-                                                    当前
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleExportBackup(backup)}
-                                                disabled={!!restoringKey || !!deletingKey || !!exportingKey}
-                                                className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 hover:text-sky-900 dark:hover:text-sky-200 disabled:opacity-60"
-                                            >
-                                                <Download size={12} className={exportingKey === backup.key ? 'animate-spin' : ''} />
-                                                导出
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRestoreBackup(backup.key)}
-                                                disabled={isCurrent || !!restoringKey || !!deletingKey || !!exportingKey}
-                                                className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 disabled:opacity-60"
-                                            >
-                                                <CloudDownload size={12} className={restoringKey === backup.key ? 'animate-spin' : ''} />
-                                                恢复
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteBackup(backup.key)}
-                                                disabled={isCurrent || !!restoringKey || !!deletingKey || !!exportingKey}
-                                                className={`flex items-center gap-1.5 text-xs ${isCurrent
-                                                    ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                                                    : 'text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-200'
-                                                    } disabled:opacity-60`}
-                                            >
-                                                <Trash2 size={12} className={deletingKey === backup.key ? 'animate-spin' : ''} />
-                                                删除
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="mt-1 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                                        <Cpu size={12} />
-                                        <span className="break-all">{deviceLabel}</span>
-                                    </div>
-                                    {showDeviceId && (
-                                        <div className="mt-1 pl-5 text-[10px] text-slate-500 dark:text-slate-400 break-all">
-                                            {backup.deviceId}
-                                        </div>
-                                    )}
-                                </div>
-                                );
-                            })}
+                    <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                        说明：点击统计等“纯统计同步”会同步到云端，但不会写入同步记录（避免刷屏）。
+                    </div>
+                    {!isSyncHistoryVisible ? (
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                            默认不加载同步记录，点击“显示”后才会从云端读取最近 20 次同步记录。
                         </div>
-                        {totalBackupPages > 1 && (
-                            <div className="mt-3 flex items-center justify-between gap-2">
-                                <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                                    第 {syncHistoryPage}/{totalBackupPages} 页
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    {Array.from({ length: totalBackupPages }, (_, idx) => {
-                                        const page = idx + 1;
-                                        const isActive = page === syncHistoryPage;
-                                        return (
-                                            <button
-                                                key={page}
-                                                type="button"
-                                                onClick={() => setSyncHistoryPage(page)}
-                                                className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${isActive
-                                                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
-                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                                    }`}
-                                            >
-                                                {page}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                    ) : (
+                    <>
+                        {exportError && (
+                            <div className="mb-2 text-xs text-red-600 dark:text-red-400">{exportError}</div>
                         )}
-                        </>
+
+                        {isLoadingBackups && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">加载中...</div>
+                        )}
+
+                        {!isLoadingBackups && backupError && (
+                            <div className="text-xs text-red-600 dark:text-red-400">{backupError}</div>
+                        )}
+
+                        {!isLoadingBackups && !backupError && displayBackups.length === 0 && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">暂无记录</div>
+                        )}
+
+                        {!isLoadingBackups && !backupError && displayBackups.length > 0 && (
+                            <>
+                            <div className="space-y-2">
+                                {pagedBackups.map((backup) => {
+                                    const deviceLabel = formatDeviceLabel(backup.deviceId, backup.browser, backup.os);
+                                    const showDeviceId = backup.deviceId && !backup.browser && !backup.os && deviceLabel !== backup.deviceId;
+                                    const kind = getBackupKind(backup);
+                                    const isCurrent = !!backup.isCurrent;
+                                    return (
+                                    <div
+                                        key={backup.key}
+                                        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-3 py-2"
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                                                <Clock size={12} />
+                                                <span>{formatBackupTime(backup)}</span>
+                                                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${kind === 'auto'
+                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
+                                                    : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
+                                                    }`}>
+                                                    {kind === 'auto' ? '自动同步' : '手动同步'}
+                                                </span>
+                                                {isCurrent && (
+                                                    <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100">
+                                                        当前
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleExportBackup(backup)}
+                                                    disabled={!!restoringKey || !!deletingKey || !!exportingKey}
+                                                    className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 hover:text-sky-900 dark:hover:text-sky-200 disabled:opacity-60"
+                                                >
+                                                    <Download size={12} className={exportingKey === backup.key ? 'animate-spin' : ''} />
+                                                    导出
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRestoreBackup(backup.key)}
+                                                    disabled={isCurrent || !!restoringKey || !!deletingKey || !!exportingKey}
+                                                    className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 disabled:opacity-60"
+                                                >
+                                                    <CloudDownload size={12} className={restoringKey === backup.key ? 'animate-spin' : ''} />
+                                                    恢复
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteBackup(backup.key)}
+                                                    disabled={isCurrent || !!restoringKey || !!deletingKey || !!exportingKey}
+                                                    className={`flex items-center gap-1.5 text-xs ${isCurrent
+                                                        ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                                        : 'text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-200'
+                                                        } disabled:opacity-60`}
+                                                >
+                                                    <Trash2 size={12} className={deletingKey === backup.key ? 'animate-spin' : ''} />
+                                                    删除
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="mt-1 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                                            <Cpu size={12} />
+                                            <span className="break-all">{deviceLabel}</span>
+                                        </div>
+                                        {showDeviceId && (
+                                            <div className="mt-1 pl-5 text-[10px] text-slate-500 dark:text-slate-400 break-all">
+                                                {backup.deviceId}
+                                            </div>
+                                        )}
+                                    </div>
+                                    );
+                                })}
+                            </div>
+                            {totalBackupPages > 1 && (
+                                <div className="mt-3 flex items-center justify-between gap-2">
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                                        第 {syncHistoryPage}/{totalBackupPages} 页
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        {Array.from({ length: totalBackupPages }, (_, idx) => {
+                                            const page = idx + 1;
+                                            const isActive = page === syncHistoryPage;
+                                            return (
+                                                <button
+                                                    key={page}
+                                                    type="button"
+                                                    onClick={() => setSyncHistoryPage(page)}
+                                                    className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${isActive
+                                                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
+                                                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                        }`}
+                                                >
+                                                    {page}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            </>
+                        )}
+                    </>
                     )}
                     </>
                     )}

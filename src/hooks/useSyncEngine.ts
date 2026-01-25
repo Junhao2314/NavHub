@@ -14,6 +14,8 @@ import {
     SyncStatus,
     SyncConflict,
     SyncMetadata,
+    SyncAuthState,
+    SyncRole,
     LinkItem,
     Category,
     SearchConfig,
@@ -40,13 +42,15 @@ interface UseSyncEngineOptions {
     onError?: (error: string) => void;
 }
 
-type SyncRole = 'admin' | 'user';
-
-interface SyncAuthState {
-    protected: boolean;
-    role: SyncRole;
-    canWrite: boolean;
-}
+export type PushToCloudOptions = {
+    /**
+     * 跳过写入“云端同步记录”(history snapshot)。
+     *
+     * 业务场景：点击统计等高频字段变更（纯统计同步）仍需要同步到云端用于多端一致，
+     * 但不希望刷屏“最近 20 次同步记录”（也避免额外的 KV 写放大）。
+     */
+    skipHistory?: boolean;
+};
 
 // 同步引擎返回值
 interface UseSyncEngineReturn {
@@ -56,7 +60,12 @@ interface UseSyncEngineReturn {
 
     // 操作
     pullFromCloud: () => Promise<NavHubSyncData | null>;
-    pushToCloud: (data: Omit<NavHubSyncData, 'meta'>, force?: boolean, syncKind?: 'auto' | 'manual') => Promise<boolean>;
+    pushToCloud: (
+        data: Omit<NavHubSyncData, 'meta'>,
+        force?: boolean,
+        syncKind?: 'auto' | 'manual',
+        options?: PushToCloudOptions
+    ) => Promise<boolean>;
     schedulePush: (data: Omit<NavHubSyncData, 'meta'>) => void;
     createBackup: (data: Omit<NavHubSyncData, 'meta'>) => Promise<boolean>;
     restoreBackup: (backupKey: string) => Promise<NavHubSyncData | null>;
@@ -95,6 +104,11 @@ const getAuthHeaders = (): HeadersInit => {
         'Content-Type': 'application/json',
         ...(password && isAdminSession ? { 'X-Sync-Password': password } : {})
     };
+};
+
+const sanitizeAiConfigForCloud = (config?: AIConfig): AIConfig | undefined => {
+    if (!config) return undefined;
+    return { ...config, apiKey: '' };
 };
 
 export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngineReturn {
@@ -172,7 +186,8 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     const doPushToCloud = useCallback(async (
         data: Omit<NavHubSyncData, 'meta'>,
         force: boolean = false,
-        syncKind: 'auto' | 'manual' = 'auto'
+        syncKind: 'auto' | 'manual' = 'auto',
+        options?: PushToCloudOptions
     ): Promise<boolean> => {
         setSyncStatus('syncing');
 
@@ -180,14 +195,20 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         const deviceId = getDeviceId();
         const deviceInfo = getDeviceInfo();
 
+        // Never send plaintext apiKey to the cloud; use encryptedSensitiveConfig instead.
+        const sanitizedPayload = {
+            ...data,
+            aiConfig: sanitizeAiConfigForCloud(data.aiConfig)
+        };
+
         // 构建完整的同步数据
         const now = Date.now();
         const syncData: NavHubSyncData = {
-            ...data,
+            ...sanitizedPayload,
             meta: {
                 updatedAt: now,
                 deviceId,
-                version: localMeta?.version || 0,
+                version: localMeta?.version ?? 0,
                 browser: deviceInfo?.browser,
                 os: deviceInfo?.os,
                 syncKind
@@ -200,8 +221,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     data: syncData,
-                    expectedVersion: force ? undefined : localMeta?.version,
-                    syncKind
+                    expectedVersion: force ? undefined : (localMeta?.version ?? 0),
+                    syncKind,
+                    ...(options?.skipHistory ? { skipHistory: true } : {})
                 })
             });
 
@@ -247,9 +269,10 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     const pushToCloud = useCallback(async (
         data: Omit<NavHubSyncData, 'meta'>,
         force: boolean = false,
-        syncKind: 'auto' | 'manual' = 'auto'
+        syncKind: 'auto' | 'manual' = 'auto',
+        options?: PushToCloudOptions
     ): Promise<boolean> => {
-        const run = () => doPushToCloud(data, force, syncKind);
+        const run = () => doPushToCloud(data, force, syncKind, options);
         const resultPromise = pushChainRef.current.then(run, run);
         pushChainRef.current = resultPromise.then(() => undefined, () => undefined);
         return resultPromise;
@@ -293,8 +316,12 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
         const deviceId = getDeviceId();
         const deviceInfo = getDeviceInfo();
-        const syncData: NavHubSyncData = {
+        const sanitizedPayload = {
             ...data,
+            aiConfig: sanitizeAiConfigForCloud(data.aiConfig)
+        };
+        const syncData: NavHubSyncData = {
+            ...sanitizedPayload,
             meta: {
                 updatedAt: Date.now(),
                 deviceId,

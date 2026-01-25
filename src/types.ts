@@ -111,6 +111,27 @@ export const INITIAL_LINKS: LinkItem[] = [
 // 主题模式类型
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+// 同步角色
+export type SyncRole = 'admin' | 'user';
+
+// 同步鉴权状态
+export interface SyncAuthState {
+  protected: boolean;
+  role: SyncRole;
+  canWrite: boolean;
+}
+
+// 校验同步密码返回结果
+export type VerifySyncPasswordResult = {
+  success: boolean;
+  role: SyncRole;
+  error?: string;
+  lockedUntil?: number;
+  retryAfterSeconds?: number;
+  remainingAttempts?: number;
+  maxAttempts?: number;
+};
+
 // 敏感配置载荷（用于加密同步 API Key 等敏感数据）
 export interface SensitiveConfigPayload {
   apiKey?: string;

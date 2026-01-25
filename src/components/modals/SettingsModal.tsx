@@ -1,22 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Bot, Globe, Palette, Database } from 'lucide-react';
-import { AIConfig, LinkItem, Category, SiteSettings } from '../../types';
+import { AIConfig, LinkItem, Category, SiteSettings, SyncRole, VerifySyncPasswordResult } from '../../types';
 import SiteTab from './settings/SiteTab';
 import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
 import DataTab from './settings/DataTab';
-
-type SyncRole = 'admin' | 'user';
-
-type VerifySyncPasswordResult = {
-  success: boolean;
-  role: SyncRole;
-  error?: string;
-  lockedUntil?: number;
-  retryAfterSeconds?: number;
-  remainingAttempts?: number;
-  maxAttempts?: number;
-};
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -41,6 +29,7 @@ interface SettingsModalProps {
   privacyGroupEnabled: boolean;
   onTogglePrivacyGroup: (enabled: boolean) => void;
   privacyPasswordEnabled: boolean;
+  isTogglingPrivacyPassword: boolean;
   onTogglePrivacyPassword: (enabled: boolean) => void;
   privacyAutoUnlockEnabled: boolean;
   onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
@@ -70,6 +59,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   privacyGroupEnabled,
   onTogglePrivacyGroup,
   privacyPasswordEnabled,
+  isTogglingPrivacyPassword,
   onTogglePrivacyPassword,
   privacyAutoUnlockEnabled,
   onTogglePrivacyAutoUnlock,
@@ -242,6 +232,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               privacyGroupEnabled={privacyGroupEnabled}
               onTogglePrivacyGroup={onTogglePrivacyGroup}
               privacyPasswordEnabled={privacyPasswordEnabled}
+              isTogglingPrivacyPassword={isTogglingPrivacyPassword}
               onTogglePrivacyPassword={onTogglePrivacyPassword}
               privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
               onTogglePrivacyAutoUnlock={onTogglePrivacyAutoUnlock}

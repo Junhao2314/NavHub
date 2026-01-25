@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, lazy, Suspense, useState, useCallback, useRef } from 'react';
-import { LinkItem, Category, SyncConflict, NavHubSyncData, AIConfig, SiteSettings } from './types';
+import { LinkItem, Category, SyncConflict, NavHubSyncData, AIConfig, SiteSettings, SearchConfig, SyncRole, VerifySyncPasswordResult } from './types';
 
 // Lazy load modal components for better code splitting
 const LinkModal = lazy(() => import('./components/modals/LinkModal'));
@@ -49,12 +49,10 @@ import {
   SYNC_STATS_DEBOUNCE_MS,
   getDeviceId
 } from './utils/constants';
-import { decryptPrivateVault, encryptPrivateVault } from './utils/privateVault';
-import { decryptSensitiveConfig, encryptSensitiveConfig } from './utils/sensitiveConfig';
+import { decryptPrivateVault, encryptPrivateVault, parsePlainPrivateVault } from './utils/privateVault';
+import { decryptSensitiveConfigWithFallback, encryptSensitiveConfig } from './utils/sensitiveConfig';
 import { mergeFromCloud, buildSyncCache } from './utils/faviconCache';
 import { getCommonRecommendedLinks } from './utils/recommendation';
-
-type SyncRole = 'admin' | 'user';
 
 type SyncPayload = Omit<NavHubSyncData, 'meta'>;
 
@@ -65,6 +63,7 @@ const buildSyncFullSignature = (payload: SyncPayload): string => {
 
 const buildSyncBusinessSignature = (payload: SyncPayload): string => {
   const { encryptedSensitiveConfig, links, ...rest } = payload;
+  // 业务签名：排除点击统计等“高频字段”，避免每次点击都触发“内容同步”与同步记录写入。
   const strippedLinks = Array.isArray(links)
     ? links.map(({ adminClicks, adminLastClickedAt, ...link }) => link)
     : links;
@@ -73,16 +72,6 @@ const buildSyncBusinessSignature = (payload: SyncPayload): string => {
     ...rest,
     links: strippedLinks
   });
-};
-
-type VerifySyncPasswordResult = {
-  success: boolean;
-  role: SyncRole;
-  error?: string;
-  lockedUntil?: number;
-  retryAfterSeconds?: number;
-  remainingAttempts?: number;
-  maxAttempts?: number;
 };
 
 interface AppProps {
@@ -117,6 +106,8 @@ function App({ onReady }: AppProps) {
   const [privacyGroupEnabled, setPrivacyGroupEnabled] = useState(false);
   const [privacyPasswordEnabled, setPrivacyPasswordEnabled] = useState(true);
   const [privacyAutoUnlockEnabled, setPrivacyAutoUnlockEnabled] = useState(false);
+  const [isTogglingPrivacyPassword, setIsTogglingPrivacyPassword] = useState(false);
+  const togglingPrivacyPasswordRef = useRef(false);
   const [isPrivateModalOpen, setIsPrivateModalOpen] = useState(false);
   const [editingPrivateLink, setEditingPrivateLink] = useState<LinkItem | null>(null);
   const [prefillPrivateLink, setPrefillPrivateLink] = useState<Partial<LinkItem> | null>(null);
@@ -128,6 +119,7 @@ function App({ onReady }: AppProps) {
   const autoUnlockAttemptedRef = useRef(false);
   const lastSyncPasswordRef = useRef((localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim());
   const isSyncPasswordRefreshingRef = useRef(false);
+  const restoreSearchConfigRef = useRef<((config: SearchConfig) => void) | null>(null);
   const [syncRole, setSyncRole] = useState<SyncRole>('user');
   const [isSyncProtected, setIsSyncProtected] = useState(false);
   const isAdmin = syncRole === 'admin';
@@ -197,7 +189,7 @@ function App({ onReady }: AppProps) {
       updateData(data.links, data.categories);
     }
     if (data.searchConfig) {
-      restoreSearchConfig(data.searchConfig);
+      restoreSearchConfigRef.current?.(data.searchConfig);
     }
     if (data.siteSettings) {
       restoreSiteSettings(data.siteSettings);
@@ -251,15 +243,15 @@ function App({ onReady }: AppProps) {
 
         // Only apply lock/unlock side-effects when privacy group is enabled
         if (effectiveGroupEnabled) {
-          if (!cfg.passwordEnabled) {
-            setIsPrivateUnlocked(true);
-            setPrivateVaultPassword(null);
-            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
-          } else {
+          if (cfg.passwordEnabled) {
             setIsPrivateUnlocked(false);
             setPrivateVaultPassword(null);
             setPrivateLinks([]);
             sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          } else {
+            // Password is disabled, but the vault may still be encrypted from older deployments.
+            // Unlock/migration should happen only after we confirm plaintext is available.
+            setPrivateVaultPassword(null);
           }
         }
       }
@@ -279,15 +271,24 @@ function App({ onReady }: AppProps) {
     }
 
     if (data.aiConfig) {
-      restoreAIConfig(data.aiConfig);
+      const localApiKey = aiConfig?.apiKey || '';
+      const nextApiKey = data.aiConfig.apiKey ? data.aiConfig.apiKey : localApiKey;
+      restoreAIConfig({ ...data.aiConfig, apiKey: nextApiKey });
     }
 
     // Decrypt and apply encryptedSensitiveConfig (Requirements 2.3)
     if (typeof data.encryptedSensitiveConfig === 'string' && data.encryptedSensitiveConfig) {
-      // Use the same password as privateVault for decryption
-      const password = privateVaultPassword || (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
-      if (password) {
-        decryptSensitiveConfig(password, data.encryptedSensitiveConfig)
+      // `encryptedSensitiveConfig` is encrypted using the sync password. When “独立隐私密码” is enabled,
+      // the in-memory `privateVaultPassword` may differ, so always try sync password first.
+      const candidates = [
+        (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim(),
+        (privateVaultPassword || '').trim(),
+        (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim()
+      ];
+      const hasAnyCandidate = candidates.some(Boolean);
+
+      if (hasAnyCandidate) {
+        decryptSensitiveConfigWithFallback(candidates, data.encryptedSensitiveConfig)
           .then(payload => {
             if (payload.apiKey) {
               // Apply the decrypted apiKey to aiConfig
@@ -303,10 +304,71 @@ function App({ onReady }: AppProps) {
       }
     }
 
+    // 同步 privateVault：管理员模式下云端数据会包含 privateVault
     if (typeof data.privateVault === 'string') {
       setPrivateVaultCipher(data.privateVault);
       localStorage.setItem(PRIVATE_VAULT_KEY, data.privateVault);
-      if (isPrivateUnlocked && privateVaultPassword) {
+      const nextGroupEnabled = typeof data.privacyConfig?.groupEnabled === 'boolean'
+        ? data.privacyConfig.groupEnabled
+        : privacyGroupEnabled;
+      const nextPasswordEnabled = typeof data.privacyConfig?.passwordEnabled === 'boolean'
+        ? data.privacyConfig.passwordEnabled
+        : privacyPasswordEnabled;
+      const plainVault = data.privateVault.trim()
+        ? parsePlainPrivateVault(data.privateVault)
+        : null;
+
+      if (nextGroupEnabled && !nextPasswordEnabled) {
+        setPrivateVaultPassword(null);
+        if (!data.privateVault.trim()) {
+          setPrivateLinks([]);
+          setIsPrivateUnlocked(true);
+          if (privacyAutoUnlockEnabled) {
+            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+          }
+        } else if (plainVault) {
+          setPrivateLinks(plainVault.links || []);
+          setIsPrivateUnlocked(true);
+          if (privacyAutoUnlockEnabled) {
+            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+          }
+        } else {
+          // 兼容：云端数据仍是加密格式，但配置已关闭密码保护（旧版本/切换过程中可能出现）
+          // 此时不要标记为已解锁，避免后续保存/同步用空数据覆盖掉原有加密数据
+          setPrivateLinks([]);
+          setIsPrivateUnlocked(false);
+          sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          const candidates = [
+            (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim(),
+            (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim()
+          ].filter(Boolean);
+
+          const tryDecrypt = (index: number) => {
+            if (index >= candidates.length) return Promise.reject(new Error('No valid password'));
+            return decryptPrivateVault(candidates[index], data.privateVault)
+              .catch(() => tryDecrypt(index + 1));
+          };
+
+          if (candidates.length > 0) {
+            tryDecrypt(0)
+              .then((payload) => {
+                const plaintext = JSON.stringify({ links: payload.links || [] });
+                localStorage.setItem(PRIVATE_VAULT_KEY, plaintext);
+                setPrivateVaultCipher(plaintext);
+                setPrivateLinks(payload.links || []);
+                setIsPrivateUnlocked(true);
+                if (privacyAutoUnlockEnabled) {
+                  sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+                }
+              })
+              .catch(() => {
+                // Ignore: user may need to provide a password on this device to recover the vault
+              });
+          }
+        }
+      } else if (plainVault && isPrivateUnlocked) {
+        setPrivateLinks(plainVault.links || []);
+      } else if (isPrivateUnlocked && privateVaultPassword) {
         decryptPrivateVault(privateVaultPassword, data.privateVault)
           .then(payload => setPrivateLinks(payload.links || []))
           .catch(() => {
@@ -316,8 +378,15 @@ function App({ onReady }: AppProps) {
             notify('隐私分组已锁定，请重新解锁', 'warning');
           });
       }
+    } else if (data.privateVault === null) {
+      // 云端明确清空了 privateVault（区别于 undefined 表示未传递）
+      setPrivateVaultCipher(null);
+      localStorage.removeItem(PRIVATE_VAULT_KEY);
+      setPrivateLinks([]);
+      setIsPrivateUnlocked(false);
+      setPrivateVaultPassword(null);
     }
-  }, [updateData, restoreSiteSettings, restoreAIConfig, isPrivateUnlocked, notify, privateVaultPassword, applyFromSync, privacyGroupEnabled, selectedCategory, setSelectedCategory]);
+  }, [updateData, restoreSiteSettings, restoreAIConfig, aiConfig, isPrivateUnlocked, notify, privateVaultPassword, applyFromSync, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, selectedCategory, setSelectedCategory]);
 
   const handleSyncComplete = useCallback((data: NavHubSyncData) => {
     applyCloudData(data, syncRole);
@@ -380,6 +449,8 @@ function App({ onReady }: AppProps) {
     toggleMobileSearch
   } = useSearch();
 
+  restoreSearchConfigRef.current = restoreSearchConfig;
+
   // === Modals ===
   const {
     isModalOpen,
@@ -412,15 +483,77 @@ function App({ onReady }: AppProps) {
   }, [useSeparatePrivacyPassword]);
 
   const handleUnlockPrivateVault = useCallback(async (input?: string) => {
-    // 如果密码功能已禁用，直接解锁
-    if (!privacyPasswordEnabled) {
-      setPrivateLinks([]);
+    const plain = privateVaultCipher ? parsePlainPrivateVault(privateVaultCipher) : null;
+    if (plain) {
+      setPrivateLinks(plain.links || []);
       setIsPrivateUnlocked(true);
       setPrivateVaultPassword(null);
       if (privacyAutoUnlockEnabled) {
         sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
       }
       return true;
+    }
+
+    // 如果密码功能已禁用，直接解锁
+    if (!privacyPasswordEnabled) {
+      setPrivateVaultPassword(null);
+      if (!privateVaultCipher || !privateVaultCipher.trim()) {
+        setPrivateLinks([]);
+        setIsPrivateUnlocked(true);
+        if (privacyAutoUnlockEnabled) {
+          sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+        }
+        return true;
+      }
+
+      // Password is disabled but vault is still encrypted -> require a one-time migration using the old password.
+      const candidates = [
+        (input || '').trim(),
+        (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim(),
+        (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim()
+      ].filter(Boolean);
+
+      if (candidates.length === 0) {
+        setPrivateLinks([]);
+        setIsPrivateUnlocked(false);
+        sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+        if (input !== undefined) {
+          notify('云端隐私数据仍为加密格式，请输入旧密码迁移', 'warning');
+        }
+        return false;
+      }
+
+      const tryDecrypt = async (index: number): Promise<{ links: LinkItem[] }> => {
+        if (index >= candidates.length) {
+          throw new Error('No valid password');
+        }
+        try {
+          return await decryptPrivateVault(candidates[index], privateVaultCipher);
+        } catch {
+          return tryDecrypt(index + 1);
+        }
+      };
+
+      try {
+        const payload = await tryDecrypt(0);
+        const plaintext = JSON.stringify({ links: payload.links || [] });
+        localStorage.setItem(PRIVATE_VAULT_KEY, plaintext);
+        setPrivateVaultCipher(plaintext);
+        setPrivateLinks(payload.links || []);
+        setIsPrivateUnlocked(true);
+        if (privacyAutoUnlockEnabled) {
+          sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+        }
+        return true;
+      } catch {
+        setPrivateLinks([]);
+        setIsPrivateUnlocked(false);
+        sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+        if (input !== undefined) {
+          notify('旧密码错误或隐私数据已损坏', 'error');
+        }
+        return false;
+      }
     }
 
     const password = resolvePrivacyPassword(input);
@@ -469,6 +602,10 @@ function App({ onReady }: AppProps) {
   const persistPrivateVault = useCallback(async (nextLinks: LinkItem[], passwordOverride?: string) => {
     // 如果密码功能已禁用，直接保存链接到本地（不加密）
     if (!privacyPasswordEnabled) {
+      if (privateVaultCipher && privateVaultCipher.trim() && !parsePlainPrivateVault(privateVaultCipher)) {
+        notify('隐私分组需要先输入旧密码迁移后才能保存', 'warning');
+        return false;
+      }
       localStorage.setItem(PRIVATE_VAULT_KEY, JSON.stringify({ links: nextLinks }));
       setPrivateVaultCipher(JSON.stringify({ links: nextLinks }));
       setPrivateLinks(nextLinks);
@@ -495,7 +632,7 @@ function App({ onReady }: AppProps) {
       notify('隐私分组加密失败，请重试', 'error');
       return false;
     }
-  }, [notify, privateVaultPassword, resolvePrivacyPassword, privacyPasswordEnabled]);
+  }, [notify, privateVaultCipher, privateVaultPassword, resolvePrivacyPassword, privacyPasswordEnabled]);
 
   const handleMigratePrivacyMode = useCallback(async (payload: {
     useSeparatePassword: boolean;
@@ -603,13 +740,13 @@ function App({ onReady }: AppProps) {
 
   const displayedLinks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    
+
     // 站内搜索模式且有搜索词时，搜索全站资源
     const isInternalSearchWithQuery = searchMode === 'internal' && q;
-    
+
     // 管理员模式 + 隐私分组启用 + 密码保护关闭 + 已解锁 → 站内搜索包含隐私分组
     const canSearchPrivate = isAdmin && privacyGroupEnabled && !privacyPasswordEnabled && isPrivateUnlocked;
-    
+
     const baseLinks = selectedCategory === COMMON_CATEGORY_ID ? commonRecommendedLinks : links;
 
     let result = baseLinks;
@@ -825,12 +962,19 @@ function App({ onReady }: AppProps) {
   }, [privateLinks]);
 
   const privateCount = privacyGroupEnabled && isPrivateUnlocked ? privateLinks.length : 0;
-  const privateUnlockHint = useSeparatePrivacyPassword
-    ? '请输入独立密码解锁隐私分组'
-    : '请输入同步密码解锁隐私分组';
-  const privateUnlockSubHint = useSeparatePrivacyPassword
-    ? '独立密码仅保存在本地，切换设备需手动输入'
-    : '同步密码来自数据设置';
+  const privateVaultNeedsMigration = useMemo(() => {
+    if (!privacyGroupEnabled) return false;
+    if (privacyPasswordEnabled) return false;
+    if (!privateVaultCipher || !privateVaultCipher.trim()) return false;
+    return !parsePlainPrivateVault(privateVaultCipher);
+  }, [privacyGroupEnabled, privacyPasswordEnabled, privateVaultCipher]);
+
+  const privateUnlockHint = !privacyPasswordEnabled
+    ? (privateVaultNeedsMigration ? '隐私数据仍为加密格式，请输入旧密码迁移' : '隐私分组无需密码，点击解锁即可')
+    : (useSeparatePrivacyPassword ? '请输入独立密码解锁隐私分组' : '请输入同步密码解锁隐私分组');
+  const privateUnlockSubHint = !privacyPasswordEnabled
+    ? (privateVaultNeedsMigration ? '迁移成功后会转换为明文（因为已关闭密码保护）' : undefined)
+    : (useSeparatePrivacyPassword ? '独立密码仅保存在本地，切换设备需手动输入' : '同步密码来自数据设置');
 
   useEffect(() => {
     if (!privacyGroupEnabled || !privacyAutoUnlockEnabled || isPrivateUnlocked) return;
@@ -1079,22 +1223,105 @@ function App({ onReady }: AppProps) {
   }, [isPrivateUnlocked]);
 
   const handleTogglePrivacyPassword = useCallback((enabled: boolean) => {
-    setPrivacyPasswordEnabled(enabled);
-    localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, enabled ? '1' : '0');
+    if (togglingPrivacyPasswordRef.current) return;
 
-    if (!enabled) {
-      // 禁用密码时，自动解锁隐私分组
-      setIsPrivateUnlocked(true);
-      setPrivateVaultPassword(null);
-      sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
-    } else {
-      // 启用密码时，锁定隐私分组
-      setIsPrivateUnlocked(false);
-      setPrivateVaultPassword(null);
-      setPrivateLinks([]);
-      sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
-    }
-  }, []);
+    void (async () => {
+      try {
+        togglingPrivacyPasswordRef.current = true;
+        setIsTogglingPrivacyPassword(true);
+
+        if (!enabled) {
+          // 关闭密码保护时，确保 privateVault 以明文格式存储，避免跨设备同步后无法读取
+          let nextLinks: LinkItem[] = privateLinks;
+
+          if (privateVaultCipher) {
+            const plain = parsePlainPrivateVault(privateVaultCipher);
+            if (plain) {
+              nextLinks = plain.links || [];
+            } else if (!isPrivateUnlocked) {
+              const password = resolvePrivacyPassword();
+              if (!password) {
+                notify('请先解锁隐私分组再关闭密码保护', 'warning');
+                return;
+              }
+              try {
+                const payload = await decryptPrivateVault(password, privateVaultCipher);
+                nextLinks = payload.links || [];
+              } catch {
+                notify('请先解锁隐私分组再关闭密码保护', 'warning');
+                return;
+              }
+            }
+          }
+
+          const plaintext = JSON.stringify({ links: nextLinks });
+          localStorage.setItem(PRIVATE_VAULT_KEY, plaintext);
+          setPrivateVaultCipher(plaintext);
+          setPrivateLinks(nextLinks);
+
+          setPrivacyPasswordEnabled(false);
+          localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, '0');
+
+          setIsPrivateUnlocked(true);
+          setPrivateVaultPassword(null);
+          if (privacyAutoUnlockEnabled) {
+            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+          } else {
+            sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          }
+          return;
+        }
+
+        // 开启密码保护：若当前为明文格式，先加密再锁定
+        let nextCipher: string | null = privateVaultCipher;
+        const plain = nextCipher ? parsePlainPrivateVault(nextCipher) : null;
+
+        if (plain) {
+          const password = resolvePrivacyPassword();
+          if (!password) {
+            notify('请先设置隐私分组密码', 'warning');
+            return;
+          }
+          try {
+            nextCipher = await encryptPrivateVault(password, plain);
+          } catch {
+            notify('隐私分组加密失败，请重试', 'error');
+            return;
+          }
+        } else if (!nextCipher && privateLinks.length > 0) {
+          const password = resolvePrivacyPassword();
+          if (!password) {
+            notify('请先设置隐私分组密码', 'warning');
+            return;
+          }
+          try {
+            nextCipher = await encryptPrivateVault(password, { links: privateLinks });
+          } catch {
+            notify('隐私分组加密失败，请重试', 'error');
+            return;
+          }
+        }
+
+        if (nextCipher) {
+          localStorage.setItem(PRIVATE_VAULT_KEY, nextCipher);
+          setPrivateVaultCipher(nextCipher);
+        }
+
+        setPrivacyPasswordEnabled(true);
+        localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, '1');
+
+        setIsPrivateUnlocked(false);
+        setPrivateVaultPassword(null);
+        setPrivateLinks([]);
+        sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+      } catch {
+        notify('隐私分组设置更新失败，请重试', 'error');
+      } finally {
+        togglingPrivacyPasswordRef.current = false;
+        setIsTogglingPrivacyPassword(false);
+      }
+    })();
+  }, [isPrivateUnlocked, notify, privateLinks, privateVaultCipher, privacyAutoUnlockEnabled, resolvePrivacyPassword]);
 
   const handleSelectPrivate = useCallback(() => {
     if (!privacyGroupEnabled) {
@@ -1170,6 +1397,18 @@ function App({ onReady }: AppProps) {
   const useCustomBackground = !!siteSettings.backgroundImageEnabled && !!backgroundImage;
   const backgroundMotion = siteSettings.backgroundMotion ?? false;
 
+  // === KV Sync: Signature refs (must be defined before Initial Load effect) ===
+  const prevBusinessSignatureRef = useRef<string | null>(null);
+  const prevFullSignatureRef = useRef<string | null>(null);
+  const encryptedSensitiveConfigCacheRef = useRef<{ password: string; apiKey: string; encrypted: string } | null>(null);
+  const statsSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingStatsSyncDataRef = useRef<SyncPayload | null>(null);
+  const isAdminRef = useRef(isAdmin);
+  const hasConflictRef = useRef(!!currentConflict);
+
+  isAdminRef.current = isAdmin;
+  hasConflictRef.current = !!currentConflict;
+
   // === 数据加载完成后隐藏加载动画 ===
   useEffect(() => {
     if (isLoaded && onReady) {
@@ -1212,6 +1451,8 @@ function App({ onReady }: AppProps) {
             }
           }
 
+          // 使用 auth.role 而不是 isAdmin，因为 isAdmin 可能还未更新
+          const isAdminRole = auth.role === 'admin';
           const localData = buildSyncData(
             links,
             categories,
@@ -1219,7 +1460,7 @@ function App({ onReady }: AppProps) {
             aiConfig,
             siteSettings,
             privateVaultCipher || undefined,
-            isAdmin ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
+            isAdminRole ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
             themeMode,
             encryptedConfig,
             buildSyncCache()
@@ -1228,6 +1469,32 @@ function App({ onReady }: AppProps) {
             localData: { ...localData, meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion } },
             remoteData: cloudData
           });
+        } else {
+          // 版本一致时，初始化签名以避免不必要的同步
+          const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+          let encryptedConfig: string | undefined;
+          if (syncPassword && aiConfig?.apiKey) {
+            try {
+              encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey: aiConfig.apiKey });
+            } catch {
+              // Encryption failed, continue without encrypted config
+            }
+          }
+
+          const localData = buildSyncData(
+            links,
+            categories,
+            { mode: searchMode, externalSources: externalSearchSources },
+            aiConfig,
+            siteSettings,
+            privateVaultCipher || undefined,
+            { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword },
+            themeMode,
+            encryptedConfig,
+            buildSyncCache()
+          );
+          prevBusinessSignatureRef.current = buildSyncBusinessSignature(localData);
+          prevFullSignatureRef.current = buildSyncFullSignature(localData);
         }
       }
     };
@@ -1236,17 +1503,6 @@ function App({ onReady }: AppProps) {
   }, [isLoaded, pullFromCloud, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, buildSyncData, handleSyncConflict, getLocalSyncMeta, refreshSyncAuth, applyCloudData, themeMode, isAdmin]);
 
   // === KV Sync: Auto-sync on data change ===
-  const prevBusinessSignatureRef = useRef<string | null>(null);
-  const prevFullSignatureRef = useRef<string | null>(null);
-  const encryptedSensitiveConfigCacheRef = useRef<{ password: string; apiKey: string; encrypted: string } | null>(null);
-  const statsSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingStatsSyncDataRef = useRef<SyncPayload | null>(null);
-  const isAdminRef = useRef(isAdmin);
-  const hasConflictRef = useRef(!!currentConflict);
-
-  isAdminRef.current = isAdmin;
-  hasConflictRef.current = !!currentConflict;
-
   const cancelPendingStatsSync = useCallback(() => {
     if (statsSyncTimerRef.current) {
       clearTimeout(statsSyncTimerRef.current);
@@ -1339,7 +1595,9 @@ function App({ onReady }: AppProps) {
           void pushToCloud(
             encryptedConfig ? { ...pending, encryptedSensitiveConfig: encryptedConfig } : pending,
             false,
-            'auto'
+            'auto',
+            // 纯统计同步：仅同步点击统计等高频字段，不写入同步记录（避免“最近 20 次同步记录”被刷屏）。
+            { skipHistory: true }
           );
         }, SYNC_STATS_DEBOUNCE_MS);
 
@@ -1718,6 +1976,7 @@ function App({ onReady }: AppProps) {
           privacyGroupEnabled={privacyGroupEnabled}
           onTogglePrivacyGroup={handleTogglePrivacyGroup}
           privacyPasswordEnabled={privacyPasswordEnabled}
+          isTogglingPrivacyPassword={isTogglingPrivacyPassword}
           onTogglePrivacyPassword={handleTogglePrivacyPassword}
           privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
           onTogglePrivacyAutoUnlock={handleTogglePrivacyAutoUnlock}
