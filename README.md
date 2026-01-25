@@ -25,14 +25,16 @@
 | 🧠 **AI 整理**      | Google Gemini 一键生成网站简介，智能推荐分类               |
 | 🔒 **安全隐私**     | Local-First 架构，数据优先本地存储，支持同步密码与隐私分组 |
 | 🎨 **个性化**       | 深色/浅色/跟随系统主题、自定义主题色、背景风格、卡片布局   |
-| 📱 **响应式**       | 完美适配桌面端和移动端                                     |
+| 📱 **响应式**       | 完美适配桌面端和移动端，响应式网格布局                     |
 | 🔐 **权限管理**     | 管理员/用户双角色，管理员可编辑，用户只读                  |
-| 🔍 **多源搜索**     | 内置 10+ 搜索引擎，支持站内搜索与外部搜索切换              |
+| 🔍 **多源搜索**     | 内置 10+ 搜索引擎，支持站内搜索、全站搜索与外部搜索切换    |
 | ⭐ **常用推荐**     | 手动推荐 + 基于点击次数的智能推荐                          |
 | 📦 **导入导出**     | 支持浏览器书签 HTML 导入，JSON/HTML 格式导出               |
-| 🏷️ **标签系统**    | 链接支持多标签，便于分类和搜索                             |
+| 🏷️ **标签系统**    | 链接支持多标签，动态标签颜色，标签自动补全建议             |
 | 📌 **置顶功能**     | 重要链接可置顶显示，支持拖拽排序                           |
 | 🔄 **备份恢复**     | 云端备份管理，支持一键恢复历史版本                         |
+| 🔗 **重复检测**     | 内置重复链接检测工具，快速发现并管理重复项                 |
+| 🎯 **智能图标**     | 动态图标背景分析，暗色模式自动优化显示效果                 |
 
 ---
 
@@ -288,15 +290,37 @@ npm run dev:workers
 NavHub/
 ├── src/                    # React 前端源码
 │   ├── components/         # UI 组件
-│   │   ├── layout/         # 布局组件（侧边栏、头部等）
+│   │   ├── layout/         # 布局组件
+│   │   │   ├── ContextMenu.tsx    # 右键菜单
+│   │   │   ├── LinkSections.tsx   # 链接区块
+│   │   │   ├── MainHeader.tsx     # 主头部
+│   │   │   └── Sidebar.tsx        # 侧边栏
 │   │   ├── modals/         # 弹窗组件
+│   │   │   ├── settings/          # 设置子模块
+│   │   │   │   ├── AITab.tsx          # AI 设置
+│   │   │   │   ├── AppearanceTab.tsx  # 外观设置
+│   │   │   │   ├── DataTab.tsx        # 数据设置
+│   │   │   │   ├── DuplicateChecker.tsx # 重复检测
+│   │   │   │   └── SiteTab.tsx        # 站点设置
+│   │   │   ├── LinkModal.tsx      # 链接编辑
+│   │   │   ├── SettingsModal.tsx  # 设置弹窗
+│   │   │   └── ...
 │   │   └── ui/             # 通用 UI 组件
+│   │       ├── LinkCard.tsx       # 链接卡片
+│   │       ├── Icon.tsx           # 图标组件
+│   │       ├── IconSelector.tsx   # 图标选择器
+│   │       └── ...
 │   ├── hooks/              # 自定义 Hooks
-│   │   ├── useDataStore.ts # 数据存储
-│   │   ├── useSyncEngine.ts# 同步引擎
-│   │   ├── useTheme.ts     # 主题管理
-│   │   ├── useSearch.ts    # 搜索功能
-│   │   └── ...
+│   │   ├── useDataStore.ts    # 数据存储
+│   │   ├── useSyncEngine.ts   # 同步引擎
+│   │   ├── useTheme.ts        # 主题管理
+│   │   ├── useSearch.ts       # 搜索功能
+│   │   ├── useBatchEdit.ts    # 批量编辑
+│   │   ├── useConfig.ts       # 配置管理
+│   │   ├── useContextMenu.ts  # 右键菜单
+│   │   ├── useSidebar.ts      # 侧边栏状态
+│   │   ├── useSorting.ts      # 排序功能
+│   │   └── useModals.ts       # 弹窗管理
 │   ├── services/           # 服务层
 │   │   ├── bookmarkParser.ts  # 书签解析
 │   │   ├── exportService.ts   # 导出服务
@@ -306,7 +330,9 @@ NavHub/
 │   │   ├── sensitiveConfig.ts # 敏感配置加密
 │   │   ├── faviconCache.ts    # 图标缓存
 │   │   ├── recommendation.ts  # 推荐算法
-│   │   └── ...
+│   │   ├── iconTone.ts        # 图标色调分析
+│   │   ├── tagColors.ts       # 动态标签颜色
+│   │   └── constants.ts       # 常量定义
 │   └── types.ts            # TypeScript 类型定义
 ├── functions/              # Cloudflare Pages Functions (API)
 │   └── api/
@@ -326,14 +352,14 @@ NavHub/
 
 | 层级      | 技术                                                |
 | --------- | --------------------------------------------------- |
-| 前端      | React 19, TypeScript 5.8, Vite 6                    |
+| 前端      | React 19.2, TypeScript 5.8, Vite 6.2                |
 | 样式      | Tailwind CSS v4, Lucide Icons                       |
 | 拖拽排序  | @dnd-kit/core, @dnd-kit/sortable                    |
 | 状态/同步 | LocalStorage + 自定义同步引擎 + Cloudflare KV       |
 | 后端      | Cloudflare Workers / Pages Functions + KV           |
 | AI        | Google Generative AI SDK (@google/genai)            |
 | 加密      | Web Crypto API (AES-GCM, PBKDF2)                    |
-| 测试      | Vitest, fast-check (属性测试)                       |
+| 测试      | Vitest 4, fast-check (属性测试)                     |
 
 ---
 
@@ -369,6 +395,23 @@ interface Category {
   id: string;
   name: string;
   icon: string;  // Lucide 图标名或 Emoji
+}
+```
+
+### SiteSettings（站点设置）
+
+```typescript
+interface SiteSettings {
+  title: string;           // 页面标题
+  navTitle: string;        // 导航标题
+  favicon: string;         // 站点图标
+  cardStyle: 'detailed' | 'simple';  // 卡片样式
+  accentColor?: string;    // 主题色（RGB 值）
+  grayScale?: 'slate' | 'zinc' | 'neutral';  // 背景色调
+  closeOnBackdrop?: boolean;  // 点击背景关闭弹窗
+  backgroundImage?: string;   // 自定义背景图
+  backgroundImageEnabled?: boolean;  // 启用背景图
+  backgroundMotion?: boolean;  // 背景动效
 }
 ```
 
