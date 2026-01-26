@@ -1,6 +1,16 @@
+import type {
+    NavHubSyncData as FrontendNavHubSyncData,
+    PrivacyConfig as FrontendPrivacyConfig,
+    SyncMetadata as FrontendSyncMetadata
+} from '../../src/types';
+
 // Cloudflare KV 类型定义 (内联，避免需要安装 @cloudflare/workers-types)
 export interface KVNamespaceInterface {
-    get(key: string, type?: 'text' | 'json' | 'arrayBuffer' | 'stream'): Promise<any>;
+    get(key: string): Promise<string | null>;
+    get(key: string, type: 'text'): Promise<string | null>;
+    get<Value = unknown>(key: string, type: 'json'): Promise<Value | null>;
+    get(key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>;
+    get(key: string, type: 'stream'): Promise<ReadableStream | null>;
     put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
     delete(key: string): Promise<void>;
     list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<{
@@ -26,14 +36,7 @@ export type Env = {
     SYNC_PASSWORD?: string;
 };
 
-export interface SyncMetadata {
-    updatedAt: number;
-    deviceId: string;
-    version: number;
-    browser?: string;
-    os?: string;
-    syncKind?: 'auto' | 'manual';
-}
+export type SyncMetadata = FrontendSyncMetadata;
 
 export interface SyncHistoryIndexItem {
     key: string;
@@ -46,25 +49,8 @@ export interface SyncHistoryIndex {
     sources?: string[];
 }
 
-export interface PrivacyConfig {
-    groupEnabled?: boolean;
-    passwordEnabled?: boolean;
-    autoUnlockEnabled?: boolean;
-    useSeparatePassword?: boolean;
-}
+export type PrivacyConfig = FrontendPrivacyConfig;
 
-export interface NavHubSyncData {
-    links: any[];
-    categories: any[];
-    searchConfig?: any;
-    aiConfig?: any;
-    siteSettings?: any;
-    privateVault?: string;
-    privacyConfig?: PrivacyConfig;
-    meta: SyncMetadata;
-    themeMode?: 'light' | 'dark' | 'system';
-    encryptedSensitiveConfig?: string;
-    customFaviconCache?: any;
-}
+export type NavHubSyncData = FrontendNavHubSyncData;
 
 export type SyncHistoryKind = 'auto' | 'manual';

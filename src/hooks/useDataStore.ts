@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { LinkItem, Category, DEFAULT_CATEGORIES, INITIAL_LINKS } from '../types';
 import { arrayMove } from '@dnd-kit/sortable';
 import { LOCAL_STORAGE_KEY, FAVICON_CACHE_KEY, COMMON_CATEGORY_ID } from '../utils/constants';
+import { generateId } from '../utils/id';
 import { getCommonRecommendedLinks } from '../utils/recommendation';
 import { useDialog } from '../components/ui/DialogProvider';
 
@@ -127,7 +128,7 @@ export const useDataStore = () => {
         const newLink: LinkItem = {
             ...data,
             url: processedUrl,
-            id: Date.now().toString(),
+            id: generateId(),
             createdAt: Date.now(),
             order: maxOrder + 1,
             pinnedOrder: data.pinned ? links.filter(l => l.pinned).length : undefined,

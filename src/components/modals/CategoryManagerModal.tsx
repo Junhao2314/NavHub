@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DndContext, closestCenter, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, DragEndEvent, KeyboardSensor, PointerSensor, type DraggableAttributes, type DraggableSyntheticListeners, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { X, ArrowUp, ArrowDown, Trash2, Edit2, Plus, Check, Palette, Square, CheckSquare, GripVertical } from 'lucide-react';
@@ -20,8 +20,8 @@ interface CategoryManagerModalProps {
 type SortableItemRenderProps = {
   setNodeRef: (node: HTMLElement | null) => void;
   setActivatorNodeRef: (node: HTMLElement | null) => void;
-  attributes: any;
-  listeners: any;
+  attributes: DraggableAttributes;
+  listeners: DraggableSyntheticListeners;
   style: React.CSSProperties;
   isDragging: boolean;
 };

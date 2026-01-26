@@ -1,14 +1,5 @@
 import { LinkItem, Category } from '../types';
-
-// Simple ID generator using crypto.randomUUID() for modern browsers
-// Fallback to timestamp-based ID for older environments
-const generateId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback for older browsers
-  return Date.now().toString(36) + Math.random().toString(36).substring(2);
-};
+import { generateId } from '../utils/id';
 
 export interface ParsedBookmarkLink extends LinkItem {
   folderPath: string[];

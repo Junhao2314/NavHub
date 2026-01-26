@@ -36,6 +36,8 @@ export interface SiteSettings {
   backgroundMotion?: boolean; // Enable background highlight motion
 }
 
+export type SiteSettingsChangeHandler = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) => void;
+
 export interface AppState {
   links: LinkItem[];
   categories: Category[];
@@ -196,5 +198,79 @@ export interface SyncConflict {
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'pending' | 'error' | 'conflict';
 
 // 同步 API 响应
-export interface SyncApiResponse {
+export type SyncApiSuccess<T extends object = {}> = {
+  success: true;
+} & Omit<T, 'success' | 'error'>;
+
+export type SyncApiFailure<T extends object = {}> = {
+  success: false;
+  error: string;
+} & Omit<T, 'success' | 'error'>;
+
+export type SyncApiResponse<TSuccess extends object = {}, TFailure extends object = {}> =
+  | SyncApiSuccess<TSuccess>
+  | SyncApiFailure<TFailure>;
+
+export type SyncGetResponse = SyncApiResponse<{
+  role?: SyncRole;
+  data: NavHubSyncData | null;
+  message?: string;
+}>;
+
+export type SyncAuthResponse = SyncApiResponse<SyncAuthState>;
+
+export type SyncLoginResponse = SyncApiResponse<
+  SyncAuthState,
+  {
+    lockedUntil?: number;
+    retryAfterSeconds?: number;
+    remainingAttempts?: number;
+    maxAttempts?: number;
+  }
+>;
+
+export type SyncPostResponse = SyncApiResponse<
+  {
+    data: NavHubSyncData;
+    historyKey: string | null;
+    message?: string;
+  },
+  {
+    conflict?: boolean;
+    data?: NavHubSyncData;
+  }
+>;
+
+export type SyncCreateBackupResponse = SyncApiResponse<{
+  backupKey: string;
+  message?: string;
+}>;
+
+export type SyncRestoreBackupResponse = SyncApiResponse<{
+  data: NavHubSyncData;
+  rollbackKey?: string | null;
+}>;
+
+export interface SyncBackupItem {
+  key: string;
+  timestamp: string;
+  kind: 'auto' | 'manual';
+  deviceId?: string;
+  updatedAt?: number;
+  version?: number;
+  browser?: string;
+  os?: string;
+  isCurrent?: boolean;
 }
+
+export type SyncListBackupsResponse = SyncApiResponse<{
+  backups: SyncBackupItem[];
+}>;
+
+export type SyncGetBackupResponse = SyncApiResponse<{
+  data: NavHubSyncData;
+}>;
+
+export type SyncDeleteBackupResponse = SyncApiResponse<{
+  message?: string;
+}>;

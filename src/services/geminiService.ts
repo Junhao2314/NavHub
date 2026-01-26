@@ -251,18 +251,24 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
 
     try {
         if (config.provider === 'gemini') {
+            type GeminiModelsListResponse = {
+                models?: Array<{ name?: unknown }>;
+            };
             // Use REST API for listing models to keep it guaranteed
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${config.apiKey}`);
             if (!response.ok) return [];
-            const data = await response.json();
+            const data = await response.json() as GeminiModelsListResponse;
             // Data format: { models: [{ name: 'models/gemini-pro', ... }] }
             if (data.models && Array.isArray(data.models)) {
                 return data.models
-                    .map((m: any) => m.name.replace('models/', '')) // Strip prefix
-                    .filter((n: string) => n.includes('gemini')); // Simple filter
+                    .map((model) => typeof model?.name === 'string' ? model.name.replace('models/', '') : '')
+                    .filter((name) => name.includes('gemini')); // Simple filter
             }
             return [];
         } else {
+            type OpenAIModelsListResponse = {
+                data?: Array<{ id?: unknown }>;
+            };
             // OpenAI Compatible
             const apiKey = config.apiKey.trim();
             const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
@@ -299,10 +305,13 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
                 return [];
             }
 
-            const data = await response.json();
+            const data = await response.json() as OpenAIModelsListResponse;
             // OpenAI format: { data: [ { id: 'gpt-3.5-turbo', ... } ] }
             if (data.data && Array.isArray(data.data)) {
-                return data.data.map((m: any) => m.id).sort();
+                return data.data
+                    .map((model) => typeof model?.id === 'string' ? model.id : '')
+                    .filter(Boolean)
+                    .sort();
             }
             return [];
         }

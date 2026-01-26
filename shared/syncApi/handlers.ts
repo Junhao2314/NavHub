@@ -16,6 +16,7 @@ import {
 } from './kv';
 import { sanitizePublicData, sanitizeSensitiveData } from './sanitize';
 import type { Env, NavHubSyncData, SyncHistoryIndex, SyncHistoryKind } from './types';
+import { getErrorMessage } from '../utils/error';
 
 // GET /api/sync - 读取云端数据
 export async function handleGet(request: Request, env: Env): Promise<Response> {
@@ -47,10 +48,10 @@ export async function handleGet(request: Request, env: Env): Promise<Response> {
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error.message || '读取失败'
+            error: getErrorMessage(error, '读取失败')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -177,10 +178,10 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error.message || '写入失败'
+            error: getErrorMessage(error, '写入失败')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -225,10 +226,10 @@ export async function handleBackup(request: Request, env: Env): Promise<Response
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error.message || '备份失败'
+            error: getErrorMessage(error, '备份失败')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -313,10 +314,10 @@ export async function handleRestoreBackup(request: Request, env: Env): Promise<R
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error.message || '恢复失败'
+            error: getErrorMessage(error, '恢复失败')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -360,10 +361,10 @@ export async function handleGetBackup(request: Request, env: Env): Promise<Respo
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error.message || '读取备份失败'
+            error: getErrorMessage(error, '读取备份失败')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -416,10 +417,10 @@ export async function handleListBackups(request: Request, env: Env): Promise<Res
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error.message || '获取备份列表失败'
+            error: getErrorMessage(error, '获取备份列表失败')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -488,10 +489,10 @@ export async function handleDeleteBackup(request: Request, env: Env): Promise<Re
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error.message || '删除失败'
+            error: getErrorMessage(error, '删除失败')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }

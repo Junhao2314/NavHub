@@ -99,6 +99,14 @@ const saveLocalCache = (cache: Record<string, string>): void => {
   localStorage.setItem(FAVICON_CACHE_KEY, JSON.stringify(cache));
 };
 
+const normalizeUpdatedAt = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+
+  return value;
+};
+
 /**
  * Get user-customized icons as FaviconCacheEntry array
  * Only returns entries where the user manually set the icon
@@ -187,30 +195,38 @@ export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
       continue;
     }
     
-    const isLocalCustom = localCustomHostnames.includes(entry.hostname);
-    
-    // Requirement 3.3: Prefer custom entries
-    // Cloud custom entries should overwrite local entries
-    // unless local is also custom (in which case, prefer newer)
-    if (entry.isCustom) {
-      // Cloud has a custom entry
-      if (isLocalCustom) {
-        // Both are custom - could compare timestamps if needed
-        // For now, prefer cloud as it's the "source of truth" for sync
-        localCache[entry.hostname] = entry.iconUrl;
-      } else {
-        // Cloud is custom, local is auto-fetched - prefer cloud custom
-        localCache[entry.hostname] = entry.iconUrl;
-        // Mark as custom locally
-        if (!localCustomHostnames.includes(entry.hostname)) {
-          localCustomHostnames.push(entry.hostname);
+    // If cloud entry is not custom, we don't sync it (Requirement 3.4)
+    if (!entry.isCustom) {
+      continue;
+    }
+
+    const hostname = entry.hostname;
+    const cloudUpdatedAt = normalizeUpdatedAt(entry.updatedAt);
+    const isLocalCustom = localCustomHostnames.includes(hostname);
+
+    // Requirement 3.3: Prefer custom entries.
+    // When both local and cloud are custom, resolve conflicts by updatedAt
+    // to avoid losing offline edits (prefer newer, keep local on tie).
+    if (isLocalCustom && hostname in localCache) {
+      const localUpdatedAt = normalizeUpdatedAt(meta[hostname]);
+      if (cloudUpdatedAt > localUpdatedAt) {
+        localCache[hostname] = entry.iconUrl;
+        if (cloudUpdatedAt > 0) {
+          meta[hostname] = cloudUpdatedAt;
         }
       }
+      continue;
+    }
 
-      // Persist updatedAt from cloud so new devices keep stable timestamps.
-      if (typeof entry.updatedAt === 'number' && entry.updatedAt > 0) {
-        meta[entry.hostname] = entry.updatedAt;
-      }
+    // Cloud is custom, local is auto-fetched (or missing) - prefer cloud custom
+    localCache[hostname] = entry.iconUrl;
+    if (!isLocalCustom) {
+      localCustomHostnames.push(hostname);
+    }
+
+    // Persist updatedAt from cloud so new devices keep stable timestamps.
+    if (cloudUpdatedAt > 0) {
+      meta[hostname] = cloudUpdatedAt;
     }
     // If cloud entry is not custom, we don't sync it (Requirement 3.4)
     // Local auto-fetched icons are preserved (Requirement 3.5)

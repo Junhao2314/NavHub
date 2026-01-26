@@ -33,8 +33,9 @@ export const COMMON_CATEGORY_ID = 'common';
 export const PRIVATE_CATEGORY_ID = '__private__';
 
 // Sync Configuration
-export const SYNC_DEBOUNCE_MS = 3000; // 3秒内无新操作则触发同步
-export const SYNC_STATS_DEBOUNCE_MS = 60 * 1000; // 点击统计等高频字段的批量同步间隔
+// 默认值偏保守：Cloudflare KV 免费额度写入较紧张，降低自动同步频率以减少 Write operations。
+export const SYNC_DEBOUNCE_MS = 10 * 1000; // 10秒内无新操作则触发同步
+export const SYNC_STATS_DEBOUNCE_MS = 10 * 60 * 1000; // 点击统计等高频字段的批量同步间隔（10分钟）
 export const SYNC_API_ENDPOINT = '/api/sync';
 
 // GitHub Repo URL

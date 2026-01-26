@@ -392,3 +392,136 @@ describe('syncApi auth + public sanitization', () => {
     expect(readJson.data.aiConfig.apiKey).toBe('');
   });
 });
+
+describe('syncApi auth attempts', () => {
+  it('clears failed attempt counter after a successful login', async () => {
+    const kv = new MemoryKV();
+    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+
+    const clientIp = '1.2.3.4';
+    const attemptKey = `ynav:auth_attempt:${clientIp}`;
+
+    const wrongLoginRequest = new Request('http://localhost/api/sync?action=login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Sync-Password': 'wrong',
+        'X-Forwarded-For': clientIp
+      },
+      body: JSON.stringify({ deviceId: 'device-1' })
+    });
+    const wrongLoginResponse = await handleApiSyncRequest(wrongLoginRequest, env);
+    const wrongLoginJson = await wrongLoginResponse.json() as any;
+
+    expect(wrongLoginResponse.status).toBe(401);
+    expect(wrongLoginJson.remainingAttempts).toBe(4);
+    expect(kv.has(attemptKey)).toBe(true);
+
+    const successfulLoginRequest = new Request('http://localhost/api/sync?action=login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Sync-Password': 'secret',
+        'X-Forwarded-For': clientIp
+      },
+      body: JSON.stringify({ deviceId: 'device-1' })
+    });
+    const successfulLoginResponse = await handleApiSyncRequest(successfulLoginRequest, env);
+    const successfulLoginJson = await successfulLoginResponse.json() as any;
+
+    expect(successfulLoginJson.success).toBe(true);
+    expect(kv.has(attemptKey)).toBe(false);
+
+    const wrongAgainRequest = new Request('http://localhost/api/sync?action=login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Sync-Password': 'wrong',
+        'X-Forwarded-For': clientIp
+      },
+      body: JSON.stringify({ deviceId: 'device-1' })
+    });
+    const wrongAgainResponse = await handleApiSyncRequest(wrongAgainRequest, env);
+    const wrongAgainJson = await wrongAgainResponse.json() as any;
+
+    expect(wrongAgainResponse.status).toBe(401);
+    expect(wrongAgainJson.remainingAttempts).toBe(4);
+  });
+
+  it('clears failed attempt counter after a successful auth check', async () => {
+    const kv = new MemoryKV();
+    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+
+    const clientIp = '3.4.5.6';
+    const attemptKey = `ynav:auth_attempt:${clientIp}`;
+
+    const wrongAuthRequest = new Request('http://localhost/api/sync?action=auth', {
+      method: 'GET',
+      headers: {
+        'X-Sync-Password': 'wrong',
+        'X-Forwarded-For': clientIp
+      }
+    });
+    const wrongAuthResponse = await handleApiSyncRequest(wrongAuthRequest, env);
+    const wrongAuthJson = await wrongAuthResponse.json() as any;
+
+    expect(wrongAuthResponse.status).toBe(401);
+    expect(wrongAuthJson.remainingAttempts).toBe(4);
+    expect(kv.has(attemptKey)).toBe(true);
+
+    const successfulAuthRequest = new Request('http://localhost/api/sync?action=auth', {
+      method: 'GET',
+      headers: {
+        'X-Sync-Password': 'secret',
+        'X-Forwarded-For': clientIp
+      }
+    });
+    const successfulAuthResponse = await handleApiSyncRequest(successfulAuthRequest, env);
+    const successfulAuthJson = await successfulAuthResponse.json() as any;
+
+    expect(successfulAuthJson.success).toBe(true);
+    expect(kv.has(attemptKey)).toBe(false);
+
+    const wrongAgainRequest = new Request('http://localhost/api/sync?action=auth', {
+      method: 'GET',
+      headers: {
+        'X-Sync-Password': 'wrong',
+        'X-Forwarded-For': clientIp
+      }
+    });
+    const wrongAgainResponse = await handleApiSyncRequest(wrongAgainRequest, env);
+    const wrongAgainJson = await wrongAgainResponse.json() as any;
+
+    expect(wrongAgainResponse.status).toBe(401);
+    expect(wrongAgainJson.remainingAttempts).toBe(4);
+  });
+
+  it('clears legacy auth attempt records after a successful login', async () => {
+    const kv = new MemoryKV();
+    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+
+    const clientIp = '2.3.4.5';
+    const attemptKey = `ynav:auth_attempt:${clientIp}`;
+    const legacyAttemptKey = `navhub:auth_attempt:${clientIp}`;
+
+    const now = Date.now();
+    await kv.put(attemptKey, JSON.stringify({ failedCount: 3, lockedUntil: 0, updatedAt: now }));
+    await kv.put(legacyAttemptKey, JSON.stringify({ failedCount: 2, lockedUntil: 0, updatedAt: now }));
+
+    const successfulLoginRequest = new Request('http://localhost/api/sync?action=login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Sync-Password': 'secret',
+        'X-Forwarded-For': clientIp
+      },
+      body: JSON.stringify({ deviceId: 'device-1' })
+    });
+    const successfulLoginResponse = await handleApiSyncRequest(successfulLoginRequest, env);
+    const successfulLoginJson = await successfulLoginResponse.json() as any;
+
+    expect(successfulLoginJson.success).toBe(true);
+    expect(kv.has(attemptKey)).toBe(false);
+    expect(kv.has(legacyAttemptKey)).toBe(false);
+  });
+});

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Bot, Globe, Palette, Database } from 'lucide-react';
-import { AIConfig, LinkItem, Category, SiteSettings, SyncRole, VerifySyncPasswordResult } from '../../types';
+import { AIConfig, LinkItem, Category, SiteSettings, SiteSettingsChangeHandler, SyncRole, VerifySyncPasswordResult } from '../../types';
 import SiteTab from './settings/SiteTab';
 import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
@@ -117,8 +117,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     setLocalConfig(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleSiteChange = (key: keyof SiteSettings, value: any) => {
-    setLocalSiteSettings(prev => ({ ...prev, [key]: value }));
+  const handleSiteChange: SiteSettingsChangeHandler = (key, value) => {
+    setLocalSiteSettings(prev => ({ ...prev, [key]: value } as SiteSettings));
   };
 
   const handleSave = () => {

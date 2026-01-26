@@ -23,7 +23,13 @@ import {
     SiteSettings,
     ThemeMode,
     CustomFaviconCache,
-    PrivacyConfig
+    PrivacyConfig,
+    SyncGetResponse,
+    SyncAuthResponse,
+    SyncPostResponse,
+    SyncCreateBackupResponse,
+    SyncRestoreBackupResponse,
+    SyncDeleteBackupResponse
 } from '../types';
 import {
     SYNC_DEBOUNCE_MS,
@@ -34,6 +40,14 @@ import {
     getDeviceId,
     getDeviceInfo
 } from '../utils/constants';
+import { getErrorMessage } from '../utils/error';
+
+const KEEPALIVE_BODY_LIMIT_BYTES = 64 * 1024;
+const keepaliveBodyEncoder = new TextEncoder();
+
+const isKeepaliveBodyWithinLimit = (body: string): boolean => {
+    return keepaliveBodyEncoder.encode(body).length <= KEEPALIVE_BODY_LIMIT_BYTES;
+};
 
 // 同步引擎配置
 interface UseSyncEngineOptions {
@@ -50,6 +64,11 @@ export type PushToCloudOptions = {
      * 但不希望刷屏“最近 20 次同步记录”（也避免额外的 KV 写放大）。
      */
     skipHistory?: boolean;
+    /**
+     * 页面关闭/切后台时的兜底同步：用 keepalive 提升请求在卸载阶段送达的概率。
+     * 注意：keepalive 请求体大小在不同浏览器有上限（通常 ~64KB）。
+     */
+    keepalive?: boolean;
 };
 
 // 同步引擎返回值
@@ -77,6 +96,7 @@ interface UseSyncEngineReturn {
 
     // 工具
     cancelPendingSync: () => void;
+    flushPendingSync: (options?: { keepalive?: boolean }) => Promise<boolean>;
 
     // 权限
     checkAuth: () => Promise<SyncAuthState>;
@@ -132,9 +152,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
             const response = await fetch(SYNC_API_ENDPOINT, {
                 headers: getAuthHeaders()
             });
-            const result = await response.json();
+            const result = (await response.json()) as SyncGetResponse;
 
-            if (!result.success) {
+            if (result.success === false) {
                 setSyncStatus('error');
                 onError?.(result.error || '拉取失败');
                 return null;
@@ -153,9 +173,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
             saveLocalSyncMeta(result.data.meta);
 
             return result.data;
-        } catch (error: any) {
+        } catch (error: unknown) {
             setSyncStatus('error');
-            onError?.(error.message || '网络错误');
+            onError?.(getErrorMessage(error, '网络错误'));
             return null;
         }
     }, [onError]);
@@ -165,7 +185,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
             const response = await fetch(`${SYNC_API_ENDPOINT}?action=auth`, {
                 headers: getAuthHeaders()
             });
-            const result = await response.json();
+            const result = (await response.json()) as SyncAuthResponse;
 
             if (!result?.success) {
                 return { protected: true, role: 'user', canWrite: false };
@@ -191,59 +211,69 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     ): Promise<boolean> => {
         setSyncStatus('syncing');
 
-        const localMeta = getLocalSyncMeta();
-        const deviceId = getDeviceId();
-        const deviceInfo = getDeviceInfo();
-
-        // Never send plaintext apiKey to the cloud; use encryptedSensitiveConfig instead.
-        const sanitizedPayload = {
-            ...data,
-            aiConfig: sanitizeAiConfigForCloud(data.aiConfig)
-        };
-
-        // 构建完整的同步数据
-        const now = Date.now();
-        const syncData: NavHubSyncData = {
-            ...sanitizedPayload,
-            meta: {
-                updatedAt: now,
-                deviceId,
-                version: localMeta?.version ?? 0,
-                browser: deviceInfo?.browser,
-                os: deviceInfo?.os,
-                syncKind
-            }
-        };
-
         try {
+            const localMeta = getLocalSyncMeta();
+            const deviceId = getDeviceId();
+            const deviceInfo = getDeviceInfo();
+
+            // Never send plaintext apiKey to the cloud; use encryptedSensitiveConfig instead.
+            const sanitizedPayload = {
+                ...data,
+                aiConfig: sanitizeAiConfigForCloud(data.aiConfig)
+            };
+
+            // 构建完整的同步数据
+            const now = Date.now();
+            const syncData: NavHubSyncData = {
+                ...sanitizedPayload,
+                meta: {
+                    updatedAt: now,
+                    deviceId,
+                    version: localMeta?.version ?? 0,
+                    browser: deviceInfo?.browser,
+                    os: deviceInfo?.os,
+                    syncKind
+                }
+            };
+
+            const requestBody = JSON.stringify({
+                data: syncData,
+                expectedVersion: force ? undefined : (localMeta?.version ?? 0),
+                syncKind,
+                ...(options?.skipHistory ? { skipHistory: true } : {})
+            });
+
+            const keepaliveRequested = options?.keepalive === true;
+            const keepalive = keepaliveRequested && isKeepaliveBodyWithinLimit(requestBody);
+
             const response = await fetch(SYNC_API_ENDPOINT, {
                 method: 'POST',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({
-                    data: syncData,
-                    expectedVersion: force ? undefined : (localMeta?.version ?? 0),
-                    syncKind,
-                    ...(options?.skipHistory ? { skipHistory: true } : {})
-                })
+                keepalive,
+                body: requestBody
             });
 
-            const result = await response.json();
+            const result = (await response.json()) as SyncPostResponse;
 
-            // 处理冲突
-            if (result.conflict && result.data) {
-                setSyncStatus('conflict');
-                const conflict: SyncConflict = {
-                    localData: syncData,
-                    remoteData: result.data
-                };
-                setCurrentConflict(conflict);
-                onConflict?.(conflict);
-                return false;
-            }
+            if (result.success !== true) {
+                // 处理冲突
+                if (result.conflict && result.data) {
+                    setSyncStatus('conflict');
+                    const conflict: SyncConflict = {
+                        localData: syncData,
+                        remoteData: result.data
+                    };
+                    setCurrentConflict(conflict);
+                    try {
+                        onConflict?.(conflict);
+                    } catch {}
+                    return false;
+                }
 
-            if (!result.success) {
                 setSyncStatus('error');
-                onError?.(result.error || '推送失败');
+                try {
+                    onError?.(result.error || '推送失败');
+                } catch {}
                 return false;
             }
 
@@ -258,9 +288,11 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
             // 导致“push → 回写 → 再 push”的循环同步。业务数据的覆盖/合并应由 pull/restore/冲突解决流程处理。
             setSyncStatus('synced');
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             setSyncStatus('error');
-            onError?.(error.message || '网络错误');
+            try {
+                onError?.(getErrorMessage(error, '网络错误'));
+            } catch {}
             return false;
         }
     }, [onConflict, onError]);
@@ -292,7 +324,8 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         // 设置新的定时器
         debounceTimer.current = setTimeout(async () => {
             if (pendingData.current) {
-                await pushToCloud(pendingData.current, false, 'auto');
+                // 自动同步默认不写入“云端同步记录”(history snapshot)，以减少 KV 写放大。
+                await pushToCloud(pendingData.current, false, 'auto', { skipHistory: true });
                 pendingData.current = null;
             }
         }, SYNC_DEBOUNCE_MS);
@@ -307,6 +340,19 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         pendingData.current = null;
         setSyncStatus('idle');
     }, []);
+
+    const flushPendingSync = useCallback(async (options?: { keepalive?: boolean }): Promise<boolean> => {
+        if (debounceTimer.current) {
+            clearTimeout(debounceTimer.current);
+            debounceTimer.current = null;
+        }
+
+        const pending = pendingData.current;
+        if (!pending) return false;
+
+        pendingData.current = null;
+        return pushToCloud(pending, false, 'auto', { skipHistory: true, keepalive: options?.keepalive === true });
+    }, [pushToCloud]);
 
     // 创建备份
     const createBackup = useCallback(async (
@@ -338,9 +384,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
                 body: JSON.stringify({ data: syncData })
             });
 
-            const result = await response.json();
+            const result = (await response.json()) as SyncCreateBackupResponse;
 
-            if (!result.success) {
+            if (result.success === false) {
                 setSyncStatus('error');
                 onError?.(result.error || '备份失败');
                 return false;
@@ -348,9 +394,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
             setSyncStatus('synced');
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             setSyncStatus('error');
-            onError?.(error.message || '网络错误');
+            onError?.(getErrorMessage(error, '网络错误'));
             return false;
         }
     }, [onError]);
@@ -365,11 +411,17 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ backupKey, deviceId: getDeviceId() })
             });
-            const result = await response.json();
+            const result = (await response.json()) as SyncRestoreBackupResponse;
 
-            if (!result.success || !result.data) {
+            if (result.success === false) {
                 setSyncStatus('error');
                 onError?.(result.error || '恢复失败');
+                return null;
+            }
+
+            if (!result.data) {
+                setSyncStatus('error');
+                onError?.('恢复失败');
                 return null;
             }
 
@@ -378,9 +430,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
             setSyncStatus('synced');
 
             return result.data;
-        } catch (error: any) {
+        } catch (error: unknown) {
             setSyncStatus('error');
-            onError?.(error.message || '网络错误');
+            onError?.(getErrorMessage(error, '网络错误'));
             return null;
         }
     }, [onError]);
@@ -393,16 +445,16 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ backupKey })
             });
-            const result = await response.json();
+            const result = (await response.json()) as SyncDeleteBackupResponse;
 
-            if (!result.success) {
+            if (result.success === false) {
                 onError?.(result.error || '删除失败');
                 return false;
             }
 
             return true;
-        } catch (error: any) {
-            onError?.(error.message || '网络错误');
+        } catch (error: unknown) {
+            onError?.(getErrorMessage(error, '网络错误'));
             return false;
         }
     }, [onError]);
@@ -446,6 +498,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         resolveConflict,
         currentConflict,
         cancelPendingSync,
+        flushPendingSync,
         checkAuth
     };
 }

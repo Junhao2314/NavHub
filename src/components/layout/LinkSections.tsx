@@ -37,7 +37,7 @@ interface LinkSectionsProps {
   isBatchEditMode: boolean;
   selectedLinksCount: number;
   selectedLinks: Set<string>;
-  sensors: SensorDescriptor<any>[];
+  sensors: SensorDescriptor<object>[];
   onPinnedDragEnd: (event: DragEndEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onToggleBatchEditMode: () => void;

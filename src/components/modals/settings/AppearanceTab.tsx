@@ -1,9 +1,9 @@
 import React from 'react';
-import { SiteSettings } from '../../../types';
+import { SiteSettings, SiteSettingsChangeHandler } from '../../../types';
 
 interface AppearanceTabProps {
     settings: SiteSettings;
-    onChange: (key: keyof SiteSettings, value: any) => void;
+    onChange: SiteSettingsChangeHandler;
 }
 
 const DEFAULT_ACCENT_COLOR = '99 102 241';

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudDownload, Trash2, LogOut, Download } from 'lucide-react';
 import { SYNC_ADMIN_SESSION_KEY, SYNC_API_ENDPOINT, SYNC_PASSWORD_KEY, SYNC_PASSWORD_LOCK_UNTIL_KEY } from '../../../utils/constants';
+import { getErrorMessage } from '../../../utils/error';
 import { downloadJsonFile } from '../../../services/exportService';
-import { LinkItem, Category, SyncRole, VerifySyncPasswordResult } from '../../../types';
+import { LinkItem, Category, SyncGetBackupResponse, SyncListBackupsResponse, SyncRole, VerifySyncPasswordResult } from '../../../types';
 import DuplicateChecker from './DuplicateChecker';
 
 interface DataTabProps {
@@ -185,8 +186,8 @@ const DataTab: React.FC<DataTabProps> = ({
             const response = await fetch(`${SYNC_API_ENDPOINT}?action=backups`, {
                 headers: getAuthHeaders()
             });
-            const result = await response.json();
-            if (!result.success) {
+            const result = (await response.json()) as SyncListBackupsResponse;
+            if (result.success === false) {
                 setBackupError(result.error || '获取同步记录失败');
                 setBackups([]);
                 return;
@@ -194,8 +195,8 @@ const DataTab: React.FC<DataTabProps> = ({
             const next = Array.isArray(result.backups) ? [...result.backups] : [];
             next.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
             setBackups(next);
-        } catch (error: any) {
-            setBackupError(error.message || '网络错误');
+        } catch (error: unknown) {
+            setBackupError(getErrorMessage(error, '网络错误'));
         } finally {
             setIsLoadingBackups(false);
             setHasLoadedBackups(true);
@@ -236,10 +237,15 @@ const DataTab: React.FC<DataTabProps> = ({
             const response = await fetch(`${SYNC_API_ENDPOINT}?action=backup&backupKey=${encodeURIComponent(backup.key)}`, {
                 headers: getAuthHeaders()
             });
-            const result = await response.json();
+            const result = (await response.json()) as SyncGetBackupResponse;
 
-            if (!result?.success || !result.data) {
-                setExportError(result?.error || '导出失败，请稍后重试');
+            if (result.success === false) {
+                setExportError(result.error || '导出失败，请稍后重试');
+                return;
+            }
+
+            if (!result.data) {
+                setExportError('导出失败，请稍后重试');
                 return;
             }
 
@@ -247,8 +253,8 @@ const DataTab: React.FC<DataTabProps> = ({
                 ? backup.key.replace('ynav:backup:', '')
                 : `${Date.now()}`;
             downloadJsonFile(result.data, `navhub_backup_${keySuffix}.json`);
-        } catch (error: any) {
-            setExportError(error.message || '网络错误');
+        } catch (error: unknown) {
+            setExportError(getErrorMessage(error, '网络错误'));
         } finally {
             setExportingKey(null);
         }
@@ -656,7 +662,12 @@ const DataTab: React.FC<DataTabProps> = ({
                 {/* Backup List */}
                 <div className="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/40">
                     <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-bold text-slate-700 dark:text-slate-200">云端同步记录（最近 20 次）</div>
+                        <div>
+                            <div className="text-sm font-bold text-slate-700 dark:text-slate-200">云端同步记录（最近 20 次）</div>
+                            <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                为节省 Cloudflare KV 配额，自动同步默认不写入记录；手动同步/恢复会生成记录。
+                            </div>
+                        </div>
                         {syncRole === 'admin' && (
                         <div className="flex items-center gap-3 flex-wrap justify-end">
                             <button

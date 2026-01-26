@@ -10,6 +10,7 @@
  */
 
 import { normalizeSyncApiEnv } from './syncApi/env';
+import { getErrorMessage } from './utils/error';
 import {
     handleAuth,
     handleBackup,
@@ -30,10 +31,10 @@ export async function handleApiSyncRequest(request: Request, env: SyncApiEnv): P
     let resolvedEnv: Env;
     try {
         resolvedEnv = normalizeSyncApiEnv(env);
-    } catch (error: any) {
+    } catch (error: unknown) {
         return new Response(JSON.stringify({
             success: false,
-            error: error?.message || 'KV binding missing'
+            error: getErrorMessage(error, 'KV binding missing')
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }

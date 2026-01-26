@@ -10,6 +10,8 @@
 **极简、隐私、智能。**  
 **基于 Local-First 架构，配合 Cloudflare KV 实现无感多端同步。**
 
+本项目 Fork 自 [Y-Nav](https://github.com/yml2213/Y-Nav)，并在其基础上进行修改与扩展。  
+
 [在线演示](https://nav.yml.qzz.io) · [快速部署](#-快速部署)
 
 </div>
@@ -58,7 +60,7 @@
 
 ### 1. 一键部署到 Cloudflare Pages
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yml2213/NavHub)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Junhao2314/NavHub)
 
 - 点击按钮后按提示授权 GitHub 与 Cloudflare
 - 选择你的 GitHub 账号，Cloudflare 会自动创建 Pages 项目
@@ -81,6 +83,14 @@
 Pages 项目 → **Settings** → **Environment variables** 添加：
 
 - `SYNC_PASSWORD`: 你的同步密码
+
+### 3.1 配置 AI 代理白名单（可选，推荐）
+
+默认 `/api/ai` 仅允许代理到 `api.openai.com`，且仅同源可访问；如需使用其他 OpenAI Compatible 服务商（自定义 Base URL），请添加：
+
+- `AI_PROXY_ALLOWED_HOSTS`: 允许的上游主机列表（逗号分隔），支持 `*.example.com`，可选端口 `example.com:443`
+- `AI_PROXY_ALLOWED_ORIGINS`: 允许的跨域来源（逗号分隔，填写完整 Origin，例如 `https://your-domain.com`；默认仅同源）
+- `AI_PROXY_ALLOW_INSECURE_HTTP`: 设为 `true` 可允许 `http:` 上游（不推荐）
 
 ### 4. 自动更新说明
 
@@ -108,7 +118,7 @@ jobs:
           fetch-depth: 0
       - name: Sync from upstream
         run: |
-          git remote add upstream https://github.com/yml2213/NavHub.git
+          git remote add upstream https://github.com/Junhao2314/NavHub.git
           git fetch upstream
           git checkout main
           git merge upstream/main --no-edit
@@ -177,6 +187,26 @@ binding = "YNAV_WORKER_KV"
 id = "你的 Namespace ID"  # ← 替换这里
 ```
 
+### 步骤 6.1：环境变量 / Secrets（可选）
+
+`wrangler.toml` 的 `[vars]` 中提供了可选环境变量示例（默认均为注释）。建议将 `SYNC_PASSWORD` 等敏感值通过 **Cloudflare Dashboard → Worker → Settings → Variables（Secret）** 或 **GitHub Secrets（Actions 注入）** 设置，避免直接写进仓库。
+
+可用变量：
+
+- `SYNC_PASSWORD`: 同步密码（敏感，建议 Secret）
+- `SYNC_CORS_ALLOWED_ORIGINS`: 允许的跨域 Origin（逗号分隔；默认仅同源；可设为 `*` 允许任意 Origin，不推荐）
+- `AI_PROXY_ALLOWED_HOSTS`: `/api/ai` 上游主机白名单（逗号分隔，支持 `*.example.com`，可选端口 `example.com:443`；默认仅 `api.openai.com`）
+- `AI_PROXY_ALLOWED_ORIGINS`: `/api/ai` 允许的跨域 Origin（逗号分隔，默认仅同源）
+- `AI_PROXY_ALLOW_INSECURE_HTTP`: 设为 `true` 可允许 `http:` 上游（不推荐）
+
+本地调试（`npm run dev:workers`）可在项目根目录创建 `.dev.vars` 注入变量（已在 `.gitignore` 中忽略）：  
+
+```bash
+SYNC_PASSWORD=your-password
+SYNC_CORS_ALLOWED_ORIGINS=http://localhost:5173
+AI_PROXY_ALLOWED_HOSTS=api.openai.com
+```
+
 ### 步骤 7：触发部署
 
 提交 `wrangler.toml` 的修改并推送到 `main` 分支，GitHub Actions 会自动构建并部署。
@@ -205,6 +235,14 @@ id = "你的 Namespace ID"  # ← 替换这里
 | Pages    | Pages Settings → Environment variables                           |
 
 设置后，在网站的 **设置** → **数据** 中输入相同密码即可开启同步。
+
+### Workers /api/sync 跨域（CORS）
+
+Workers 部署默认仅允许同源请求访问 `/api/sync`（更安全，避免被任意站点跨站调用）。
+
+如需从其他域名（例如本地开发 `http://localhost:5173`）访问 Worker 的 `/api/sync`，请在 Worker Variables 中设置：
+
+- `SYNC_CORS_ALLOWED_ORIGINS`: 允许的 Origin 列表（逗号分隔，填写完整 Origin，例如 `https://your-domain.com`）；可设为 `*` 允许任意 Origin（不推荐）
 
 > 说明：管理员密码接口带有按 IP 的错误次数限制（防爆破）。在本地/非 Cloudflare 环境若无法获取客户端 IP（缺少 `CF-Connecting-IP` / `X-Forwarded-For`），会回退为 `unknown`，导致多个请求共享同一限速键（看起来像“全局锁”）。建议在反代/本地调试时补齐 `X-Forwarded-For`。
 
@@ -241,7 +279,7 @@ id = "你的 Namespace ID"  # ← 替换这里
 
 ---
 
-## � 同步上游更新
+## 🔄 同步上游更新
 
 当原仓库有新版本时：
 
@@ -252,7 +290,7 @@ id = "你的 Namespace ID"  # ← 替换这里
 **方法二：命令行**
 
 ```bash
-git remote add upstream https://github.com/yml2213/NavHub.git
+git remote add upstream https://github.com/Junhao2314/NavHub.git
 git fetch upstream
 git merge upstream/main
 git push

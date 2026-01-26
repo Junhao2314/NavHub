@@ -11,34 +11,23 @@
 import { getAssetFromKV, NotFoundError, MethodNotAllowedError } from '@cloudflare/kv-asset-handler';
 // @ts-ignore - 这是 Workers Sites 自动生成的 manifest
 import manifestJSON from '__STATIC_CONTENT_MANIFEST';
+import { handleApiAIRequest } from '../shared/aiProxy';
 import { handleApiSyncRequest, type KVNamespaceInterface, type SyncApiEnv } from '../shared/syncApi';
+import { resolveSyncCorsHeaders } from '../shared/syncApi/cors';
 
 const assetManifest = JSON.parse(manifestJSON);
 
 interface Env {
     YNAV_WORKER_KV: KVNamespaceInterface;
     SYNC_PASSWORD?: string;
+    SYNC_CORS_ALLOWED_ORIGINS?: string;
+    AI_PROXY_ALLOWED_HOSTS?: string;
+    AI_PROXY_ALLOWED_ORIGINS?: string;
+    AI_PROXY_ALLOW_INSECURE_HTTP?: string;
     __STATIC_CONTENT: KVNamespace;
 }
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Sync-Password',
-};
-
-function jsonResponse(data: any, status = 200, extraHeaders: Record<string, string> = {}): Response {
-    return new Response(JSON.stringify(data), {
-        status,
-        headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders,
-            ...extraHeaders
-        }
-    });
-}
-
-function withCors(response: Response): Response {
+function withCors(response: Response, corsHeaders: Record<string, string>): Response {
     const headers = new Headers(response.headers);
     for (const [key, value] of Object.entries(corsHeaders)) {
         headers.set(key, value);
@@ -47,6 +36,19 @@ function withCors(response: Response): Response {
 }
 
 async function handleApiSync(request: Request, env: Env): Promise<Response> {
+    const { headers: corsHeaders, allowed } = resolveSyncCorsHeaders(request, {
+        corsAllowedOrigins: parseEnvList(env.SYNC_CORS_ALLOWED_ORIGINS),
+    });
+    if (!allowed) {
+        return new Response(JSON.stringify({ success: false, error: 'CORS origin not allowed' }), {
+            status: 403,
+            headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+            }
+        });
+    }
+
     // CORS 预检
     if (request.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
@@ -58,140 +60,31 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
     };
 
     const response = await handleApiSyncRequest(request, syncEnv);
-    return withCors(response);
+    return withCors(response, corsHeaders);
 }
 
 // ============================================
 // AI Proxy (OpenAI Compatible)
 // ============================================
 
-const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
-
-type OpenAICompatibleUrls = {
-    chatCompletionsUrl: string;
-    modelsUrl: string;
-};
-
-function ensureHttpScheme(value: string): string {
-    const trimmed = value.trim();
-    if (!trimmed) return trimmed;
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    return `https://${trimmed}`;
+function parseEnvList(value?: string): string[] {
+    if (!value) return [];
+    return value
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
 }
 
-function buildOpenAICompatibleUrls(baseUrlInput: string): OpenAICompatibleUrls {
-    const normalizedInput = ensureHttpScheme(baseUrlInput) || DEFAULT_OPENAI_COMPAT_BASE_URL;
-
-    let parsedUrl: URL;
-    try {
-        parsedUrl = new URL(normalizedInput);
-    } catch {
-        parsedUrl = new URL(DEFAULT_OPENAI_COMPAT_BASE_URL);
-    }
-
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-        parsedUrl = new URL(DEFAULT_OPENAI_COMPAT_BASE_URL);
-    }
-
-    const origin = parsedUrl.origin;
-    const pathname = parsedUrl.pathname.replace(/\/+$/, '');
-    const base = `${origin}${pathname === '/' ? '' : pathname}`;
-
-    if (pathname.endsWith('/chat/completions')) {
-        return {
-            chatCompletionsUrl: base,
-            modelsUrl: base.replace(/\/chat\/completions$/, '/models')
-        };
-    }
-
-    if (pathname.endsWith('/models')) {
-        return {
-            chatCompletionsUrl: base.replace(/\/models$/, '/chat/completions'),
-            modelsUrl: base
-        };
-    }
-
-    if (pathname.endsWith('/v1')) {
-        return {
-            chatCompletionsUrl: `${base}/chat/completions`,
-            modelsUrl: `${base}/models`
-        };
-    }
-
-    return {
-        chatCompletionsUrl: `${base}/v1/chat/completions`,
-        modelsUrl: `${base}/v1/models`
-    };
+function parseEnvBool(value?: string): boolean {
+    const normalized = (value || '').trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
 }
 
-async function handleApiAI(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const action = (url.searchParams.get('action') || 'chat').toLowerCase();
-
-    // CORS 预检
-    if (request.method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders });
-    }
-
-    if (request.method !== 'POST') {
-        return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
-    }
-
-    let body: any = null;
-    try {
-        body = await request.json();
-    } catch {
-        body = null;
-    }
-
-    const baseUrlInput = typeof body?.baseUrl === 'string' ? body.baseUrl.trim() : '';
-    const apiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
-    if (!apiKey) {
-        return jsonResponse({ success: false, error: 'Missing apiKey' }, 400);
-    }
-
-    const { chatCompletionsUrl, modelsUrl } = buildOpenAICompatibleUrls(baseUrlInput || DEFAULT_OPENAI_COMPAT_BASE_URL);
-
-    if (action === 'models') {
-        const upstream = await fetch(modelsUrl, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            }
-        });
-        const text = await upstream.text();
-        return new Response(text, {
-            status: upstream.status,
-            headers: {
-                ...corsHeaders,
-                'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
-            }
-        });
-    }
-
-    const payload = body?.payload;
-    if (!payload || typeof payload !== 'object') {
-        return jsonResponse({ success: false, error: 'Missing payload' }, 400);
-    }
-
-    const upstream = await fetch(chatCompletionsUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(payload)
-    });
-
-    const text = await upstream.text();
-    return new Response(text, {
-        status: upstream.status,
-        headers: {
-            ...corsHeaders,
-            'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
-        }
+async function handleApiAI(request: Request, env: Env): Promise<Response> {
+    return handleApiAIRequest(request, {
+        allowedBaseUrlHosts: parseEnvList(env.AI_PROXY_ALLOWED_HOSTS),
+        corsAllowedOrigins: parseEnvList(env.AI_PROXY_ALLOWED_ORIGINS),
+        allowInsecureHttp: parseEnvBool(env.AI_PROXY_ALLOW_INSECURE_HTTP),
     });
 }
 
@@ -241,7 +134,7 @@ export default {
             return handleApiSync(request, env);
         }
         if (url.pathname.startsWith('/api/ai')) {
-            return handleApiAI(request);
+            return handleApiAI(request, env);
         }
 
         // 静态资源

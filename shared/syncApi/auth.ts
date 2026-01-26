@@ -68,6 +68,21 @@ export const requireAdminAccess = async (request: Request, env: Env): Promise<Re
         }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
+    // Fast-path: correct password -> allow. Clear any prior failed attempt counters.
+    if (providedPassword === env.SYNC_PASSWORD) {
+        try {
+            const attemptKey = getAuthAttemptKey(request);
+            const legacyAttemptKey = getLegacyAuthAttemptKey(request);
+            await Promise.all([
+                env.YNAV_KV.delete(attemptKey),
+                env.YNAV_KV.delete(legacyAttemptKey)
+            ]);
+        } catch {
+            // Ignore KV deletion failures and still allow admin access.
+        }
+        return null;
+    }
+
     const attemptKey = getAuthAttemptKey(request);
     const legacyAttemptKey = getLegacyAuthAttemptKey(request);
     const now = Date.now();
@@ -80,42 +95,32 @@ export const requireAdminAccess = async (request: Request, env: Env): Promise<Re
         return buildLockoutResponse(record.lockedUntil, now);
     }
 
-    if (providedPassword !== env.SYNC_PASSWORD) {
-        const nextFailedCount = (record?.failedCount || 0) + 1;
-        const remainingAttempts = Math.max(0, AUTH_MAX_FAILED_ATTEMPTS - nextFailedCount);
-        const lockedUntil = nextFailedCount >= AUTH_MAX_FAILED_ATTEMPTS
-            ? now + AUTH_LOCKOUT_SECONDS * 1000
-            : 0;
+    const nextFailedCount = (record?.failedCount || 0) + 1;
+    const remainingAttempts = Math.max(0, AUTH_MAX_FAILED_ATTEMPTS - nextFailedCount);
+    const lockedUntil = nextFailedCount >= AUTH_MAX_FAILED_ATTEMPTS
+        ? now + AUTH_LOCKOUT_SECONDS * 1000
+        : 0;
 
-        const nextRecord: AuthAttemptRecord = {
-            failedCount: nextFailedCount,
-            lockedUntil,
-            updatedAt: now
-        };
+    const nextRecord: AuthAttemptRecord = {
+        failedCount: nextFailedCount,
+        lockedUntil,
+        updatedAt: now
+    };
 
-        await env.YNAV_KV.put(attemptKey, JSON.stringify(nextRecord), {
-            expirationTtl: AUTH_LOCKOUT_SECONDS
-        });
+    await env.YNAV_KV.put(attemptKey, JSON.stringify(nextRecord), {
+        expirationTtl: AUTH_LOCKOUT_SECONDS
+    });
 
-        if (lockedUntil) {
-            return buildLockoutResponse(lockedUntil, now);
-        }
-
-        return new Response(JSON.stringify({
-            success: false,
-            error: '密码错误',
-            remainingAttempts,
-            maxAttempts: AUTH_MAX_FAILED_ATTEMPTS
-        }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    if (lockedUntil) {
+        return buildLockoutResponse(lockedUntil, now);
     }
 
-    // 登录成功/密码正确，清空错误计数
-    if (record) {
-        await env.YNAV_KV.delete(attemptKey);
-        await env.YNAV_KV.delete(legacyAttemptKey);
-    }
-
-    return null;
+    return new Response(JSON.stringify({
+        success: false,
+        error: '密码错误',
+        remainingAttempts,
+        maxAttempts: AUTH_MAX_FAILED_ATTEMPTS
+    }), { status: 401, headers: { 'Content-Type': 'application/json' } });
 };
 
 // 辅助函数：验证管理员密码（允许“公开读 + 管理员写”模式）

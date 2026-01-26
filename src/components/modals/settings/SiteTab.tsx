@@ -1,11 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Globe, Upload, RefreshCw } from 'lucide-react';
-import { SiteSettings } from '../../../types';
+import { SiteSettings, SiteSettingsChangeHandler } from '../../../types';
 import { useDialog } from '../../ui/DialogProvider';
 
 interface SiteTabProps {
     settings: SiteSettings;
-    onChange: (key: keyof SiteSettings, value: any) => void;
+    onChange: SiteSettingsChangeHandler;
 }
 
 const getRandomColor = () => {

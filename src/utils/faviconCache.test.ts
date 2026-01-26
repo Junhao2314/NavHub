@@ -234,6 +234,26 @@ describe('faviconCache', () => {
       expect(syncCache.entries[0].updatedAt).toBe(2000);
     });
 
+    it('should keep local custom icon when it is newer than cloud', () => {
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(3000);
+      setIcon('github.com', 'data:image/png;base64,local', true);
+      dateNowSpy.mockRestore();
+
+      const cloudCache: CustomFaviconCache = {
+        entries: [
+          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: 2000 }
+        ],
+        updatedAt: 2000
+      };
+
+      mergeFromCloud(cloudCache);
+
+      const syncCache = buildSyncCache();
+      expect(getIcon('github.com')).toBe('data:image/png;base64,local');
+      expect(syncCache.updatedAt).toBe(3000);
+      expect(syncCache.entries[0].updatedAt).toBe(3000);
+    });
+
     it('should preserve local auto-fetched icons not in cloud', () => {
       setIcon('local-only.com', 'https://local-only.com/favicon.ico', false);
       
