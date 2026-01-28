@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { THEME_KEY } from '../utils/constants';
 import type { ThemeMode } from '../types';
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../utils/storage';
 
 export type { ThemeMode };
 
@@ -22,7 +23,7 @@ export function useTheme() {
 
     const setThemeAndApply = useCallback((mode: ThemeMode) => {
         setThemeMode(mode);
-        localStorage.setItem(THEME_KEY, mode);
+        safeLocalStorageSetItem(THEME_KEY, mode);
         applyThemeMode(mode);
     }, [applyThemeMode]);
 
@@ -42,13 +43,13 @@ export function useTheme() {
             return;
         }
         setThemeMode(syncedThemeMode);
-        localStorage.setItem(THEME_KEY, syncedThemeMode);
+        safeLocalStorageSetItem(THEME_KEY, syncedThemeMode);
         applyThemeMode(syncedThemeMode);
     }, [applyThemeMode]);
 
     // Initialize theme on mount
     useEffect(() => {
-        const storedTheme = localStorage.getItem(THEME_KEY);
+        const storedTheme = safeLocalStorageGetItem(THEME_KEY);
         const initialMode: ThemeMode = storedTheme === 'dark' || storedTheme === 'light' || storedTheme === 'system'
             ? storedTheme
             : 'system';

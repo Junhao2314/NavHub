@@ -9,16 +9,17 @@
  */
 
 import { getAssetFromKV, NotFoundError, MethodNotAllowedError } from '@cloudflare/kv-asset-handler';
-// @ts-ignore - 这是 Workers Sites 自动生成的 manifest
+// 这是 Workers Sites 自动生成的 manifest
 import manifestJSON from '__STATIC_CONTENT_MANIFEST';
 import { handleApiAIRequest } from '../shared/aiProxy';
-import { handleApiSyncRequest, type KVNamespaceInterface, type SyncApiEnv } from '../shared/syncApi';
+import { handleApiSyncRequest, type KVNamespaceInterface, type R2BucketInterface, type SyncApiEnv } from '../shared/syncApi';
 import { resolveSyncCorsHeaders } from '../shared/syncApi/cors';
 
 const assetManifest = JSON.parse(manifestJSON);
 
 interface Env {
     YNAV_WORKER_KV: KVNamespaceInterface;
+    YNAV_WORKER_R2?: R2BucketInterface;
     SYNC_PASSWORD?: string;
     SYNC_CORS_ALLOWED_ORIGINS?: string;
     AI_PROXY_ALLOWED_HOSTS?: string;
@@ -56,6 +57,7 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
 
     const syncEnv: SyncApiEnv = {
         YNAV_WORKER_KV: env.YNAV_WORKER_KV,
+        YNAV_WORKER_R2: env.YNAV_WORKER_R2,
         SYNC_PASSWORD: env.SYNC_PASSWORD
     };
 

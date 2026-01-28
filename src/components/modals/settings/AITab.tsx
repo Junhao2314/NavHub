@@ -3,6 +3,7 @@ import { Sparkles, Loader2, CheckCircle, AlertCircle, Zap, Layers, List, Key, Pa
 import { AIConfig, LinkItem } from '../../../types';
 import { generateLinkDescription, testAIConnection, fetchAvailableModels } from '../../../services/geminiService';
 import { useDialog } from '../../ui/DialogProvider';
+import { AI_CONNECTION_STATUS_RESET_MS } from '../../../config/ui';
 
 interface AITabProps {
     config: AIConfig;
@@ -36,7 +37,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
             const result = await testAIConnection(config);
             setConnectionStatus(result ? 'success' : 'error');
             if (result) {
-                setTimeout(() => setConnectionStatus('idle'), 3000);
+                setTimeout(() => setConnectionStatus('idle'), AI_CONNECTION_STATUS_RESET_MS);
             } else {
                 if (config.provider === 'openai') {
                     notify("连接失败：请检查 Base URL/模型/API Key。若直连被 CORS 拦截，请使用 Workers/Pages 部署以启用 /api/ai 代理。", 'error');
@@ -117,6 +118,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
                 setProgress({ current: i + 1, total: missingLinks.length });
             } catch (e) {
                 console.error(`Failed to generate for ${link.title}`, e);
+                notify(`"${link.title}" 描述生成失败`, 'warning');
             }
         }
 
@@ -131,7 +133,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
                         <Sparkles size={18} />
                     </div>
                     <div className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                        <p>配置 AI 助手后，可以自动为您的链接生成智能描述和分类建议。Key 默认仅存储在本地浏览器缓存中；部分 OpenAI Compatible 接口若浏览器直连受 CORS 限制，会自动通过同源 /api/ai 代理请求（需 Workers/Pages 部署）。</p>
+                        <p>配置 AI 助手后，可以自动为您的链接生成智能描述和分类建议。Key 默认仅在当前会话（sessionStorage）缓存，关闭标签页/浏览器后需重新填写；不会持久化到 localStorage。若 sessionStorage 不可用（无痕/被禁用），会回退写入 localStorage 以避免丢失（可能跨会话保留）。部分 OpenAI Compatible 接口若浏览器直连受 CORS 限制，会自动通过同源 /api/ai 代理请求（需 Workers/Pages 部署）。</p>
                     </div>
                 </div>
                 <div className="flex justify-end mt-1">

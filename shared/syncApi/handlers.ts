@@ -2,14 +2,16 @@ import { isAdminRequest, isSyncProtected, requireAdminAccess } from './auth';
 import {
     BACKUP_TTL_SECONDS,
     KV_BACKUP_PREFIX,
-    KV_MAIN_DATA_KEY,
     SYNC_HISTORY_INDEX_VERSION,
     ensureSyncHistoryIndexForListing,
     getBackupTimestampForDisplay,
     getMainData,
+    getMainDataWithEtag,
     isBackupKey,
     isSyncHistoryKey,
+    normalizeSyncMeta,
     normalizeSyncKind,
+    putMainData,
     readSyncHistoryIndex,
     removeFromSyncHistoryIndex,
     saveSyncHistory
@@ -17,6 +19,10 @@ import {
 import { sanitizePublicData, sanitizeSensitiveData } from './sanitize';
 import type { Env, NavHubSyncData, SyncHistoryIndex, SyncHistoryKind } from './types';
 import { getErrorMessage } from '../utils/error';
+
+const KV_VALUE_MAX_BYTES = 25 * 1024 * 1024;
+const kvValueEncoder = new TextEncoder();
+const getUtf8ByteLength = (value: string): number => kvValueEncoder.encode(value).length;
 
 // GET /api/sync - 读取云端数据
 export async function handleGet(request: Request, env: Env): Promise<Response> {
@@ -109,7 +115,14 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
     try {
         const body = await request.json() as {
             data: NavHubSyncData;
-            expectedVersion?: number;  // 用于乐观锁校验
+            /**
+             * 用于乐观锁校验（客户端期望的“当前云端 version”）。
+             *
+             * - 当 expectedVersion 与云端当前 version 不一致时，说明期间有其他设备写入过：返回 409 + 最新云端数据，交由客户端处理冲突。
+             * - 注意：在 KV 模式下这里只能做“读后校验”的 best-effort（KV 不支持原子 compare-and-set 且存在最终一致性）。
+             * - 在 R2 模式下会结合 ETag 做条件写（onlyIf），从而把“读-校验-写”变成更可靠的原子语义。
+             */
+            expectedVersion?: number;
             syncKind?: SyncHistoryKind;
             skipHistory?: boolean; // 纯统计同步：仍写入主数据/版本号，但不写入 ynav:backup:history-* 同步记录（避免刷屏）
         };
@@ -124,8 +137,11 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
             });
         }
 
-        // 获取当前云端数据进行版本校验
-        const existingData = await getMainData(env);
+        // 获取当前云端数据进行版本校验（R2 模式下同时获取 etag，用于条件写）
+        // 说明：etag 是 R2 对象的版本标识，可用于实现“只有当对象仍是我读到的那一版时才写入”。
+        let existing = await getMainDataWithEtag(env);
+        let existingData = existing.data;
+        let existingEtag = existing.etag;
 
         // 如果云端有数据且客户端提供了期望版本号，进行冲突检测
         if (existingData && body.expectedVersion !== undefined) {
@@ -143,22 +159,78 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
             }
         }
 
-        // 确保 meta 信息完整
+        // R2 + expectedVersion: 必须要有 etag 才能做条件写（否则会退化成 last-write-wins）。
+        if (env.YNAV_R2 && body.expectedVersion !== undefined && existingData && !existingEtag) {
+            // 理论上 r2.get 应该会返回 etag；这里做一次兜底刷新，避免极端情况下“误以为没法条件写”。
+            existing = await getMainDataWithEtag(env);
+            existingData = existing.data;
+            existingEtag = existing.etag;
+            if (existingData && !existingEtag) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    error: 'R2 etag missing'
+                }), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        // 服务端是 meta 的权威来源：统一生成 updatedAt/version/syncKind，避免客户端时间漂移/篡改导致排序与冲突判断异常。
         const newVersion = existingData ? existingData.meta.version + 1 : 1;
         const now = Date.now();
         const kind = normalizeSyncKind(body.syncKind);
+        const incomingMeta = normalizeSyncMeta(body.data.meta);
         const dataToSave: NavHubSyncData = sanitizeSensitiveData({
             ...body.data,
             meta: {
-                ...body.data.meta,
+                ...incomingMeta,
                 updatedAt: now,
                 version: newVersion,
                 syncKind: kind
             }
         });
 
-        // 写入 KV
-        await env.YNAV_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(dataToSave));
+        if (!env.YNAV_R2) {
+            const encodedBytes = getUtf8ByteLength(JSON.stringify(dataToSave));
+            if (encodedBytes > KV_VALUE_MAX_BYTES) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    error: '数据过大，超过 Cloudflare KV 25MB 限制。建议绑定 R2（YNAV_R2 / YNAV_WORKER_R2）作为主同步存储。'
+                }), {
+                    status: 413,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        // 写入主数据：优先使用 R2（更强一致性、支持条件写），否则回退 KV。
+        // - expectedVersion 存在 => 需要“带锁写入”。
+        // - R2：使用 etagMatches / etagDoesNotMatch('*') 实现原子条件写。
+        // - KV：无法原子条件写，这里的 options 仅用于对齐接口语义（最终效果仍是 last-write-wins）。
+        const needsLock = body.expectedVersion !== undefined;
+        const lockedWriteOk = await putMainData(
+            env,
+            dataToSave,
+            needsLock
+                ? existingData
+                    ? { onlyIfEtagMatches: existingEtag! }
+                    : { onlyIfNotExists: true }
+                : undefined
+        );
+        if (!lockedWriteOk) {
+            // 条件写失败：返回最新云端数据，让客户端走冲突处理流程
+            const latest = await getMainData(env);
+            return new Response(JSON.stringify({
+                success: false,
+                conflict: true,
+                data: latest ? sanitizeSensitiveData(latest) : null,
+                error: '版本冲突，云端数据已被其他设备更新'
+            }), {
+                status: 409,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
 
         // skipHistory 用于“纯统计同步”，避免点击统计等高频同步占用“最近 20 次同步记录”名额。
         let historyKey: string | null = null;
@@ -211,7 +283,19 @@ export async function handleBackup(request: Request, env: Env): Promise<Response
         const now = new Date();
         const timestamp = now.toISOString().replace(/[:.]/g, '-');
         const backupKey = `${KV_BACKUP_PREFIX}${timestamp}`;
-        const dataToSave = sanitizeSensitiveData(body.data);
+        const backupMeta = normalizeSyncMeta(body.data.meta);
+        const dataToSave = sanitizeSensitiveData({ ...body.data, meta: backupMeta });
+
+        const encodedBytes = getUtf8ByteLength(JSON.stringify(dataToSave));
+        if (encodedBytes > KV_VALUE_MAX_BYTES) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: '数据过大，超过 Cloudflare KV 25MB 限制。备份/历史目前仍存 KV，因此无法备份超过 25MB 的数据。'
+            }), {
+                status: 413,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
 
         // 写入备份
         await env.YNAV_KV.put(backupKey, JSON.stringify(dataToSave), {
@@ -272,34 +356,58 @@ export async function handleRestoreBackup(request: Request, env: Env): Promise<R
         let rollbackKey: string | null = null;
 
         if (existingData) {
+            const existingMeta = normalizeSyncMeta(existingData.meta);
             const rollbackTimestamp = new Date(now).toISOString().replace(/[:.]/g, '-');
             rollbackKey = `${KV_BACKUP_PREFIX}rollback-${rollbackTimestamp}`;
             const rollbackData: NavHubSyncData = sanitizeSensitiveData({
                 ...existingData,
                 meta: {
-                    ...existingData.meta,
+                    ...existingMeta,
                     updatedAt: now,
-                    deviceId: body.deviceId || existingData.meta.deviceId
+                    deviceId: body.deviceId || existingMeta.deviceId
                 }
             });
-            await env.YNAV_KV.put(rollbackKey, JSON.stringify(rollbackData), {
-                expirationTtl: BACKUP_TTL_SECONDS
-            });
+            try {
+                const encodedBytes = getUtf8ByteLength(JSON.stringify(rollbackData));
+                if (encodedBytes > KV_VALUE_MAX_BYTES) {
+                    rollbackKey = null;
+                } else {
+                    await env.YNAV_KV.put(rollbackKey, JSON.stringify(rollbackData), {
+                        expirationTtl: BACKUP_TTL_SECONDS
+                    });
+                }
+            } catch {
+                rollbackKey = null;
+            }
         }
 
         const newVersion = (existingData?.meta?.version ?? 0) + 1;
+        const restoredMeta = normalizeSyncMeta(backupData.meta);
         const restoredData: NavHubSyncData = sanitizeSensitiveData({
             ...backupData,
             meta: {
-                ...(backupData.meta || {}),
+                ...restoredMeta,
                 updatedAt: now,
-                deviceId: body.deviceId || backupData.meta?.deviceId || 'unknown',
+                deviceId: body.deviceId || restoredMeta.deviceId,
                 version: newVersion,
                 syncKind: 'manual'
             }
         });
 
-        await env.YNAV_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(restoredData));
+        if (!env.YNAV_R2) {
+            const encodedBytes = getUtf8ByteLength(JSON.stringify(restoredData));
+            if (encodedBytes > KV_VALUE_MAX_BYTES) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    error: '数据过大，超过 Cloudflare KV 25MB 限制。建议绑定 R2（YNAV_R2 / YNAV_WORKER_R2）作为主同步存储。'
+                }), {
+                    status: 413,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        await putMainData(env, restoredData);
 
         try {
             await saveSyncHistory(env, restoredData, 'manual');

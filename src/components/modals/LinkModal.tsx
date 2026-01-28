@@ -5,6 +5,8 @@ import { generateLinkDescription, suggestCategory } from '../../services/geminiS
 import { useDialog } from '../ui/DialogProvider';
 import { getIconToneStyle, normalizeHexColor } from '../../utils/iconTone';
 import { setIcon as setFaviconIcon, getIcon as getFaviconIcon } from '../../utils/faviconCache';
+import { normalizeHttpUrl } from '../../utils/url';
+import { LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS, LINK_MODAL_SUCCESS_MESSAGE_HIDE_MS, LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS } from '../../config/ui';
 
 interface LinkModalProps {
   isOpen: boolean;
@@ -75,7 +77,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
     if (showSuccessMessage) {
       const timer = setTimeout(() => {
         setShowSuccessMessage(false);
-      }, 1000);
+      }, LINK_MODAL_SUCCESS_MESSAGE_HIDE_MS);
       return () => clearTimeout(timer);
     }
   }, [showSuccessMessage]);
@@ -174,7 +176,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
     if (url && autoFetchIcon && !initialData) {
       const timer = setTimeout(() => {
         handleFetchIcon();
-      }, 500); // 延迟500ms执行，避免频繁请求
+      }, LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS); // 延迟执行，避免频繁请求
 
       return () => clearTimeout(timer);
     }
@@ -206,10 +208,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
     if (!title || !url) return;
 
-    // 确保URL有协议前缀
-    let finalUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      finalUrl = 'https://' + url;
+    const finalUrl = normalizeHttpUrl(url);
+    if (!finalUrl) {
+      notify('链接 URL 无效（仅支持 http/https）。', 'warning');
+      return;
     }
 
     const nextTags = normalizeTags([...tags, ...parseTags(tagInput)]);
@@ -272,7 +274,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
       const [desc, cat] = await Promise.all([descPromise, catPromise]);
 
       if (desc) setDescription(desc);
-      if (cat) setCategoryId(cat);
+      if (cat && cat !== categoryId) {
+        const name = categories.find(c => c.id === cat)?.name;
+        notify(`AI 推荐分类：${name || cat}（右上角可手动切换）`, 'info');
+      }
 
     } catch (e) {
       console.error("AI Assist failed", e);
@@ -679,7 +684,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                   onKeyDown={handleTagKeyDown}
                   onFocus={() => setShowTagSuggestions(true)}
                   onBlur={() => {
-                    setTimeout(() => setShowTagSuggestions(false), 150);
+                    setTimeout(() => setShowTagSuggestions(false), LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS);
                     commitTagInput();
                   }}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"

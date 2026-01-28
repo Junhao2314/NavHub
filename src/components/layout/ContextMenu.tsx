@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Copy, Edit2, Trash2, Pin, Star, CopyPlus, FolderInput, ChevronRight } from 'lucide-react';
 import { Category } from '../../types';
+import { CONTEXT_MENU_VIEWPORT_GUARD_PX } from '../../config/ui';
+import { cn } from '../../utils/cn';
 
 interface ContextMenuProps {
   isOpen: boolean;
@@ -65,8 +67,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
   // 确保菜单位置不会超出屏幕边界
   const adjustedPosition = {
-    x: Math.min(position.x, window.innerWidth - 400),
-    y: Math.min(position.y, window.innerHeight - 300)
+    x: Math.min(position.x, window.innerWidth - CONTEXT_MENU_VIEWPORT_GUARD_PX.width),
+    y: Math.min(position.y, window.innerHeight - CONTEXT_MENU_VIEWPORT_GUARD_PX.height)
   };
 
   const menuItems = [
@@ -103,8 +105,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
               item.onClick();
               onClose();
             }}
-            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${item.className || 'text-slate-700 dark:text-slate-300'
-              }`}
+            className={cn(
+              'w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors',
+              item.className || 'text-slate-700 dark:text-slate-300',
+            )}
           >
             <div className="flex items-center gap-3">
               <item.icon size={15} className={item.className || 'text-slate-500 dark:text-slate-400'} />

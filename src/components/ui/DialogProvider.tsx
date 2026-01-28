@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
+import { TOAST_AUTO_DISMISS_MS } from '../../config/ui';
 
 type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 type ConfirmVariant = 'default' | 'danger';
@@ -55,7 +56,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const notify = useCallback((message: string, variant: ToastVariant = 'info') => {
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     setToasts(prev => [...prev, { id, message, variant }]);
-    setTimeout(() => removeToast(id), 2600);
+    setTimeout(() => removeToast(id), TOAST_AUTO_DISMISS_MS);
   }, [removeToast]);
 
   const confirm = useCallback((options: ConfirmOptions) => {

@@ -1,17 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleApiSyncRequest, type KVNamespaceInterface, type SyncApiEnv } from '../../shared/syncApi';
+import { handleApiSyncRequest, type KVNamespaceInterface, type R2BucketInterface, type SyncApiEnv } from '../../shared/syncApi';
 
 class MemoryKV implements KVNamespaceInterface {
   private readonly store = new Map<string, string>();
 
-  async get(key: string, type: 'text' | 'json' | 'arrayBuffer' | 'stream' = 'text'): Promise<any> {
+  async get(
+    key: string,
+    typeOrOptions: 'text' | 'json' | 'arrayBuffer' | 'stream' | { type: 'text' | 'json' | 'arrayBuffer' | 'stream'; cacheTtl?: number } = 'text'
+  ): Promise<any> {
     const value = this.store.get(key);
     if (value === undefined) return null;
+    const type = typeof typeOrOptions === 'string' ? typeOrOptions : typeOrOptions.type;
     if (type === 'json') return JSON.parse(value);
     return value;
   }
 
-  async put(key: string, value: string): Promise<void> {
+  async put(key: string, value: string, _options?: { expirationTtl?: number }): Promise<void> {
     this.store.set(key, value);
   }
 
@@ -49,6 +53,58 @@ class MemoryKV implements KVNamespaceInterface {
 
   has(key: string): boolean {
     return this.store.has(key);
+  }
+}
+
+type R2PutOptionsLike = {
+  onlyIf?: { etagMatches?: string; etagDoesNotMatch?: string } | Headers;
+};
+
+class MemoryR2 implements R2BucketInterface {
+  private readonly store = new Map<string, { value: string; etag: string }>();
+  private etagCounter = 0;
+  onBeforeConditionalPut: ((key: string) => void) | null = null;
+
+  async get(key: string): Promise<{ etag: string; json<T>(): Promise<T>; text(): Promise<string> } | null> {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    return {
+      etag: entry.etag,
+      json: async <T>() => JSON.parse(entry.value) as T,
+      text: async () => entry.value
+    };
+  }
+
+  forcePut(key: string, value: string): { etag: string } {
+    const etag = `etag-${++this.etagCounter}`;
+    this.store.set(key, { value, etag });
+    return { etag };
+  }
+
+  async put(key: string, value: string, options?: R2PutOptionsLike): Promise<{ etag: string } | null> {
+    const onlyIf = options?.onlyIf;
+    if (onlyIf && !(onlyIf instanceof Headers)) {
+      if (onlyIf.etagMatches !== undefined) {
+        this.onBeforeConditionalPut?.(key);
+      }
+    }
+
+    const existing = this.store.get(key);
+    if (onlyIf && !(onlyIf instanceof Headers)) {
+      if (onlyIf.etagMatches !== undefined) {
+        if (!existing) return null;
+        if (existing.etag !== onlyIf.etagMatches) return null;
+      }
+      if (onlyIf.etagDoesNotMatch !== undefined) {
+        if (onlyIf.etagDoesNotMatch === '*') {
+          if (existing) return null;
+        } else if (existing?.etag === onlyIf.etagDoesNotMatch) {
+          return null;
+        }
+      }
+    }
+
+    return this.forcePut(key, value);
   }
 }
 
@@ -319,6 +375,60 @@ describe('syncApi env bindings', () => {
 
     expect(json.success).toBe(true);
     expect(json.data).toBe(null);
+  });
+});
+
+describe('syncApi R2 main-data store', () => {
+  it('detects race via R2 etag conditional write (returns conflict)', async () => {
+    const kv = new MemoryKV();
+    const r2 = new MemoryR2();
+    const env: SyncApiEnv = { YNAV_KV: kv, YNAV_R2: r2 };
+
+    const baseDataV1 = {
+      links: [],
+      categories: [],
+      meta: { updatedAt: 0, deviceId: 'device-1', version: 0 }
+    };
+
+    const firstWrite = new Request('http://localhost/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: baseDataV1, expectedVersion: 0 })
+    });
+    const firstResponse = await handleApiSyncRequest(firstWrite, env);
+    const firstJson = await firstResponse.json() as any;
+    expect(firstJson.success).toBe(true);
+    expect(firstJson.data.meta.version).toBe(1);
+
+    // Next write: expectedVersion matches what we just read, but simulate another writer updating between GET and PUT.
+    r2.onBeforeConditionalPut = (key) => {
+      // Simulate a concurrent update that bumps version to 2.
+      const concurrent = {
+        links: [{ id: 'x', title: 'concurrent', url: 'https://example.com' }],
+        categories: [],
+        meta: { updatedAt: Date.now(), deviceId: 'device-2', version: 2 }
+      };
+      r2.forcePut(key, JSON.stringify(concurrent));
+    };
+
+    const secondWrite = new Request('http://localhost/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          links: [{ id: 'y', title: 'client', url: 'https://example.com' }],
+          categories: [],
+          meta: { updatedAt: 0, deviceId: 'device-1', version: 1 }
+        },
+        expectedVersion: 1
+      })
+    });
+    const secondResponse = await handleApiSyncRequest(secondWrite, env);
+    const secondJson = await secondResponse.json() as any;
+
+    expect(secondResponse.status).toBe(409);
+    expect(secondJson.conflict).toBe(true);
+    expect(secondJson.data?.meta?.version).toBe(2);
   });
 });
 

@@ -88,6 +88,46 @@ describe('/api/ai proxy', () => {
     expect(await response.text()).toBe('{"data":["m1"]}');
   });
 
+  it('forwards upstream streams without buffering', async () => {
+    const upstreamBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: hello\n\n'));
+        controller.close();
+      }
+    });
+
+    const upstream = {
+      status: 200,
+      headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+      body: upstreamBody,
+      text: () => {
+        throw new Error('upstream.text() should not be called');
+      }
+    } as unknown as Response;
+
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('https://api.openai.com/v1/chat/completions');
+      expect(init?.method).toBe('POST');
+      expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
+      return upstream;
+    }) as unknown as typeof fetch;
+
+    const request = new Request('http://localhost/api/ai?action=chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost' },
+      body: JSON.stringify({
+        apiKey: 'test-key',
+        payload: { model: 'gpt-test', messages: [], stream: true }
+      })
+    });
+
+    const response = await handleApiAIRequest(request, { fetchFn });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(response.body).toBe(upstreamBody);
+    expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost');
+  });
+
   it('allows wildcard subdomain hosts', async () => {
     const payload = { model: 'gpt-test', messages: [] };
 
@@ -276,5 +316,94 @@ describe('/api/ai proxy', () => {
     expect(fetchFn).not.toHaveBeenCalled();
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ success: false, error: 'baseUrl host not allowed' });
+  });
+
+  it('rejects allow-all host patterns', async () => {
+    const payload = { model: 'gpt-test', messages: [] };
+    const fetchFn = vi.fn(async () => new Response('should not be called')) as unknown as typeof fetch;
+
+    const request = new Request('http://localhost/api/ai?action=chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key',
+        payload
+      })
+    });
+
+    const response = await handleApiAIRequest(request, { fetchFn, allowedBaseUrlHosts: ['*'] });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ success: false, error: 'baseUrl host not allowed' });
+  });
+
+  it('follows allowlisted upstream redirects', async () => {
+    const payload = { model: 'gpt-test', messages: [] };
+
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      expect(init?.redirect).toBe('manual');
+
+      if (url.endsWith('/v1/chat/completions')) {
+        return new Response(null, {
+          status: 308,
+          headers: { Location: '/v1/chat/completions/' }
+        });
+      }
+
+      expect(url).toBe('https://example.com/v1/chat/completions/');
+      expect(init?.method).toBe('POST');
+      expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
+      expect(init?.body).toBe(JSON.stringify(payload));
+
+      return new Response('{\"id\":\"1\"}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }) as unknown as typeof fetch;
+
+    const request = new Request('http://localhost/api/ai?action=chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost' },
+      body: JSON.stringify({
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key',
+        payload
+      })
+    });
+
+    const response = await handleApiAIRequest(request, { fetchFn, allowedBaseUrlHosts: ['example.com'] });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('{\"id\":\"1\"}');
+  });
+
+  it('blocks upstream redirects to disallowed hosts', async () => {
+    const payload = { model: 'gpt-test', messages: [] };
+
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('https://example.com/v1/chat/completions');
+      expect(init?.redirect).toBe('manual');
+      return new Response(null, {
+        status: 307,
+        headers: { Location: 'https://evil.com/v1/chat/completions' }
+      });
+    }) as unknown as typeof fetch;
+
+    const request = new Request('http://localhost/api/ai?action=chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key',
+        payload
+      })
+    });
+
+    const response = await handleApiAIRequest(request, { fetchFn, allowedBaseUrlHosts: ['example.com'] });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ success: false, error: 'Upstream redirect not allowed' });
   });
 });

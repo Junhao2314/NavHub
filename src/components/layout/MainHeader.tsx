@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Moon, Sun, Menu, Monitor, Settings, GripVertical, Save, X, MoreHorizontal, LayoutGrid, List, CheckCircle } from 'lucide-react';
 import { ExternalSearchSource, SearchMode } from '../../types';
+import { ADMIN_EDIT_DISABLED_HINT } from '../../utils/adminAccess';
 
 interface MainHeaderProps {
   navTitleText: string;
@@ -83,7 +84,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   onOpenSettings,
   onEditDisabled
 }) => {
-  const editDisabledHint = '用户模式不可编辑，请先输入 API 访问密码进入管理员模式。';
+  const editDisabledHint = ADMIN_EDIT_DISABLED_HINT;
   const showSortControls = canSortPinned || canSortCategory || isSortingPinned || isSortingCategory;
   const sortLabel = canSortPinned ? '排序置顶' : '排序分类';
   const isSorting = isSortingPinned || isSortingCategory;

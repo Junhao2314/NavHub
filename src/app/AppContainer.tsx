@@ -32,10 +32,6 @@ function App({ onReady }: AppProps) {
     updateData,
     deleteLink,
 
-    // Dialog
-    notify,
-    confirm,
-
     // Theme
     themeMode,
     darkMode,
@@ -130,6 +126,8 @@ function App({ onReady }: AppProps) {
     isSyncProtected,
     syncStatus,
     lastSyncTime,
+    syncErrorMessage,
+    syncErrorKind,
     syncConflictOpen,
     setSyncConflictOpen,
     currentConflict,
@@ -289,14 +287,16 @@ function App({ onReady }: AppProps) {
       </Suspense>
 
       {/* Sync Status Indicator - Fixed bottom right */}
-      <div className="fixed bottom-4 right-4 z-30">
-        <SyncStatusIndicator
-          status={syncStatus}
-          lastSyncTime={lastSyncTime}
-          onManualSync={isAdmin ? handleManualSync : handleManualPull}
-          onManualPull={handleManualPull}
-        />
-      </div>
+        <div className="fixed bottom-4 right-4 z-30">
+          <SyncStatusIndicator
+            status={syncStatus}
+            lastSyncTime={lastSyncTime}
+            errorMessage={syncErrorMessage}
+            errorKind={syncErrorKind}
+            onManualSync={isAdmin ? handleManualSync : handleManualPull}
+            onManualPull={handleManualPull}
+          />
+        </div>
 
       {/* Sidebar Mobile Overlay */}
       {sidebarOpen && (
@@ -326,17 +326,11 @@ function App({ onReady }: AppProps) {
         onSelectPrivate={handleSelectPrivate}
         onToggleCollapsed={toggleSidebarCollapsed}
         onOpenCategoryManager={() => {
-          if (!isAdmin) {
-            notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-            return;
-          }
+          if (!isAdmin) return handleEditDisabled();
           setIsCatManagerOpen(true);
         }}
         onOpenImport={() => {
-          if (!isAdmin) {
-            notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-            return;
-          }
+          if (!isAdmin) return handleEditDisabled();
           setIsImportModalOpen(true);
         }}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -417,10 +411,7 @@ function App({ onReady }: AppProps) {
             onViewModeChange={handleViewModeChange}
             onSearchModeChange={handleSearchModeChange}
             onOpenSearchConfig={() => {
-              if (!isAdmin) {
-                notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-                return;
-              }
+              if (!isAdmin) return handleEditDisabled();
               setIsSearchConfigModalOpen(true);
             }}
             onSearchQueryChange={setSearchQuery}
@@ -432,17 +423,11 @@ function App({ onReady }: AppProps) {
             onToggleMobileSearch={toggleMobileSearch}
             onToggleSearchSourcePopup={() => setShowSearchSourcePopup(prev => !prev)}
             onStartPinnedSorting={() => {
-              if (!isAdmin) {
-                notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-                return;
-              }
+              if (!isAdmin) return handleEditDisabled();
               startPinnedSorting();
             }}
             onStartCategorySorting={() => {
-              if (!isAdmin) {
-                notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-                return;
-              }
+              if (!isAdmin) return handleEditDisabled();
               if (!isPrivateView) {
                 startSorting(selectedCategory);
               }

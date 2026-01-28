@@ -1,6 +1,19 @@
 import { sanitizeSensitiveData } from './sanitize';
 import type { Env, NavHubSyncData, SyncHistoryIndex, SyncHistoryIndexItem, SyncHistoryKind, SyncMetadata } from './types';
 
+/**
+ * 同步存储策略（兼容历史部署）
+ *
+ * - 主数据（ynav:data / navhub:data）:
+ *   - 默认存 Cloudflare KV：简单但有 25MB 限制 + 最终一致性。
+ *   - 推荐配置 R2：避免 25MB 限制，且可用 ETag 实现条件写（更可靠的乐观锁）。
+ *
+ * - 备份/同步记录（ynav:backup:* / navhub:backup:*）:
+ *   - 仍使用 KV + TTL，便于 list + 自动过期。
+ *
+ * - 兼容策略：优先读写新 key；读到 legacy key 后做 best-effort 写穿迁移。
+ */
+
 // KV Key 常量
 export const KV_MAIN_DATA_KEY = 'ynav:data';
 export const KV_BACKUP_PREFIX = 'ynav:backup:';
@@ -16,6 +29,9 @@ const SYNC_HISTORY_INDEX_SOURCES = ['ynav', 'navhub'];
 const LEGACY_KV_MAIN_DATA_KEY = 'navhub:data';
 const LEGACY_KV_BACKUP_PREFIX = 'navhub:backup:';
 const LEGACY_KV_SYNC_HISTORY_PREFIX = `${LEGACY_KV_BACKUP_PREFIX}history-`;
+
+// R2 object keys (when configured)
+const R2_MAIN_DATA_KEY = 'ynav/data.json';
 
 export const isBackupKey = (key: string): boolean => {
     return key.startsWith(KV_BACKUP_PREFIX) || key.startsWith(LEGACY_KV_BACKUP_PREFIX);
@@ -39,14 +55,32 @@ export const getBackupTimestampForDisplay = (key: string): string => {
     return stripped.slice(0, underscoreIndex);
 };
 
-export const getMainData = async (env: Env): Promise<NavHubSyncData | null> => {
-    const current = await env.YNAV_KV.get(KV_MAIN_DATA_KEY, 'json') as NavHubSyncData | null;
+const safeKvGetJson = async (env: Env, key: string): Promise<unknown> => {
+    try {
+        return await env.YNAV_KV.get(key, { type: 'json', cacheTtl: 0 }) as unknown;
+    } catch {
+        return null;
+    }
+};
+
+const normalizeNavHubSyncData = (value: unknown): NavHubSyncData | null => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const data = value as Partial<NavHubSyncData>;
+    return {
+        ...(data as NavHubSyncData),
+        meta: normalizeSyncMeta(data.meta)
+    };
+};
+
+const getMainDataFromKv = async (env: Env): Promise<NavHubSyncData | null> => {
+    const current = normalizeNavHubSyncData(await safeKvGetJson(env, KV_MAIN_DATA_KEY));
     if (current) return current;
 
-    const legacy = await env.YNAV_KV.get(LEGACY_KV_MAIN_DATA_KEY, 'json') as NavHubSyncData | null;
+    const legacy = normalizeNavHubSyncData(await safeKvGetJson(env, LEGACY_KV_MAIN_DATA_KEY));
     if (!legacy) return null;
 
-    // Write-through migration (best-effort)
+    // Write-through migration (best-effort):
+    // 读到旧 key 时，顺便写回新 key，减少后续的 legacy 读路径。
     try {
         await env.YNAV_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(sanitizeSensitiveData(legacy)));
     } catch {
@@ -54,6 +88,120 @@ export const getMainData = async (env: Env): Promise<NavHubSyncData | null> => {
     }
 
     return legacy;
+};
+
+export const getMainData = async (env: Env): Promise<NavHubSyncData | null> => {
+    const r2 = env.YNAV_R2;
+    if (!r2) {
+        return getMainDataFromKv(env);
+    }
+
+    // R2 模式：优先读 R2 主对象（更强一致性 + 避免 KV 25MB 限制）。
+    const existing = await r2.get(R2_MAIN_DATA_KEY);
+    if (existing) {
+        try {
+            const parsed = await existing.json<unknown>();
+            const normalized = normalizeNavHubSyncData(parsed);
+            if (normalized) return normalized;
+        } catch {
+            // ignore parse failures and fall back to KV
+        }
+    }
+
+    const kvData = await getMainDataFromKv(env);
+    if (!kvData) return null;
+
+    // Best-effort migration to R2 so future reads/writes avoid KV limits & eventual consistency.
+    // onlyIf.etagDoesNotMatch('*')：只在对象尚不存在时创建，避免覆盖并发写入的新数据。
+    try {
+        const payload = sanitizeSensitiveData(kvData);
+        const created = await r2.put(R2_MAIN_DATA_KEY, JSON.stringify(payload), {
+            onlyIf: { etagDoesNotMatch: '*' },
+            httpMetadata: { contentType: 'application/json' }
+        });
+        if (!created) {
+            const refreshed = await r2.get(R2_MAIN_DATA_KEY);
+            if (refreshed) return refreshed.json<NavHubSyncData>();
+        }
+    } catch {
+        // ignore R2 migration failures and fall back to KV
+    }
+
+    return kvData;
+};
+
+export const getMainDataWithEtag = async (
+    env: Env
+): Promise<{ data: NavHubSyncData | null; etag?: string }> => {
+    const r2 = env.YNAV_R2;
+    if (!r2) {
+        return { data: await getMainDataFromKv(env) };
+    }
+
+    // 与 getMainData 类似，但额外返回 etag：用于 handlePost 的条件写（etagMatches）。
+    const existing = await r2.get(R2_MAIN_DATA_KEY);
+    if (existing) {
+        try {
+            const parsed = await existing.json<unknown>();
+            return { data: normalizeNavHubSyncData(parsed), etag: existing.etag };
+        } catch {
+            return { data: null, etag: existing.etag };
+        }
+    }
+
+    const kvData = await getMainDataFromKv(env);
+    if (!kvData) return { data: null };
+
+    const payload = sanitizeSensitiveData(kvData);
+    try {
+        const created = await r2.put(R2_MAIN_DATA_KEY, JSON.stringify(payload), {
+            onlyIf: { etagDoesNotMatch: '*' },
+            httpMetadata: { contentType: 'application/json' }
+        });
+        if (created) {
+            return { data: payload, etag: created.etag };
+        }
+    } catch {
+        // ignore migration failures
+    }
+
+    const refreshed = await r2.get(R2_MAIN_DATA_KEY);
+    if (refreshed) {
+        return { data: await refreshed.json<NavHubSyncData>(), etag: refreshed.etag };
+    }
+
+    return { data: payload };
+};
+
+export const putMainData = async (
+    env: Env,
+    data: NavHubSyncData,
+    options?: { onlyIfEtagMatches?: string; onlyIfNotExists?: boolean }
+): Promise<boolean> => {
+    const r2 = env.YNAV_R2;
+    if (r2) {
+        const onlyIf = options?.onlyIfEtagMatches
+            ? { etagMatches: options.onlyIfEtagMatches }
+            : options?.onlyIfNotExists
+                ? { etagDoesNotMatch: '*' }
+                : undefined;
+
+        const result = await r2.put(R2_MAIN_DATA_KEY, JSON.stringify(data), {
+            ...(onlyIf ? { onlyIf } : {}),
+            httpMetadata: { contentType: 'application/json' }
+        });
+
+        if (onlyIf) {
+            // 条件写：result 为 null 表示前置条件不满足（并发写导致 etag 不一致）。
+            return result !== null;
+        }
+        // 非条件写：约定总是返回 true（last-write-wins）。
+        return true;
+    }
+
+    // KV 不支持原子条件写：即使传入 options，也只能执行覆盖写（best-effort optimistic locking 在上层完成）。
+    await env.YNAV_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(data));
+    return true;
 };
 
 export const normalizeSyncKind = (value: unknown): SyncHistoryKind => {
@@ -104,7 +252,7 @@ const buildHistoryKey = (now: number): string => {
     return `${KV_SYNC_HISTORY_PREFIX}${timestamp}_${randomHex(4)}`;
 };
 
-const normalizeSyncMeta = (value: unknown): SyncMetadata => {
+export function normalizeSyncMeta(value: unknown): SyncMetadata {
     const meta = value && typeof value === 'object' ? (value as Partial<SyncMetadata>) : {};
     return {
         updatedAt: typeof meta.updatedAt === 'number' ? meta.updatedAt : 0,
@@ -114,7 +262,7 @@ const normalizeSyncMeta = (value: unknown): SyncMetadata => {
         os: typeof meta.os === 'string' ? meta.os : undefined,
         syncKind: meta.syncKind === 'manual' ? 'manual' : 'auto'
     };
-};
+}
 
 const isSyncMetaComplete = (meta: SyncMetadata | undefined): boolean => {
     if (!meta) return false;
@@ -234,6 +382,7 @@ const listAllKeys = async (env: Env, prefix: string): Promise<Array<{ name: stri
     let cursor: string | undefined;
     const seenCursors = new Set<string>();
 
+    // KV.list 需要用 cursor 分页；这里设置一个很大的 page 上限 + 游标去重，防止极端情况下无限循环。
     for (let page = 0; page < 10000; page += 1) {
         const result = await env.YNAV_KV.list({ prefix, limit: 1000, cursor });
         if (Array.isArray(result?.keys)) {
@@ -260,6 +409,8 @@ const writeSyncHistoryIndex = async (env: Env, index: SyncHistoryIndex): Promise
 };
 
 const rebuildSyncHistoryIndex = async (env: Env): Promise<SyncHistoryIndex> => {
+    // 兜底重建：当 index 丢失/损坏时，通过 list + 读取每个历史项的 meta 来重建。
+    // 注意：KV.list 返回的顺序不保证按时间，因此需要手动排序并限制 MAX_SYNC_HISTORY。
     const [currentKeys, legacyKeys] = await Promise.all([
         listAllKeys(env, KV_SYNC_HISTORY_PREFIX),
         listAllKeys(env, LEGACY_KV_SYNC_HISTORY_PREFIX)
@@ -300,6 +451,9 @@ const rebuildSyncHistoryIndex = async (env: Env): Promise<SyncHistoryIndex> => {
 };
 
 export const ensureSyncHistoryIndexForListing = async (env: Env): Promise<SyncHistoryIndex> => {
+    // 用于“备份列表/同步记录列表”的快速路径：
+    // - 先读已有 index（包含 key + meta 的摘要），避免每次 listing 都拉取所有历史对象。
+    // - 仍然会 list 一次以删除超出 MAX_SYNC_HISTORY 的旧记录（防止 KV 堆积）。
     const existingIndex = await readSyncHistoryIndex(env);
     const existingMetaByKey = new Map<string, SyncMetadata>();
     for (const item of existingIndex?.items || []) {
@@ -351,6 +505,7 @@ export const ensureSyncHistoryIndexForListing = async (env: Env): Promise<SyncHi
 };
 
 const updateSyncHistoryIndex = async (env: Env, backupKey: string, meta: SyncMetadata): Promise<void> => {
+    // 写入新同步记录后，把它置顶到 index，并裁剪到 MAX_SYNC_HISTORY；溢出的旧记录会从 KV 中删除。
     const normalizedMeta = normalizeSyncMeta(meta);
     let index = await readSyncHistoryIndex(env);
     if (!index) {
@@ -383,11 +538,12 @@ export const removeFromSyncHistoryIndex = async (env: Env, backupKey: string): P
 };
 
 export const saveSyncHistory = async (env: Env, data: NavHubSyncData, kind: SyncHistoryKind): Promise<string> => {
-    const key = buildHistoryKey(data.meta?.updatedAt || Date.now());
+    const meta = normalizeSyncMeta(data.meta);
+    const key = buildHistoryKey(meta.updatedAt || Date.now());
     const payload: NavHubSyncData = sanitizeSensitiveData({
         ...data,
         meta: {
-            ...data.meta,
+            ...meta,
             syncKind: kind
         }
     });

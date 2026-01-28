@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AIConfig, Category, LinkItem } from '../../types';
+import type { Category, LinkItem } from '../../types';
 import {
   PRIVATE_CATEGORY_ID,
   PRIVATE_VAULT_KEY,
   PRIVACY_AUTO_UNLOCK_KEY,
   PRIVACY_GROUP_ENABLED_KEY,
   PRIVACY_PASSWORD_ENABLED_KEY,
-  PRIVACY_PASSWORD_KEY,
   PRIVACY_SESSION_UNLOCKED_KEY,
-  PRIVACY_USE_SEPARATE_PASSWORD_KEY,
-  SYNC_PASSWORD_KEY
+  PRIVACY_USE_SEPARATE_PASSWORD_KEY
 } from '../../utils/constants';
 import { decryptPrivateVault, encryptPrivateVault, parsePlainPrivateVault } from '../../utils/privateVault';
-import { encryptSensitiveConfig } from '../../utils/sensitiveConfig';
+import {
+  safeLocalStorageGetItem,
+  safeLocalStorageRemoveItem,
+  safeLocalStorageSetItem,
+  safeSessionStorageGetItem,
+  safeSessionStorageRemoveItem,
+  safeSessionStorageSetItem
+} from '../../utils/storage';
+import { clearPrivacyPassword, getPrivacyPassword, getSyncPassword, setPrivacyPassword } from '../../utils/secrets';
+import { generateId } from '../../utils/id';
 
 type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 type ConfirmVariant = 'default' | 'danger';
@@ -31,7 +38,6 @@ export interface UsePrivacyVaultOptions {
   selectedCategory: string;
   setSelectedCategory: (categoryId: string) => void;
   setSidebarOpen: (open: boolean) => void;
-  aiConfig?: AIConfig;
 }
 
 export const usePrivacyVault = ({
@@ -39,8 +45,7 @@ export const usePrivacyVault = ({
   confirm,
   selectedCategory,
   setSelectedCategory,
-  setSidebarOpen,
-  aiConfig
+  setSidebarOpen
 }: UsePrivacyVaultOptions) => {
   const [privateVaultCipher, setPrivateVaultCipher] = useState<string | null>(null);
   const [privateLinks, setPrivateLinks] = useState<LinkItem[]>([]);
@@ -58,11 +63,13 @@ export const usePrivacyVault = ({
   const [prefillPrivateLink, setPrefillPrivateLink] = useState<Partial<LinkItem> | null>(null);
 
   useEffect(() => {
-    setPrivateVaultCipher(localStorage.getItem(PRIVATE_VAULT_KEY));
-    setUseSeparatePrivacyPassword(localStorage.getItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY) === '1');
-    setPrivacyGroupEnabled(localStorage.getItem(PRIVACY_GROUP_ENABLED_KEY) === '1');
-    setPrivacyPasswordEnabled(localStorage.getItem(PRIVACY_PASSWORD_ENABLED_KEY) !== '0');
-    setPrivacyAutoUnlockEnabled(localStorage.getItem(PRIVACY_AUTO_UNLOCK_KEY) === '1');
+    // Migrate legacy secrets out of localStorage (session-only going forward)
+    getPrivacyPassword();
+    setPrivateVaultCipher(safeLocalStorageGetItem(PRIVATE_VAULT_KEY));
+    setUseSeparatePrivacyPassword(safeLocalStorageGetItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY) === '1');
+    setPrivacyGroupEnabled(safeLocalStorageGetItem(PRIVACY_GROUP_ENABLED_KEY) === '1');
+    setPrivacyPasswordEnabled(safeLocalStorageGetItem(PRIVACY_PASSWORD_ENABLED_KEY) !== '0');
+    setPrivacyAutoUnlockEnabled(safeLocalStorageGetItem(PRIVACY_AUTO_UNLOCK_KEY) === '1');
   }, []);
 
   const privateCategory = useMemo<Category>(() => ({
@@ -77,9 +84,9 @@ export const usePrivacyVault = ({
     const trimmed = input?.trim();
     if (trimmed) return trimmed;
     if (useSeparatePrivacyPassword) {
-      return (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim();
+      return getPrivacyPassword().trim();
     }
-    return (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    return getSyncPassword().trim();
   }, [useSeparatePrivacyPassword]);
 
   const handleUnlockPrivateVault = useCallback(async (input?: string) => {
@@ -89,7 +96,7 @@ export const usePrivacyVault = ({
       setIsPrivateUnlocked(true);
       setPrivateVaultPassword(null);
       if (privacyAutoUnlockEnabled) {
-        sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+        safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
       }
       return true;
     }
@@ -101,7 +108,7 @@ export const usePrivacyVault = ({
         setPrivateLinks([]);
         setIsPrivateUnlocked(true);
         if (privacyAutoUnlockEnabled) {
-          sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+          safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
         }
         return true;
       }
@@ -109,14 +116,14 @@ export const usePrivacyVault = ({
       // Password is disabled but vault is still encrypted -> require a one-time migration using the old password.
       const candidates = [
         (input || '').trim(),
-        (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim(),
-        (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim()
+        getSyncPassword().trim(),
+        getPrivacyPassword().trim()
       ].filter(Boolean);
 
       if (candidates.length === 0) {
         setPrivateLinks([]);
         setIsPrivateUnlocked(false);
-        sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+        safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
         if (input !== undefined) {
           notify('云端隐私数据仍为加密格式，请输入旧密码迁移', 'warning');
         }
@@ -137,18 +144,18 @@ export const usePrivacyVault = ({
       try {
         const payload = await tryDecrypt(0);
         const plaintext = JSON.stringify({ links: payload.links || [] });
-        localStorage.setItem(PRIVATE_VAULT_KEY, plaintext);
+        safeLocalStorageSetItem(PRIVATE_VAULT_KEY, plaintext);
         setPrivateVaultCipher(plaintext);
         setPrivateLinks(payload.links || []);
         setIsPrivateUnlocked(true);
         if (privacyAutoUnlockEnabled) {
-          sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+          safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
         }
         return true;
       } catch {
         setPrivateLinks([]);
         setIsPrivateUnlocked(false);
-        sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+        safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
         if (input !== undefined) {
           notify('旧密码错误或隐私数据已损坏', 'error');
         }
@@ -163,7 +170,7 @@ export const usePrivacyVault = ({
     }
 
     if (!useSeparatePrivacyPassword) {
-      const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+      const syncPassword = getSyncPassword().trim();
       if (!syncPassword) {
         notify('请先设置同步密码，再解锁隐私分组', 'warning');
         return false;
@@ -178,8 +185,11 @@ export const usePrivacyVault = ({
       setPrivateLinks([]);
       setIsPrivateUnlocked(true);
       setPrivateVaultPassword(password);
+      if (useSeparatePrivacyPassword) {
+        setPrivacyPassword(password);
+      }
       if (privacyAutoUnlockEnabled) {
-        sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+        safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
       }
       return true;
     }
@@ -189,8 +199,11 @@ export const usePrivacyVault = ({
       setPrivateLinks(payload.links || []);
       setIsPrivateUnlocked(true);
       setPrivateVaultPassword(password);
+      if (useSeparatePrivacyPassword) {
+        setPrivacyPassword(password);
+      }
       if (privacyAutoUnlockEnabled) {
-        sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+        safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
       }
       return true;
     } catch {
@@ -206,7 +219,7 @@ export const usePrivacyVault = ({
         notify('隐私分组需要先输入旧密码迁移后才能保存', 'warning');
         return false;
       }
-      localStorage.setItem(PRIVATE_VAULT_KEY, JSON.stringify({ links: nextLinks }));
+      safeLocalStorageSetItem(PRIVATE_VAULT_KEY, JSON.stringify({ links: nextLinks }));
       setPrivateVaultCipher(JSON.stringify({ links: nextLinks }));
       setPrivateLinks(nextLinks);
       setIsPrivateUnlocked(true);
@@ -222,7 +235,7 @@ export const usePrivacyVault = ({
 
     try {
       const cipher = await encryptPrivateVault(password, { links: nextLinks });
-      localStorage.setItem(PRIVATE_VAULT_KEY, cipher);
+      safeLocalStorageSetItem(PRIVATE_VAULT_KEY, cipher);
       setPrivateVaultCipher(cipher);
       setPrivateLinks(nextLinks);
       setIsPrivateUnlocked(true);
@@ -242,7 +255,7 @@ export const usePrivacyVault = ({
     const { useSeparatePassword, oldPassword, newPassword } = payload;
     const trimmedOld = oldPassword.trim();
     const trimmedNew = newPassword.trim();
-    const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    const syncPassword = getSyncPassword().trim();
 
     if (!trimmedOld || !trimmedNew) {
       notify('请填写旧密码和新密码', 'warning');
@@ -260,7 +273,7 @@ export const usePrivacyVault = ({
     }
 
     const expectedOld = useSeparatePrivacyPassword
-      ? (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim()
+      ? getPrivacyPassword().trim()
       : syncPassword;
 
     if (expectedOld && trimmedOld !== expectedOld) {
@@ -282,28 +295,19 @@ export const usePrivacyVault = ({
     // Re-encrypt privateVault with new password (Requirements 5.2)
     if (privateVaultCipher || nextLinks.length > 0) {
       const cipher = await encryptPrivateVault(trimmedNew, { links: nextLinks });
-      localStorage.setItem(PRIVATE_VAULT_KEY, cipher);
+      safeLocalStorageSetItem(PRIVATE_VAULT_KEY, cipher);
       setPrivateVaultCipher(cipher);
     } else {
-      localStorage.removeItem(PRIVATE_VAULT_KEY);
+      safeLocalStorageRemoveItem(PRIVATE_VAULT_KEY);
       setPrivateVaultCipher(null);
     }
 
-    // Re-encrypt sensitiveConfig with new password (Requirements 5.2)
-    if (aiConfig?.apiKey) {
-      try {
-        await encryptSensitiveConfig(trimmedNew, { apiKey: aiConfig.apiKey });
-      } catch (error) {
-        console.warn('Failed to re-encrypt sensitive config:', error);
-      }
-    }
-
     if (useSeparatePassword) {
-      localStorage.setItem(PRIVACY_PASSWORD_KEY, trimmedNew);
-      localStorage.setItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY, '1');
+      setPrivacyPassword(trimmedNew);
+      safeLocalStorageSetItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY, '1');
     } else {
-      localStorage.removeItem(PRIVACY_PASSWORD_KEY);
-      localStorage.setItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY, '0');
+      clearPrivacyPassword();
+      safeLocalStorageSetItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY, '0');
     }
 
     setUseSeparatePrivacyPassword(useSeparatePassword);
@@ -312,7 +316,7 @@ export const usePrivacyVault = ({
     setPrivateVaultPassword(trimmedNew);
     notify('隐私分组已完成迁移', 'success');
     return true;
-  }, [notify, privateLinks, privateVaultCipher, useSeparatePrivacyPassword, aiConfig]);
+  }, [notify, privateLinks, privateVaultCipher, useSeparatePrivacyPassword]);
 
   const closePrivateModal = useCallback(() => {
     setIsPrivateModalOpen(false);
@@ -344,14 +348,15 @@ export const usePrivacyVault = ({
       notify('请先解锁隐私分组', 'warning');
       return;
     }
+    const now = Date.now();
     const maxOrder = privateLinks.reduce((max, link) => {
       const order = link.order !== undefined ? link.order : link.createdAt;
       return Math.max(max, order);
     }, -1);
     const newLink: LinkItem = {
       ...data,
-      id: Date.now().toString(),
-      createdAt: Date.now(),
+      id: generateId(),
+      createdAt: now,
       categoryId: PRIVATE_CATEGORY_ID,
       pinned: false,
       pinnedOrder: undefined,
@@ -395,10 +400,10 @@ export const usePrivacyVault = ({
 
   const handleTogglePrivacyGroup = useCallback((enabled: boolean) => {
     setPrivacyGroupEnabled(enabled);
-    localStorage.setItem(PRIVACY_GROUP_ENABLED_KEY, enabled ? '1' : '0');
+    safeLocalStorageSetItem(PRIVACY_GROUP_ENABLED_KEY, enabled ? '1' : '0');
 
     if (!enabled) {
-      sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+      safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
       if (selectedCategory === PRIVATE_CATEGORY_ID) {
         setSelectedCategory('all');
       }
@@ -413,11 +418,11 @@ export const usePrivacyVault = ({
 
   const handleTogglePrivacyAutoUnlock = useCallback((enabled: boolean) => {
     setPrivacyAutoUnlockEnabled(enabled);
-    localStorage.setItem(PRIVACY_AUTO_UNLOCK_KEY, enabled ? '1' : '0');
+    safeLocalStorageSetItem(PRIVACY_AUTO_UNLOCK_KEY, enabled ? '1' : '0');
     if (!enabled) {
-      sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+      safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
     } else if (isPrivateUnlocked) {
-      sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+      safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
     }
   }, [isPrivateUnlocked]);
 
@@ -454,19 +459,19 @@ export const usePrivacyVault = ({
           }
 
           const plaintext = JSON.stringify({ links: nextLinks });
-          localStorage.setItem(PRIVATE_VAULT_KEY, plaintext);
+          safeLocalStorageSetItem(PRIVATE_VAULT_KEY, plaintext);
           setPrivateVaultCipher(plaintext);
           setPrivateLinks(nextLinks);
 
           setPrivacyPasswordEnabled(false);
-          localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, '0');
+          safeLocalStorageSetItem(PRIVACY_PASSWORD_ENABLED_KEY, '0');
 
           setIsPrivateUnlocked(true);
           setPrivateVaultPassword(null);
           if (privacyAutoUnlockEnabled) {
-            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+            safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
           } else {
-            sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+            safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           }
           return;
         }
@@ -502,17 +507,17 @@ export const usePrivacyVault = ({
         }
 
         if (nextCipher) {
-          localStorage.setItem(PRIVATE_VAULT_KEY, nextCipher);
+          safeLocalStorageSetItem(PRIVATE_VAULT_KEY, nextCipher);
           setPrivateVaultCipher(nextCipher);
         }
 
         setPrivacyPasswordEnabled(true);
-        localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, '1');
+        safeLocalStorageSetItem(PRIVACY_PASSWORD_ENABLED_KEY, '1');
 
         setIsPrivateUnlocked(false);
         setPrivateVaultPassword(null);
         setPrivateLinks([]);
-        sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+        safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
       } catch {
         notify('隐私分组设置更新失败，请重试', 'error');
       } finally {
@@ -534,12 +539,12 @@ export const usePrivacyVault = ({
   // 自动解锁（同会话）
   useEffect(() => {
     if (!privacyGroupEnabled || !privacyAutoUnlockEnabled || isPrivateUnlocked) return;
-    if (sessionStorage.getItem(PRIVACY_SESSION_UNLOCKED_KEY) !== '1') return;
+    if (safeSessionStorageGetItem(PRIVACY_SESSION_UNLOCKED_KEY) !== '1') return;
     if (autoUnlockAttemptedRef.current) return;
     autoUnlockAttemptedRef.current = true;
     handleUnlockPrivateVault().then((success) => {
       if (!success) {
-        sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+        safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
       }
     });
   }, [privacyGroupEnabled, privacyAutoUnlockEnabled, isPrivateUnlocked, handleUnlockPrivateVault]);
@@ -583,7 +588,7 @@ export const usePrivacyVault = ({
     : (useSeparatePrivacyPassword ? '请输入独立密码解锁隐私分组' : '请输入同步密码解锁隐私分组');
   const privateUnlockSubHint = !privacyPasswordEnabled
     ? (privateVaultNeedsMigration ? '迁移成功后会转换为明文（因为已关闭密码保护）' : undefined)
-    : (useSeparatePrivacyPassword ? '独立密码仅保存在本地，切换设备需手动输入' : '同步密码来自数据设置');
+    : (useSeparatePrivacyPassword ? '独立密码仅在当前会话缓存，关闭标签页/浏览器后需重新输入' : '同步密码来自数据设置');
 
   return {
     privateVaultCipher,
@@ -629,4 +634,3 @@ export const usePrivacyVault = ({
     handleSelectPrivate
   };
 };
-

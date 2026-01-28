@@ -22,9 +22,9 @@ import {
     handlePost,
     handleRestoreBackup
 } from './syncApi/handlers';
-import type { Env, KVNamespaceInterface, SyncApiEnv } from './syncApi/types';
+import type { Env, KVNamespaceInterface, R2BucketInterface, SyncApiEnv } from './syncApi/types';
 
-export type { KVNamespaceInterface, SyncApiEnv };
+export type { KVNamespaceInterface, R2BucketInterface, SyncApiEnv };
 
 // 主入口 - 使用 Cloudflare Pages Function 规范
 export async function handleApiSyncRequest(request: Request, env: SyncApiEnv): Promise<Response> {

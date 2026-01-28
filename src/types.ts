@@ -197,6 +197,9 @@ export interface SyncConflict {
 // 同步状态枚举
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'pending' | 'error' | 'conflict';
 
+// 同步错误分类（用于更明确的用户提示）
+export type SyncErrorKind = 'storage' | 'network' | 'server' | 'unknown';
+
 // 同步 API 响应
 export type SyncApiSuccess<T extends object = {}> = {
   success: true;

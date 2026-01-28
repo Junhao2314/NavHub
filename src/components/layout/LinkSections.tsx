@@ -1,10 +1,13 @@
 ﻿import React from 'react';
 import { createPortal } from 'react-dom';
+import { VirtuosoGrid } from 'react-virtuoso';
 import { DndContext, DragEndEvent, closestCorners, SensorDescriptor } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { Pin, Trash2, CheckSquare, Upload, Search, X, RefreshCw } from 'lucide-react';
 import { Category, LinkItem, SearchMode } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
+import { CLOCK_TICK_MS, MOVE_MENU_CLOSE_DELAY_MS, MOVE_MENU_OFFSET_PX, MOVE_MENU_PADDING_PX, MOVE_MENU_WIDTH_PX } from '../../config/ui';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
 import SortableLinkCard from '../ui/SortableLinkCard';
@@ -60,7 +63,7 @@ const ClockWidget: React.FC = () => {
   const [time, setTime] = React.useState(new Date());
 
   React.useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
+    const timer = setInterval(() => setTime(new Date()), CLOCK_TICK_MS);
     return () => clearInterval(timer);
   }, []);
 
@@ -126,6 +129,12 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
   const gridGap = isSimpleView ? 'gap-2.5' : 'gap-4';
   const { notify } = useDialog();
+
+  const [scrollParent, setScrollParent] = React.useState<HTMLDivElement | null>(null);
+  const setScrollParentRef = React.useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    setScrollParent((current) => current ?? node);
+  }, []);
   
   // 站内搜索时显示分类名称
   const isInternalSearchWithQuery = searchMode === 'internal' && searchQuery.trim();
@@ -181,9 +190,8 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   };
 
   const readHitokotoCache = () => {
-    if (typeof window === 'undefined') return null;
     try {
-      const raw = window.localStorage.getItem(HITOKOTO_CACHE_KEY);
+      const raw = safeLocalStorageGetItem(HITOKOTO_CACHE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { date?: string; data?: HitokotoPayload };
       if (!parsed?.date || !parsed?.data?.hitokoto) return null;
@@ -194,9 +202,8 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   };
 
   const writeHitokotoCache = (payload: HitokotoPayload) => {
-    if (typeof window === 'undefined') return;
     const cache = { date: getTodayKey(), data: payload };
-    window.localStorage.setItem(HITOKOTO_CACHE_KEY, JSON.stringify(cache));
+    safeLocalStorageSetItem(HITOKOTO_CACHE_KEY, JSON.stringify(cache));
   };
 
   const fetchHitokoto = React.useCallback(async (notifyOnError = false) => {
@@ -274,13 +281,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     const trigger = moveMenuButtonRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
-    const menuWidth = 176;
-    const padding = 8;
+    const menuWidth = MOVE_MENU_WIDTH_PX;
+    const padding = MOVE_MENU_PADDING_PX;
     const left = Math.max(
       padding,
       Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - padding)
     );
-    const top = rect.bottom + 8;
+    const top = rect.bottom + MOVE_MENU_OFFSET_PX;
     setMoveMenuPosition({ top, left });
   }, []);
 
@@ -299,7 +306,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     }
     moveMenuCloseTimeoutRef.current = window.setTimeout(() => {
       setMoveMenuOpen(false);
-    }, 120);
+    }, MOVE_MENU_CLOSE_DELAY_MS);
   }, []);
 
   const cancelCloseMoveMenu = React.useCallback(() => {
@@ -332,7 +339,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   }, [isBatchEditMode]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide">
+    <div ref={setScrollParentRef} className="flex-1 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide">
       {/* Content wrapper with max-width - Added min-h and flex to push footer to bottom */}
       <div className="max-w-[1600px] mx-auto min-h-full flex flex-col">
 
@@ -585,22 +592,38 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     </SortableContext>
                   </DndContext>
                 ) : (
-                  <div className={`grid ${gridGap} ${gridClassName}`}>
-                    {displayedLinks.map((link) => (
-                      <LinkCard
-                        key={link.id}
-                        link={link}
-                        siteCardStyle={siteCardStyle}
-                        isBatchEditMode={isBatchEditMode}
-                        isSelected={selectedLinks.has(link.id)}
-                        categoryName={isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined}
-                        onSelect={onLinkSelect}
-                        onContextMenu={onLinkContextMenu}
-                        onEdit={onLinkEdit}
-                        onOpenLink={onLinkOpen}
-                      />
-                    ))}
-                  </div>
+                  scrollParent ? (
+                    <VirtuosoGrid
+                      customScrollParent={scrollParent}
+                      data={displayedLinks}
+                      computeItemKey={(_, link) => link.id}
+                      listClassName={`grid ${gridGap} ${gridClassName}`}
+                      itemClassName="min-w-0"
+                      increaseViewportBy={{ top: 600, bottom: 800 }}
+                      itemContent={(_, link) => (
+                        <LinkCard
+                          link={link}
+                          siteCardStyle={siteCardStyle}
+                          isBatchEditMode={isBatchEditMode}
+                          isSelected={selectedLinks.has(link.id)}
+                          categoryName={isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined}
+                          onSelect={onLinkSelect}
+                          onContextMenu={onLinkContextMenu}
+                          onEdit={onLinkEdit}
+                          onOpenLink={onLinkOpen}
+                        />
+                      )}
+                    />
+                  ) : (
+                    <div className={`grid ${gridGap} ${gridClassName}`}>
+                      {Array.from({ length: Math.min(displayedLinks.length, 12) }, (_, index) => (
+                        <div
+                          key={index}
+                          className="h-20 rounded-xl bg-slate-100/80 dark:bg-slate-800/40 animate-pulse"
+                        />
+                      ))}
+                    </div>
+                  )
                 )
               )
             )}

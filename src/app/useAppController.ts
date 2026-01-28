@@ -21,16 +21,13 @@ import {
   COMMON_CATEGORY_ID,
   PRIVATE_CATEGORY_ID,
   PRIVATE_VAULT_KEY,
-  PRIVACY_PASSWORD_KEY,
   PRIVACY_AUTO_UNLOCK_KEY,
   PRIVACY_GROUP_ENABLED_KEY,
   PRIVACY_PASSWORD_ENABLED_KEY,
   PRIVACY_SESSION_UNLOCKED_KEY,
   PRIVACY_USE_SEPARATE_PASSWORD_KEY,
-  SYNC_ADMIN_SESSION_KEY,
   SYNC_API_ENDPOINT,
   SYNC_META_KEY,
-  SYNC_PASSWORD_KEY,
   SYNC_STATS_DEBOUNCE_MS,
   getDeviceId
 } from '../utils/constants';
@@ -39,6 +36,15 @@ import { decryptPrivateVault, encryptPrivateVault, parsePlainPrivateVault } from
 import { decryptSensitiveConfigWithFallback, encryptSensitiveConfig } from '../utils/sensitiveConfig';
 import { mergeFromCloud, buildSyncCache } from '../utils/faviconCache';
 import { getCommonRecommendedLinks } from '../utils/recommendation';
+import { requireAdminAccess } from '../utils/adminAccess';
+import {
+  safeLocalStorageGetItem,
+  safeLocalStorageRemoveItem,
+  safeLocalStorageSetItem,
+  safeSessionStorageRemoveItem,
+  safeSessionStorageSetItem
+} from '../utils/storage';
+import { clearSyncAdminSession, getPrivacyPassword, getSyncPassword, setSyncAdminSession } from '../utils/secrets';
 
 import {
   buildSyncBusinessSignature,
@@ -81,17 +87,19 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const [syncConflictOpen, setSyncConflictOpen] = useState(false);
   const [currentConflict, setCurrentConflict] = useState<SyncConflict | null>(null);
   const hasInitialSyncRun = useRef(false);
-  const lastSyncPasswordRef = useRef((localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim());
+  const lastSyncPasswordRef = useRef(getSyncPassword().trim());
   const isSyncPasswordRefreshingRef = useRef(false);
+  const pendingSensitiveConfigSyncRef = useRef(false);
   const suppressSyncErrorToastRef = useRef(false);
   const lastUserInitiatedSyncAtRef = useRef(0);
   const lastSyncErrorToastRef = useRef<SyncErrorToastRecord | null>(null);
   const restoreSearchConfigRef = useRef<((config: SearchConfig) => void) | null>(null);
   const [syncRole, setSyncRole] = useState<SyncRole>('user');
   const [isSyncProtected, setIsSyncProtected] = useState(false);
+  const [syncPasswordRefreshTick, setSyncPasswordRefreshTick] = useState(0);
   const isAdmin = syncRole === 'admin';
   const getLocalSyncMeta = useCallback(() => {
-    const stored = localStorage.getItem(SYNC_META_KEY);
+    const stored = safeLocalStorageGetItem(SYNC_META_KEY);
     if (!stored) return null;
     try {
       return JSON.parse(stored);
@@ -176,8 +184,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     confirm,
     selectedCategory,
     setSelectedCategory,
-    setSidebarOpen,
-    aiConfig
+    setSidebarOpen
   });
 
   // === Sync Engine Hook ===
@@ -218,15 +225,15 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
       if (typeof cfg.useSeparatePassword === 'boolean') {
         setUseSeparatePrivacyPassword(cfg.useSeparatePassword);
-        localStorage.setItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY, cfg.useSeparatePassword ? '1' : '0');
+        safeLocalStorageSetItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY, cfg.useSeparatePassword ? '1' : '0');
       }
 
       if (typeof nextGroupEnabled === 'boolean') {
         setPrivacyGroupEnabled(nextGroupEnabled);
-        localStorage.setItem(PRIVACY_GROUP_ENABLED_KEY, nextGroupEnabled ? '1' : '0');
+        safeLocalStorageSetItem(PRIVACY_GROUP_ENABLED_KEY, nextGroupEnabled ? '1' : '0');
 
         if (!nextGroupEnabled) {
-          sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           if (selectedCategory === PRIVATE_CATEGORY_ID) {
             setSelectedCategory('all');
           }
@@ -241,7 +248,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
       if (typeof cfg.passwordEnabled === 'boolean') {
         setPrivacyPasswordEnabled(cfg.passwordEnabled);
-        localStorage.setItem(PRIVACY_PASSWORD_ENABLED_KEY, cfg.passwordEnabled ? '1' : '0');
+        safeLocalStorageSetItem(PRIVACY_PASSWORD_ENABLED_KEY, cfg.passwordEnabled ? '1' : '0');
 
         // Only apply lock/unlock side-effects when privacy group is enabled
         if (effectiveGroupEnabled) {
@@ -249,7 +256,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
             setIsPrivateUnlocked(false);
             setPrivateVaultPassword(null);
             setPrivateLinks([]);
-            sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+            safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           } else {
             // Password is disabled, but the vault may still be encrypted from older deployments.
             // Unlock/migration should happen only after we confirm plaintext is available.
@@ -260,13 +267,13 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
       if (typeof cfg.autoUnlockEnabled === 'boolean') {
         setPrivacyAutoUnlockEnabled(cfg.autoUnlockEnabled);
-        localStorage.setItem(PRIVACY_AUTO_UNLOCK_KEY, cfg.autoUnlockEnabled ? '1' : '0');
+        safeLocalStorageSetItem(PRIVACY_AUTO_UNLOCK_KEY, cfg.autoUnlockEnabled ? '1' : '0');
 
         if (effectiveGroupEnabled) {
           if (!cfg.autoUnlockEnabled) {
-            sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+            safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           } else if (isPrivateUnlocked) {
-            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+            safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
           }
         }
       }
@@ -283,9 +290,9 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       // `encryptedSensitiveConfig` is encrypted using the sync password. When “独立隐私密码” is enabled,
       // the in-memory `privateVaultPassword` may differ, so always try sync password first.
       const candidates = [
-        (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim(),
+        getSyncPassword().trim(),
         (privateVaultPassword || '').trim(),
-        (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim()
+        getPrivacyPassword().trim()
       ];
       const hasAnyCandidate = candidates.some(Boolean);
 
@@ -309,7 +316,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     // 同步 privateVault：管理员模式下云端数据会包含 privateVault
     if (typeof data.privateVault === 'string') {
       setPrivateVaultCipher(data.privateVault);
-      localStorage.setItem(PRIVATE_VAULT_KEY, data.privateVault);
+      safeLocalStorageSetItem(PRIVATE_VAULT_KEY, data.privateVault);
       const nextGroupEnabled = typeof data.privacyConfig?.groupEnabled === 'boolean'
         ? data.privacyConfig.groupEnabled
         : privacyGroupEnabled;
@@ -326,23 +333,23 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
           setPrivateLinks([]);
           setIsPrivateUnlocked(true);
           if (privacyAutoUnlockEnabled) {
-            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+            safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
           }
         } else if (plainVault) {
           setPrivateLinks(plainVault.links || []);
           setIsPrivateUnlocked(true);
           if (privacyAutoUnlockEnabled) {
-            sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+            safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
           }
         } else {
           // 兼容：云端数据仍是加密格式，但配置已关闭密码保护（旧版本/切换过程中可能出现）
           // 此时不要标记为已解锁，避免后续保存/同步用空数据覆盖掉原有加密数据
           setPrivateLinks([]);
           setIsPrivateUnlocked(false);
-          sessionStorage.removeItem(PRIVACY_SESSION_UNLOCKED_KEY);
+          safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           const candidates = [
-            (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim(),
-            (localStorage.getItem(PRIVACY_PASSWORD_KEY) || '').trim()
+            getSyncPassword().trim(),
+            getPrivacyPassword().trim()
           ].filter(Boolean);
 
           const tryDecrypt = (index: number) => {
@@ -355,12 +362,12 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
             tryDecrypt(0)
               .then((payload) => {
                 const plaintext = JSON.stringify({ links: payload.links || [] });
-                localStorage.setItem(PRIVATE_VAULT_KEY, plaintext);
+                safeLocalStorageSetItem(PRIVATE_VAULT_KEY, plaintext);
                 setPrivateVaultCipher(plaintext);
                 setPrivateLinks(payload.links || []);
                 setIsPrivateUnlocked(true);
                 if (privacyAutoUnlockEnabled) {
-                  sessionStorage.setItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
+                  safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
                 }
               })
               .catch(() => {
@@ -383,7 +390,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     } else if (data.privateVault === null) {
       // 云端明确清空了 privateVault（区别于 undefined 表示未传递）
       setPrivateVaultCipher(null);
-      localStorage.removeItem(PRIVATE_VAULT_KEY);
+      safeLocalStorageRemoveItem(PRIVATE_VAULT_KEY);
       setPrivateLinks([]);
       setIsPrivateUnlocked(false);
       setPrivateVaultPassword(null);
@@ -399,6 +406,9 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     if (suppressSyncErrorToastRef.current) return;
 
     const now = Date.now();
+    // 同步错误提示策略：
+    // - 用户手动触发（手动同步/拉取/冲突解决/备份恢复等）后短时间内发生的错误，应立即提示（不做冷却）。
+    // - 后台自动同步（debounce/stats 批量）如果频繁失败，toast 会让用户“刷屏”；因此相同错误会按 cooldown 去重。
     const decision = decideSyncErrorToast({
       error,
       now,
@@ -415,6 +425,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const {
     syncStatus,
     lastSyncTime,
+    lastError: syncErrorMessage,
+    lastErrorKind: syncErrorKind,
     pullFromCloud,
     pushToCloud,
     schedulePush,
@@ -435,7 +447,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     setSyncRole(auth.role);
     setIsSyncProtected(auth.protected);
     if (auth.role !== 'admin') {
-      localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+      clearSyncAdminSession();
     }
     return auth;
   }, [checkAuth]);
@@ -597,14 +609,21 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   });
 
   const emptySelection = useMemo(() => new Set<string>(), []);
+
+  const handleEditDisabled = useCallback(() => {
+    requireAdminAccess(isAdmin, notify);
+  }, [isAdmin, notify]);
+
+  const requireAdmin = useCallback((message?: string): boolean => (
+    requireAdminAccess(isAdmin, notify, message)
+  ), [isAdmin, notify]);
+
   const effectiveIsBatchEditMode = isPrivateView || !isAdmin ? false : isBatchEditMode;
   const effectiveSelectedLinks = isPrivateView || !isAdmin ? emptySelection : selectedLinks;
   const effectiveSelectedLinksCount = isPrivateView || !isAdmin ? 0 : selectedLinks.size;
   const effectiveToggleBatchEditMode = isPrivateView || !isAdmin
     ? () => {
-      if (!isAdmin) {
-        notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      }
+      requireAdmin();
     }
     : toggleBatchEditMode;
   const effectiveSelectAll = isPrivateView || !isAdmin ? () => { } : handleSelectAll;
@@ -612,10 +631,6 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const effectiveBatchPin = isPrivateView || !isAdmin ? () => { } : handleBatchPin;
   const effectiveBatchMove = isPrivateView || !isAdmin ? () => { } : handleBatchMove;
   const handleLinkSelect = isPrivateView || !isAdmin ? () => { } : toggleLinkSelection;
-
-  const handleEditDisabled = useCallback(() => {
-    notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-  }, [notify]);
 
   // === Context Menu ===
   const {
@@ -722,8 +737,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
   // === Handlers ===
   const handleImportConfirm = (newLinks: LinkItem[], newCategories: Category[]) => {
-    if (!isAdmin) {
-      notify('用户模式无法导入数据，请先输入 API 访问密码进入管理员模式。', 'warning');
+    if (!requireAdmin('用户模式无法导入数据，请先输入 API 访问密码进入管理员模式。')) {
       return;
     }
     importData(newLinks, newCategories);
@@ -732,29 +746,20 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   };
 
   const handleAddLink = (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     addLink(data);
     setPrefillLink(undefined);
   };
 
   const handleEditLink = (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     if (!editingLink) return;
     updateLink({ ...data, id: editingLink.id });
     setEditingLink(undefined);
   };
 
   const handleDeleteLink = async (id: string) => {
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     const shouldDelete = await confirm({
       title: '删除链接',
       message: '确定删除此链接吗？',
@@ -773,24 +778,18 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       openPrivateAddModal();
       return;
     }
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     openAddLinkModal();
-  }, [isPrivateView, openPrivateAddModal, openAddLinkModal, isAdmin, notify]);
+  }, [isPrivateView, openPrivateAddModal, openAddLinkModal, requireAdmin]);
 
   const handleLinkEdit = useCallback((link: LinkItem) => {
     if (isPrivateView) {
       openPrivateEditModal(link);
       return;
     }
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     openEditLinkModal(link);
-  }, [isPrivateView, openEditLinkModal, openPrivateEditModal, isAdmin, notify]);
+  }, [isPrivateView, openEditLinkModal, openPrivateEditModal, requireAdmin]);
 
   const handleLinkContextMenu = useCallback((event: React.MouseEvent, link: LinkItem) => {
     if (isPrivateView || !isAdmin) return;
@@ -806,26 +805,17 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const togglePin = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     togglePinStore(id);
   };
 
   const handleUpdateCategories = (newCats: Category[]) => {
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     updateData(links, newCats);
   };
 
   const handleDeleteCategory = (catId: string) => {
-    if (!isAdmin) {
-      notify('用户模式不可编辑，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin()) return;
     deleteCategoryStore(catId);
   };
 
@@ -879,6 +869,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const { toneClasses, closeOnBackdrop, backgroundImage, useCustomBackground, backgroundMotion } = useAppearance(siteSettings);
 
   // === KV Sync: Signature refs (must be defined before Initial Load effect) ===
+  // 说明：useSyncEngine 负责“怎么同步”（网络/乐观锁/串行化/云端接口）。
+  // useAppController 负责“何时同步”：根据数据变化类型、角色权限、冲突状态决定走哪条同步路径。
   const prevBusinessSignatureRef = useRef<string | null>(null);
   const prevFullSignatureRef = useRef<string | null>(null);
   const encryptedSensitiveConfigCacheRef = useRef<{ password: string; apiKey: string; encrypted: string } | null>(null);
@@ -906,6 +898,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     hasInitialSyncRun.current = true;
 
     const checkCloudData = async () => {
+      // 先刷新一次权限状态（syncRole/isAdmin 可能尚未更新）。
+      // 后续的拉取/冲突判断需要以“当前请求的真实权限”作为依据。
       const auth = await refreshSyncAuth();
       const localMeta = getLocalSyncMeta();
       const localVersion = localMeta?.version ?? 0;
@@ -915,14 +909,17 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
       if (cloudData && cloudData.links && cloudData.categories) {
         if (auth.role !== 'admin') {
+          // 用户模式（只读）：不参与冲突解决，直接以云端为准（仅应用“可公开字段”）。
           applyCloudData(cloudData, auth.role);
           return;
         }
 
         // 版本不一致时提示用户选择
         if (cloudData.meta.version !== localVersion) {
+          // 管理员模式（可写）：本地与云端 version 不一致时，无法自动决定保留哪份。
+          // 这里构造一个“本地快照 vs 云端快照”的冲突对象，交给 UI 让用户选择：保留本地（强制覆盖）/保留云端（丢弃本地）。
           // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-          const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+          const syncPassword = getSyncPassword().trim();
           let encryptedConfig: string | undefined;
           if (syncPassword && aiConfig?.apiKey) {
             try {
@@ -951,8 +948,9 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
             remoteData: cloudData
           });
         } else {
-          // 版本一致时，初始化签名以避免不必要的同步
-          const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+          // 版本一致时：初始化签名以避免“不必要的自动同步”。
+          // 典型场景：用户刚打开页面，本地已是最新版本；如果不初始化签名，后续 effect 可能把当前状态当成“变更”而触发 push。
+          const syncPassword = getSyncPassword().trim();
           let encryptedConfig: string | undefined;
           if (syncPassword && aiConfig?.apiKey) {
             try {
@@ -993,6 +991,9 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   }, []);
 
   const flushPendingStatsSync = useCallback(async (options?: { keepalive?: boolean }): Promise<boolean> => {
+    // 点击统计的批量同步仅在“管理员 + 非冲突”时允许写入云端：
+    // - 用户模式：只读，不应写入云端
+    // - 冲突状态：用户尚未决策，任何后台写入都可能加剧混乱
     if (!isAdminRef.current || hasConflictRef.current) return false;
     if (isSyncPasswordRefreshingRef.current) return false;
 
@@ -1006,7 +1007,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     }
 
     // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-    const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    const syncPassword = getSyncPassword().trim();
     const apiKey = pending.aiConfig?.apiKey?.trim();
     let encryptedConfig: string | undefined;
     if (syncPassword && apiKey) {
@@ -1034,6 +1035,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
   useEffect(() => {
     const handlePageHide = () => {
+      // 页面隐藏/关闭时的兜底：尽量把最后一次 pending push 送达。
+      // useSyncEngine/flushPendingSync 内部会按 keepalive 体积上限做降级。
       void flushPendingSync({ keepalive: true });
       void flushPendingStatsSync({ keepalive: true });
     };
@@ -1077,18 +1080,23 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       const businessSignature = buildSyncBusinessSignature(syncDataBase);
       const fullSignature = buildSyncFullSignature(syncDataBase);
 
+      // 两类变更判定：
+      // - businessSignature：业务数据（链接/分类/设置等），不包含点击统计等高频字段。
+      // - fullSignature：包含点击统计等高频字段，用于判定“只有统计变更”的场景。
       const businessChanged = businessSignature !== prevBusinessSignatureRef.current;
       const fullChanged = fullSignature !== prevFullSignatureRef.current;
 
       if (!businessChanged && !fullChanged) return;
 
-      // 业务数据变更：立即走 3s debounce 同步
+      // 业务数据变更：走 useSyncEngine 的 debounce（SYNC_DEBOUNCE_MS）自动同步。
+      // 注意：自动同步默认不写入“同步记录”(history snapshot)，避免刷屏 & KV 写放大（见 useSyncEngine.schedulePush）。
       if (businessChanged) {
         prevBusinessSignatureRef.current = businessSignature;
         prevFullSignatureRef.current = fullSignature;
         cancelPendingStatsSync();
       } else if (fullChanged) {
-        // 只有点击统计等“高频字段”变化：走更长的批量上报
+        // 只有点击统计等“高频字段”变化：走更长的批量上报（SYNC_STATS_DEBOUNCE_MS）。
+        // 这一分支不会触发 schedulePush，避免“每次点击都触发一次同步”。
         prevFullSignatureRef.current = fullSignature;
         pendingStatsSyncDataRef.current = syncDataBase;
 
@@ -1105,7 +1113,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       }
 
       // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-      const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+      const syncPassword = getSyncPassword().trim();
       const apiKey = aiConfig?.apiKey?.trim();
       let encryptedConfig: string | undefined;
       if (syncPassword && apiKey) {
@@ -1128,6 +1136,78 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     performSync();
   }, [links, categories, isLoaded, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, schedulePush, buildSyncData, currentConflict, isAdmin, themeMode, cancelPendingStatsSync, flushPendingStatsSync]);
 
+  useEffect(() => {
+    if (!pendingSensitiveConfigSyncRef.current) return;
+    if (!isLoaded || !hasInitialSyncRun.current || currentConflict) return;
+    if (isSyncPasswordRefreshingRef.current) return;
+    if (!isAdmin) return;
+
+    // 当 sync password 变化时，encryptedSensitiveConfig 需要用新密码重新加密再同步：
+    // - 避免云端保存的密文仍使用旧密码，导致其他设备无法解密 API Key。
+    // - 这里不直接 pushToCloud（manual），而是走 schedulePush，让它并入自动同步队列并保持串行化。
+    const syncPassword = getSyncPassword().trim();
+    const apiKey = aiConfig?.apiKey?.trim();
+
+    if (!syncPassword || !apiKey) {
+      pendingSensitiveConfigSyncRef.current = false;
+      return;
+    }
+
+    const syncEncryptedConfig = async () => {
+      let encryptedConfig: string | undefined;
+      const cached = encryptedSensitiveConfigCacheRef.current;
+      if (cached && cached.password === syncPassword && cached.apiKey === apiKey) {
+        encryptedConfig = cached.encrypted;
+      } else {
+        try {
+          encryptedConfig = await encryptSensitiveConfig(syncPassword, { apiKey });
+          encryptedSensitiveConfigCacheRef.current = { password: syncPassword, apiKey, encrypted: encryptedConfig };
+        } catch {
+          encryptedConfig = undefined;
+        }
+      }
+
+      pendingSensitiveConfigSyncRef.current = false;
+      if (!encryptedConfig) return;
+
+      const syncDataBase = buildSyncData(
+        links,
+        categories,
+        { mode: searchMode, externalSources: externalSearchSources },
+        aiConfig,
+        siteSettings,
+        privateVaultCipher || undefined,
+        isAdmin ? { groupEnabled: privacyGroupEnabled, passwordEnabled: privacyPasswordEnabled, autoUnlockEnabled: privacyAutoUnlockEnabled, useSeparatePassword: useSeparatePrivacyPassword } : undefined,
+        themeMode,
+        undefined,
+        buildSyncCache()
+      );
+
+      schedulePush({ ...syncDataBase, encryptedSensitiveConfig: encryptedConfig });
+    };
+
+    void syncEncryptedConfig();
+  }, [
+    aiConfig,
+    buildSyncData,
+    categories,
+    currentConflict,
+    externalSearchSources,
+    isAdmin,
+    isLoaded,
+    links,
+    privacyAutoUnlockEnabled,
+    privacyGroupEnabled,
+    privacyPasswordEnabled,
+    privateVaultCipher,
+    schedulePush,
+    searchMode,
+    syncPasswordRefreshTick,
+    siteSettings,
+    themeMode,
+    useSeparatePrivacyPassword
+  ]);
+
   const handleSaveSettings = useCallback(async (nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
     saveAIConfig(nextConfig, nextSiteSettings);
 
@@ -1135,7 +1215,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     if (!isAdmin) return;
 
     // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-    const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    const syncPassword = getSyncPassword().trim();
     let encryptedConfig: string | undefined;
     if (syncPassword && nextConfig?.apiKey) {
       try {
@@ -1159,6 +1239,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     );
 
     // 避免与自动同步重复触发
+    // - 先更新签名：告诉 auto-sync effect “这些变更已经被我们处理过了”。
+    // - 再 cancelPending：避免队列里还留着旧快照的 pending push（会覆盖刚保存的设置）。
     prevBusinessSignatureRef.current = buildSyncBusinessSignature(syncData);
     prevFullSignatureRef.current = buildSyncFullSignature(syncData);
     cancelPendingSync();
@@ -1171,10 +1253,15 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const handleResolveConflict = useCallback((choice: 'local' | 'remote') => {
     if (currentConflict) {
       const { meta: _meta, ...payload } = choice === 'remote' ? currentConflict.remoteData : currentConflict.localData;
+      // 冲突解决后，本地会应用“用户选择的那份”数据。
+      // 先把签名更新到这份 payload，避免随后 state 更新触发 auto-sync 误判为“又有新变更”。
       prevBusinessSignatureRef.current = buildSyncBusinessSignature(payload);
       prevFullSignatureRef.current = buildSyncFullSignature(payload);
     }
 
+    // 冲突解决属于用户显式操作：
+    // - 取消所有 pending 自动同步，避免后台写入与用户决策交错
+    // - 标记为 user initiated，让失败 toast 立即提示（不做 cooldown）
     cancelPendingSync();
     cancelPendingStatsSync();
     lastUserInitiatedSyncAtRef.current = Date.now();
@@ -1185,13 +1272,12 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
   // 手动触发同步
   const handleManualSync = useCallback(async () => {
-    if (!isAdmin) {
-      notify('用户模式无法写入云端，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return;
-    }
+    if (!requireAdmin('用户模式无法写入云端，请先输入 API 访问密码进入管理员模式。')) return;
 
+    // 手动同步：用户期望“立刻同步”，因此直接 pushToCloud(syncKind='manual')。
+    // 同时会写入同步记录（除非服务端策略变化），便于用户在“最近同步记录”中看到这一笔。
     // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-    const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    const syncPassword = getSyncPassword().trim();
     let encryptedConfig: string | undefined;
     if (syncPassword && aiConfig?.apiKey) {
       try {
@@ -1221,7 +1307,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     cancelPendingStatsSync();
     lastUserInitiatedSyncAtRef.current = Date.now();
     await pushToCloud(syncData, false, 'manual');
-  }, [isAdmin, notify, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, themeMode, buildSyncData, cancelPendingSync, cancelPendingStatsSync, pushToCloud]);
+  }, [requireAdmin, links, categories, searchMode, externalSearchSources, aiConfig, siteSettings, privateVaultCipher, privacyGroupEnabled, privacyPasswordEnabled, privacyAutoUnlockEnabled, useSeparatePrivacyPassword, themeMode, buildSyncData, cancelPendingSync, cancelPendingStatsSync, pushToCloud]);
 
   const performPull = useCallback(async (role: SyncRole) => {
     const localMeta = getLocalSyncMeta();
@@ -1242,8 +1328,10 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
     // 管理员模式：版本不一致时提示用户选择
     if (cloudData.meta.version !== localVersion) {
+      // 手动拉取时同样遵循“版本不一致就弹冲突”：
+      // 管理员可能在当前设备做过未同步的修改，也可能是云端被其他设备更新过，必须人工决策。
       // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-      const syncPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+      const syncPassword = getSyncPassword().trim();
       let encryptedConfig: string | undefined;
       if (syncPassword && aiConfig?.apiKey) {
         try {
@@ -1277,6 +1365,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     cancelPendingSync();
     cancelPendingStatsSync();
     const { meta: _meta, ...payload } = cloudData;
+    // 拉取并应用云端后，把签名更新到云端 payload，避免随后 auto-sync 误判为“本地变更”而再推一次。
     prevBusinessSignatureRef.current = buildSyncBusinessSignature(payload);
     prevFullSignatureRef.current = buildSyncFullSignature(payload);
     applyCloudData(cloudData, role);
@@ -1291,9 +1380,11 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     const trimmed = nextPassword.trim();
     if (trimmed === lastSyncPasswordRef.current) return;
     lastSyncPasswordRef.current = trimmed;
+    pendingSensitiveConfigSyncRef.current = true;
 
     // 任何密码变更都会退出管理员会话，需要重新点击“登录”验证
-    localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+    // 同时，自动同步依赖“是否为管理员会话”来决定是否携带 X-Sync-Password，因此这里先清理会话并暂停所有 pending 写入。
+    clearSyncAdminSession();
     cancelPendingSync();
     cancelPendingStatsSync();
 
@@ -1309,9 +1400,9 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       return { success: true, role: 'admin' };
     }
 
-    const password = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
+    const password = getSyncPassword().trim();
     if (!password) {
-      localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+      clearSyncAdminSession();
       setSyncRole('user');
       return { success: false, role: 'user', error: '请输入密码后点击登录' };
     }
@@ -1321,6 +1412,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     isSyncPasswordRefreshingRef.current = true;
 
     try {
+      // 登录接口只用于“验证密码 + 统计失败次数/锁定”，真正的数据刷新仍由 performPull 完成。
       const response = await fetch(`${SYNC_API_ENDPOINT}?action=login`, {
         method: 'POST',
         headers: {
@@ -1333,7 +1425,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       const result = (await response.json()) as SyncLoginResponse;
 
       if (result.success === false) {
-        localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+        clearSyncAdminSession();
         setSyncRole('user');
         await refreshSyncAuth();
         return {
@@ -1347,25 +1439,23 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
         };
       }
 
-      localStorage.setItem(SYNC_ADMIN_SESSION_KEY, '1');
+      setSyncAdminSession(true);
       const auth = await refreshSyncAuth();
       await performPull(auth.role);
 
       return { success: true, role: auth.role };
     } catch (error: unknown) {
-      localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
+      clearSyncAdminSession();
       setSyncRole('user');
       return { success: false, role: 'user', error: getErrorMessage(error, '网络错误') };
     } finally {
       isSyncPasswordRefreshingRef.current = false;
+      setSyncPasswordRefreshTick((prev) => prev + 1);
     }
   }, [cancelPendingSync, cancelPendingStatsSync, isSyncProtected, refreshSyncAuth, performPull]);
 
   const handleRestoreBackup = useCallback(async (backupKey: string) => {
-    if (!isAdmin) {
-      notify('用户模式无法恢复云端备份，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return false;
-    }
+    if (!requireAdmin('用户模式无法恢复云端备份，请先输入 API 访问密码进入管理员模式。')) return false;
 
     const confirmed = await confirm({
       title: '恢复云端备份',
@@ -1408,13 +1498,10 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     prevFullSignatureRef.current = buildSyncFullSignature(restoredPayload);
     notify('已恢复到所选备份，并创建回滚点', 'success');
     return true;
-  }, [confirm, restoreBackup, handleSyncComplete, notify, buildSyncData, isAdmin, cancelPendingSync, cancelPendingStatsSync]);
+  }, [requireAdmin, confirm, restoreBackup, handleSyncComplete, notify, buildSyncData, cancelPendingSync, cancelPendingStatsSync]);
 
   const handleDeleteBackup = useCallback(async (backupKey: string) => {
-    if (!isAdmin) {
-      notify('用户模式无法删除云端备份，请先输入 API 访问密码进入管理员模式。', 'warning');
-      return false;
-    }
+    if (!requireAdmin('用户模式无法删除云端备份，请先输入 API 访问密码进入管理员模式。')) return false;
 
     const confirmed = await confirm({
       title: '删除备份',
@@ -1439,7 +1526,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
 
     notify('备份已删除', 'success');
     return true;
-  }, [confirm, deleteBackup, notify, isAdmin]);
+  }, [requireAdmin, confirm, deleteBackup, notify]);
 
 
   return {
@@ -1530,6 +1617,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     isSyncProtected,
     syncStatus,
     lastSyncTime,
+    syncErrorMessage,
+    syncErrorKind,
     syncConflictOpen,
     setSyncConflictOpen,
     currentConflict,

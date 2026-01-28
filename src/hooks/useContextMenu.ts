@@ -28,7 +28,7 @@ export function useContextMenu({
         position: { x: 0, y: 0 },
         link: null
     });
-    const { confirm } = useDialog();
+    const { confirm, notify } = useDialog();
 
     const handleContextMenu = useCallback((event: React.MouseEvent, link: LinkItem) => {
         event.preventDefault();
@@ -56,12 +56,16 @@ export function useContextMenu({
         if (!contextMenu.link) return;
 
         navigator.clipboard.writeText(contextMenu.link.url)
+            .then(() => {
+                notify('链接已复制到剪贴板', 'success');
+            })
             .catch(err => {
                 console.error('复制链接失败:', err);
+                notify('复制链接失败', 'error');
             });
 
         closeContextMenu();
-    }, [contextMenu.link, closeContextMenu]);
+    }, [contextMenu.link, closeContextMenu, notify]);
 
     const editLinkFromContextMenu = useCallback(() => {
         if (!contextMenu.link) return;

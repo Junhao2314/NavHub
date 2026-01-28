@@ -3,6 +3,8 @@ import { Settings, ChevronLeft } from 'lucide-react';
 import { Category } from '../../types';
 import Icon from '../ui/Icon';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
+import { cn } from '../../utils/cn';
+import { SIDEBAR_SHOW_DATE_PROBABILITY, SIDEBAR_TYPEWRITER_MS } from '../../config/ui';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -56,11 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   React.useEffect(() => {
     let timeout: NodeJS.Timeout;
 
-    const typeSpeed = 150;
-    const deleteSpeed = 100;
-    const navPause = 5000; // 品牌名停留较久
-    const timePauseMin = 3000;
-    const timePauseMax = 6000; // 时间停留 3-6秒
+    const { typeSpeed, deleteSpeed, navPause, timePauseMin, timePauseMax } = SIDEBAR_TYPEWRITER_MS;
 
     const getCurrentTime = () => {
       const now = new Date();
@@ -106,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         if (targetText === 'NavHub') {
           // 当前是品牌名，准备切换到其他信息
           // 20% 概率显示日期，80% 显示时间
-          const showDate = Math.random() < 0.2;
+          const showDate = Math.random() < SIDEBAR_SHOW_DATE_PROBABILITY;
           nextText = showDate ? getCurrentDate() : getCurrentTime();
         } else {
           // 当前是时间或日期，切回品牌名
@@ -123,14 +121,20 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`
-        fixed lg:static inset-y-0 left-0 z-30 ${sidebarWidthClass} transform transition-all duration-300 ease-in-out
-        bg-white/40 dark:bg-slate-950/40 border-r border-slate-200/30 dark:border-white/5 backdrop-blur-2xl flex flex-col
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}
+      className={cn(
+        'fixed lg:static inset-y-0 left-0 z-30 transform transition-all duration-300 ease-in-out',
+        sidebarWidthClass,
+        'bg-white/40 dark:bg-slate-950/40 border-r border-slate-200/30 dark:border-white/5 backdrop-blur-2xl flex flex-col',
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+      )}
     >
       {/* Header */}
-      <div className={`h-14 flex items-center justify-center border-b border-slate-100/60 dark:border-white/5 shrink-0 relative ${isSidebarCollapsed ? 'px-2' : 'px-4'}`}>
+      <div
+        className={cn(
+          'h-14 flex items-center justify-center border-b border-slate-100/60 dark:border-white/5 shrink-0 relative',
+          isSidebarCollapsed ? 'px-2' : 'px-4',
+        )}
+      >
         <div className={`flex items-center ${isSidebarCollapsed ? 'w-full justify-center' : 'gap-2'}`}>
           {isSidebarCollapsed ? (
             <button
@@ -172,7 +176,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Categories - 减少顶部间距 */}
-      <div className={`flex-1 overflow-y-auto scrollbar-hide ${isSidebarCollapsed ? 'px-2 pt-2 pb-4' : 'px-3 pt-2 pb-4'}`}>
+      <div
+        className={cn(
+          'flex-1 overflow-y-auto scrollbar-hide pt-2 pb-4',
+          isSidebarCollapsed ? 'px-2' : 'px-3',
+        )}
+      >
         {/* All / Pinned */}
         <button
           onClick={onSelectAll}

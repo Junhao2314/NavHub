@@ -20,12 +20,18 @@ binding = "YNAV_WORKER_KV"
 id = "ae3dd5e1875547948cb013180e2e4e3b"
 # preview_id = ""  # 本地预览时使用的 KV ID (可选)
 
+# R2 Bucket 绑定（可选，推荐：用于存储主同步数据，避免 KV 的 25MB 限制与最终一致性）
+# 若需创建新的 R2: wrangler r2 bucket create navhub-sync
+# [[r2_buckets]]
+# binding = "YNAV_WORKER_R2"
+# bucket_name = "navhub-sync"
+
 # 环境变量 (也可以在 Cloudflare Dashboard 中设置)
 [vars]
 # SYNC_PASSWORD = ""  # 同步密码，建议在 Dashboard 中设置而非此处
 # SYNC_CORS_ALLOWED_ORIGINS = ""  # 允许的跨域 Origin（逗号分隔；默认仅同源；可设为 "*" 允许任意 Origin，不推荐）
 # AI Proxy (可选，默认仅允许 api.openai.com 且仅同源可访问)
-# AI_PROXY_ALLOWED_HOSTS = "api.openai.com"  # 允许的上游主机白名单（逗号分隔，支持 *.example.com，可选端口 example.com:443）
+# AI_PROXY_ALLOWED_HOSTS = "api.openai.com"  # 允许的上游主机白名单（逗号分隔，支持 *.example.com，可选端口 example.com:443；不支持 * 全放开，避免 SSRF/open-proxy）
 # AI_PROXY_ALLOWED_ORIGINS = ""              # 允许的跨域 Origin（逗号分隔，默认仅同源）
 # AI_PROXY_ALLOW_INSECURE_HTTP = "false"    # 允许 http 上游（不推荐）
 

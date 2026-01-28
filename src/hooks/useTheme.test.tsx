@@ -176,5 +176,23 @@ describe('useTheme', () => {
     expect(get().darkMode).toBe(false);
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
-});
 
+  it('does not throw when localStorage.setItem throws', async () => {
+    setupMatchMedia(false);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    const { get } = await renderTheme();
+
+    expect(() => {
+      act(() => {
+        get().setThemeAndApply('dark');
+      });
+    }).not.toThrow();
+
+    expect(get().themeMode).toBe('dark');
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+  });
+});

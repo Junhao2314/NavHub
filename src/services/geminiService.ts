@@ -247,7 +247,8 @@ export const testAIConnection = async (config: AIConfig): Promise<boolean> => {
  * Fetches available models from the provider
  */
 export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> => {
-    if (!config.apiKey) return [];
+    const apiKey = config.apiKey.trim();
+    if (!apiKey) return [];
 
     try {
         if (config.provider === 'gemini') {
@@ -255,7 +256,13 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
                 models?: Array<{ name?: unknown }>;
             };
             // Use REST API for listing models to keep it guaranteed
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${config.apiKey}`);
+            const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'x-goog-api-key': apiKey
+                }
+            });
             if (!response.ok) return [];
             const data = await response.json() as GeminiModelsListResponse;
             // Data format: { models: [{ name: 'models/gemini-pro', ... }] }
@@ -270,7 +277,6 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
                 data?: Array<{ id?: unknown }>;
             };
             // OpenAI Compatible
-            const apiKey = config.apiKey.trim();
             const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
             const { modelsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
 

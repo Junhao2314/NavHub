@@ -78,7 +78,7 @@ describe('useSearch', () => {
       get().handleExternalSearch();
     });
 
-    expect(openSpy).toHaveBeenCalledWith('https://www.bing.com/search?q=hello%20world', '_blank');
+    expect(openSpy).toHaveBeenCalledWith('https://www.bing.com/search?q=hello%20world', '_blank', 'noopener,noreferrer');
   });
 
   it('handleSearchSourceSelect saves config and closes popup', async () => {
@@ -101,7 +101,7 @@ describe('useSearch', () => {
       get().handleSearchSourceSelect(google);
     });
 
-    expect(openSpy).toHaveBeenCalledWith('https://www.google.com/search?q=k', '_blank');
+    expect(openSpy).toHaveBeenCalledWith('https://www.google.com/search?q=k', '_blank', 'noopener,noreferrer');
     expect(get().selectedSearchSource?.id).toBe('google');
     expect(get().showSearchSourcePopup).toBe(false);
     expect(get().hoveredSearchSource).toBeNull();
@@ -132,6 +132,44 @@ describe('useSearch', () => {
     expect(localStorage.getItem(SEARCH_CONFIG_KEY)).not.toBeNull();
   });
 
+  it('does not open non-http(s) search URLs', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    const { get } = await renderSearch();
+
+    act(() => {
+      get().saveSearchConfig(
+        [
+          {
+            id: 'bad',
+            name: 'Bad',
+            url: 'javascript:alert(1)',
+            icon: 'Search',
+            enabled: true,
+            createdAt: 1700000000000,
+          },
+        ] as any,
+        'external',
+        {
+          id: 'bad',
+          name: 'Bad',
+          url: 'javascript:alert(1)',
+          icon: 'Search',
+          enabled: true,
+          createdAt: 1700000000000,
+        } as any,
+      );
+      get().setSearchQuery('x');
+    });
+
+    act(() => {
+      get().handleExternalSearch();
+    });
+
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
   it('hides search source popup after hover ends (delayed)', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
 
@@ -158,4 +196,3 @@ describe('useSearch', () => {
     expect(get().hoveredSearchSource).toBeNull();
   });
 });
-

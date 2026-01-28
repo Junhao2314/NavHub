@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
 import { useConfig } from './useConfig';
-import { AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
+import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
 import type { AIConfig, SiteSettings } from '../types';
 
 describe('useConfig', () => {
@@ -40,6 +40,7 @@ describe('useConfig', () => {
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     localStorage.clear();
+    sessionStorage.clear();
     clearFavicons();
     document.title = '';
     container = document.createElement('div');
@@ -91,6 +92,8 @@ describe('useConfig', () => {
     const { get } = await renderConfig();
 
     expect(get().aiConfig).toEqual(savedAIConfig);
+    expect(sessionStorage.getItem(AI_API_KEY_SESSION_KEY)).toBe('k');
+    expect(JSON.parse(localStorage.getItem(AI_CONFIG_KEY) ?? '{}').apiKey).toBe('');
     expect(get().siteSettings).toEqual(savedSiteSettings);
     expect(get().navTitleText).toBe('MyNav');
     expect(get().navTitleShort).toBe('My');
@@ -119,11 +122,40 @@ describe('useConfig', () => {
     expect(get().siteSettings.title).toBe('Next Title');
     expect(document.title).toBe('Next Title');
 
-    expect(JSON.parse(localStorage.getItem(AI_CONFIG_KEY) ?? '{}')).toEqual(nextAIConfig);
+    expect(JSON.parse(localStorage.getItem(AI_CONFIG_KEY) ?? '{}')).toEqual({ ...nextAIConfig, apiKey: '' });
+    expect(sessionStorage.getItem(AI_API_KEY_SESSION_KEY)).toBe(nextAIConfig.apiKey);
     expect(JSON.parse(localStorage.getItem(SITE_SETTINGS_KEY) ?? '{}').title).toBe('Next Title');
 
     const icon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
     expect(icon?.href).toBe('https://example.com/next.ico');
+  });
+
+  it('saveAIConfig keeps apiKey in localStorage when sessionStorage is blocked', async () => {
+    const realSessionStorage = sessionStorage;
+    vi.stubGlobal('sessionStorage', {
+      setItem: () => {
+        throw new Error('blocked');
+      },
+      getItem: () => null,
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      get length() {
+        return 0;
+      }
+    } as unknown as Storage);
+
+    const { get } = await renderConfig();
+
+    const nextAIConfig: AIConfig = { provider: 'openai', apiKey: 'k2', baseUrl: 'https://api2', model: 'gpt-2' };
+
+    act(() => {
+      get().saveAIConfig(nextAIConfig);
+    });
+
+    expect(get().aiConfig).toEqual(nextAIConfig);
+    expect(realSessionStorage.getItem(AI_API_KEY_SESSION_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(AI_CONFIG_KEY) ?? '{}').apiKey).toBe('k2');
   });
 
   it('updateSiteSettings merges updates and replaces favicon links', async () => {
@@ -149,4 +181,3 @@ describe('useConfig', () => {
     expect(get().siteSettings.cardStyle).toBe('detailed');
   });
 });
-

@@ -78,6 +78,18 @@
    - KV namespace: 选择刚创建的 KV
 5. 保存后 **重新部署**
 
+### 2.1 绑定 R2（可选，推荐）
+
+> 推荐开启：主同步数据会优先存到 R2，避免 KV 的 **25MB 单值限制** 与 **最终一致性**导致的“读旧版本/冲突体验”。  
+> 说明：当前版本仅将**主同步数据**写入 R2；**备份/历史仍在 KV**（一般数据量不大无需迁移到 R2）。
+
+1. Cloudflare Dashboard → **R2** → **Create bucket**
+2. 打开 Pages 项目 → **Settings** → **Functions** → **R2 bucket bindings**
+3. 新增绑定：
+   - Variable name: `YNAV_R2`
+   - R2 bucket: 选择刚创建的 Bucket
+4. 保存后 **重新部署**
+
 ### 3. 设置同步密码（可选）
 
 Pages 项目 → **Settings** → **Environment variables** 添加：
@@ -88,7 +100,7 @@ Pages 项目 → **Settings** → **Environment variables** 添加：
 
 默认 `/api/ai` 仅允许代理到 `api.openai.com`，且仅同源可访问；如需使用其他 OpenAI Compatible 服务商（自定义 Base URL），请添加：
 
-- `AI_PROXY_ALLOWED_HOSTS`: 允许的上游主机列表（逗号分隔），支持 `*.example.com`，可选端口 `example.com:443`
+- `AI_PROXY_ALLOWED_HOSTS`: 允许的上游主机列表（逗号分隔），支持 `*.example.com`，可选端口 `example.com:443`（不支持 `*` 全放开，避免 SSRF/open-proxy）
 - `AI_PROXY_ALLOWED_ORIGINS`: 允许的跨域来源（逗号分隔，填写完整 Origin，例如 `https://your-domain.com`；默认仅同源）
 - `AI_PROXY_ALLOW_INSECURE_HTTP`: 设为 `true` 可允许 `http:` 上游（不推荐）
 
@@ -177,6 +189,14 @@ jobs:
 3. 名称填入：`YNAV_WORKER_KV`
 4. 创建后，**复制 Namespace ID**
 
+### 步骤 5.1：创建 R2 Bucket（可选，推荐）
+
+> 推荐开启：主同步数据会优先存到 R2，避免 KV 的 **25MB 单值限制** 与 **最终一致性**导致的“读旧版本/冲突体验”。  
+> 说明：当前版本仅将**主同步数据**写入 R2；**备份/历史仍在 KV**（一般数据量不大无需迁移到 R2）。
+
+1. Cloudflare Dashboard → **R2** → **Create bucket**
+2. Bucket 名称示例：`navhub-sync`
+
 ### 步骤 6：更新配置文件
 
 编辑你仓库中的 `wrangler.toml` 文件，将 KV ID 填入：
@@ -187,6 +207,14 @@ binding = "YNAV_WORKER_KV"
 id = "你的 Namespace ID"  # ← 替换这里
 ```
 
+若你启用了 R2，也在 `wrangler.toml` 中添加（或取消注释）：
+
+```toml
+[[r2_buckets]]
+binding = "YNAV_WORKER_R2"
+bucket_name = "navhub-sync"
+```
+
 ### 步骤 6.1：环境变量 / Secrets（可选）
 
 `wrangler.toml` 的 `[vars]` 中提供了可选环境变量示例（默认均为注释）。建议将 `SYNC_PASSWORD` 等敏感值通过 **Cloudflare Dashboard → Worker → Settings → Variables（Secret）** 或 **GitHub Secrets（Actions 注入）** 设置，避免直接写进仓库。
@@ -195,7 +223,7 @@ id = "你的 Namespace ID"  # ← 替换这里
 
 - `SYNC_PASSWORD`: 同步密码（敏感，建议 Secret）
 - `SYNC_CORS_ALLOWED_ORIGINS`: 允许的跨域 Origin（逗号分隔；默认仅同源；可设为 `*` 允许任意 Origin，不推荐）
-- `AI_PROXY_ALLOWED_HOSTS`: `/api/ai` 上游主机白名单（逗号分隔，支持 `*.example.com`，可选端口 `example.com:443`；默认仅 `api.openai.com`）
+- `AI_PROXY_ALLOWED_HOSTS`: `/api/ai` 上游主机白名单（逗号分隔，支持 `*.example.com`，可选端口 `example.com:443`；默认仅 `api.openai.com`；不支持 `*` 全放开，避免 SSRF/open-proxy）
 - `AI_PROXY_ALLOWED_ORIGINS`: `/api/ai` 允许的跨域 Origin（逗号分隔，默认仅同源）
 - `AI_PROXY_ALLOW_INSECURE_HTTP`: 设为 `true` 可允许 `http:` 上游（不推荐）
 
@@ -203,7 +231,7 @@ id = "你的 Namespace ID"  # ← 替换这里
 
 ```bash
 SYNC_PASSWORD=your-password
-SYNC_CORS_ALLOWED_ORIGINS=http://localhost:5173
+SYNC_CORS_ALLOWED_ORIGINS=http://localhost:3000
 AI_PROXY_ALLOWED_HOSTS=api.openai.com
 ```
 
@@ -240,7 +268,7 @@ AI_PROXY_ALLOWED_HOSTS=api.openai.com
 
 Workers 部署默认仅允许同源请求访问 `/api/sync`（更安全，避免被任意站点跨站调用）。
 
-如需从其他域名（例如本地开发 `http://localhost:5173`）访问 Worker 的 `/api/sync`，请在 Worker Variables 中设置：
+如需从其他域名（例如本地开发 `http://localhost:3000`）访问 Worker 的 `/api/sync`，请在 Worker Variables 中设置：
 
 - `SYNC_CORS_ALLOWED_ORIGINS`: 允许的 Origin 列表（逗号分隔，填写完整 Origin，例如 `https://your-domain.com`）；可设为 `*` 允许任意 Origin（不推荐）
 
@@ -320,7 +348,7 @@ npm run test
 npm run dev:workers
 ```
 
-本地服务运行在 `http://localhost:5173`
+本地服务默认运行在 `http://localhost:3000`
 
 ---
 
@@ -395,8 +423,8 @@ NavHub/
 | 前端      | React 19.2, TypeScript 5.8, Vite 6.2                |
 | 样式      | Tailwind CSS v4, Lucide Icons                       |
 | 拖拽排序  | @dnd-kit/core, @dnd-kit/sortable                    |
-| 状态/同步 | LocalStorage + 自定义同步引擎 + Cloudflare KV       |
-| 后端      | Cloudflare Workers / Pages Functions + KV           |
+| 状态/同步 | LocalStorage + 自定义同步引擎 + Cloudflare KV（可选 R2） |
+| 后端      | Cloudflare Workers / Pages Functions + KV（可选 R2） |
 | AI        | Google Generative AI SDK (@google/genai)            |
 | 加密      | Web Crypto API (AES-GCM, PBKDF2)                    |
 | 测试      | Vitest 4, fast-check (属性测试)                     |

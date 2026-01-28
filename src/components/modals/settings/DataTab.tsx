@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Database, Upload, Cloud, Lock, Eye, EyeOff, RefreshCw, Clock, Cpu, CloudDownload, Trash2, LogOut, Download } from 'lucide-react';
-import { SYNC_ADMIN_SESSION_KEY, SYNC_API_ENDPOINT, SYNC_PASSWORD_KEY, SYNC_PASSWORD_LOCK_UNTIL_KEY } from '../../../utils/constants';
+import { SYNC_API_ENDPOINT, SYNC_PASSWORD_LOCK_UNTIL_KEY } from '../../../utils/constants';
 import { getErrorMessage } from '../../../utils/error';
 import { downloadJsonFile } from '../../../services/exportService';
 import { LinkItem, Category, SyncGetBackupResponse, SyncListBackupsResponse, SyncRole, VerifySyncPasswordResult } from '../../../types';
+import { safeLocalStorageGetItem, safeLocalStorageRemoveItem, safeLocalStorageSetItem } from '../../../utils/storage';
+import { clearSyncAdminSession, clearSyncPassword, getSyncPassword, setSyncPassword } from '../../../utils/secrets';
+import { getSyncAuthHeaders } from '../../../utils/syncAuthHeaders';
 import DuplicateChecker from './DuplicateChecker';
 
 interface DataTabProps {
@@ -98,14 +101,14 @@ const DataTab: React.FC<DataTabProps> = ({
     const [isMigrating, setIsMigrating] = useState(false);
 
     useEffect(() => {
-        setPassword(localStorage.getItem(SYNC_PASSWORD_KEY) || '');
+        setPassword(getSyncPassword());
 
-        const lockedUntilStr = localStorage.getItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
+        const lockedUntilStr = safeLocalStorageGetItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
         const lockedUntil = lockedUntilStr ? Number(lockedUntilStr) : Number.NaN;
         if (!Number.isNaN(lockedUntil) && lockedUntil > Date.now()) {
             setLoginLockedUntil(lockedUntil);
         } else {
-            localStorage.removeItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
+            safeLocalStorageRemoveItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
         }
     }, []);
 
@@ -114,12 +117,12 @@ const DataTab: React.FC<DataTabProps> = ({
         const remaining = loginLockedUntil - Date.now();
         if (remaining <= 0) {
             setLoginLockedUntil(null);
-            localStorage.removeItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
+            safeLocalStorageRemoveItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
             return;
         }
         const timer = setTimeout(() => {
             setLoginLockedUntil(null);
-            localStorage.removeItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
+            safeLocalStorageRemoveItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
         }, remaining + 50);
         return () => clearTimeout(timer);
     }, [loginLockedUntil]);
@@ -128,18 +131,11 @@ const DataTab: React.FC<DataTabProps> = ({
         const newVal = e.target.value;
         setPassword(newVal);
         setSyncPasswordMessage(null);
-        localStorage.setItem(SYNC_PASSWORD_KEY, newVal);
+        setSyncPassword(newVal);
         onSyncPasswordChange(newVal);
     };
 
-    const getAuthHeaders = useCallback(() => {
-        const storedPassword = (localStorage.getItem(SYNC_PASSWORD_KEY) || '').trim();
-        const isAdminSession = localStorage.getItem(SYNC_ADMIN_SESSION_KEY) === '1';
-        return {
-            'Content-Type': 'application/json',
-            ...(storedPassword && isAdminSession ? { 'X-Sync-Password': storedPassword } : {})
-        };
-    }, []);
+    const getAuthHeaders = useCallback(getSyncAuthHeaders, []);
 
     const formatBackupTime = (backup: BackupItem) => {
         if (backup.updatedAt) {
@@ -273,14 +269,14 @@ const DataTab: React.FC<DataTabProps> = ({
 
             if (result?.success && result.role === 'admin') {
                 setLoginLockedUntil(null);
-                localStorage.removeItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
+                safeLocalStorageRemoveItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
                 setSyncPasswordMessage('登录成功：已进入管理员模式');
                 return;
             }
 
             if (typeof result?.lockedUntil === 'number' && result.lockedUntil > Date.now()) {
                 setLoginLockedUntil(result.lockedUntil);
-                localStorage.setItem(SYNC_PASSWORD_LOCK_UNTIL_KEY, String(result.lockedUntil));
+                safeLocalStorageSetItem(SYNC_PASSWORD_LOCK_UNTIL_KEY, String(result.lockedUntil));
                 setSyncPasswordMessage(`登录失败：连续输入错误次数过多，请在 ${new Date(result.lockedUntil).toLocaleString('zh-CN')} 后重试`);
                 return;
             }
@@ -298,8 +294,8 @@ const DataTab: React.FC<DataTabProps> = ({
     const handleLogoutSyncPassword = useCallback(() => {
         setSyncPasswordMessage(null);
         setPassword('');
-        localStorage.removeItem(SYNC_ADMIN_SESSION_KEY);
-        localStorage.removeItem(SYNC_PASSWORD_KEY);
+        clearSyncAdminSession();
+        clearSyncPassword();
         onSyncPasswordChange('');
     }, [onSyncPasswordChange]);
 
@@ -429,7 +425,7 @@ const DataTab: React.FC<DataTabProps> = ({
                                  {syncRole === 'admin' ? '管理员' : '用户'}
                              </span>
                          </div>
-                         {isSyncProtected && (
+                        {isSyncProtected && (
                              <div className="mt-2 flex items-center justify-between gap-3">
                                  <button
                                      type="button"

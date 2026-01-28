@@ -1,5 +1,6 @@
 import { LinkItem, Category } from '../types';
 import { generateId } from '../utils/id';
+import { normalizeHttpUrl } from '../utils/url';
 
 export interface ParsedBookmarkLink extends LinkItem {
   folderPath: string[];
@@ -74,13 +75,14 @@ export const parseBookmarks = async (file: File): Promise<ImportResult> => {
             // It's a link
             const title = a.textContent || a.getAttribute('href') || 'No Title';
             const url = a.getAttribute('href');
-            
-            if (url && !url.startsWith('chrome://') && !url.startsWith('about:')) {
+
+            const safeUrl = url ? normalizeHttpUrl(url) : null;
+            if (safeUrl) {
                 const folderPath = currentPath.length ? [...currentPath] : [];
                 links.push({
                     id: generateId(),
                     title: title,
-                    url: url,
+                    url: safeUrl,
                     categoryId: getCategoryId(normalizeCategoryName(folderPath)),
                     createdAt: Date.now(),
                     icon: a.getAttribute('icon') || undefined,

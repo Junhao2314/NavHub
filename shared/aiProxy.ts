@@ -107,8 +107,12 @@ function normalizeHostname(value: string): string {
 
 function normalizeHostnamePattern(value: string): string {
     const trimmed = value.trim();
+    if (trimmed === '*') return '';
+    if (trimmed.includes('*') && !trimmed.startsWith('*.')) return '';
     if (trimmed.startsWith('*.')) {
-        const rest = normalizeHostname(trimmed.slice(2));
+        const restInput = trimmed.slice(2);
+        if (restInput.includes('*')) return '';
+        const rest = normalizeHostname(restInput);
         return rest ? `*.${rest}` : '';
     }
     return normalizeHostname(trimmed);
@@ -163,7 +167,7 @@ function isPrivateNetworkHostname(hostname: string): boolean {
 function parseAllowedHostPattern(value: string, onError?: ApiAIHandlerOptions['onError']): AllowedHostPattern | null {
     const trimmed = value.trim();
     if (!trimmed) return null;
-    if (trimmed === '*') return { hostnamePattern: '*' };
+    if (trimmed === '*') return null;
 
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
         try {
@@ -195,7 +199,6 @@ function hostnameMatchesPattern(hostname: string, pattern: string): boolean {
     const host = normalizeHostname(hostname);
     const normalizedPattern = normalizeHostnamePattern(pattern);
     if (!host || !normalizedPattern) return false;
-    if (normalizedPattern === '*') return true;
     if (normalizedPattern.startsWith('*.')) {
         const suffix = normalizedPattern.slice(1); // ".example.com"
         return host.endsWith(suffix) && host.length > suffix.length;
@@ -308,21 +311,76 @@ function buildOpenAICompatibleUrls(
     };
 }
 
+function isRedirectStatus(status: number): boolean {
+    return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
 async function forward(
     fetchFn: typeof fetch,
     url: string,
     init: RequestInit,
-    corsHeaders: Record<string, string>
+    corsHeaders: Record<string, string>,
+    validateUrl: (url: URL) => boolean
 ): Promise<Response> {
-    const upstream = await fetchFn(url, init);
-    const bodyText = await upstream.text();
-    return new Response(bodyText, {
-        status: upstream.status,
-        headers: {
-            ...corsHeaders,
-            'Content-Type': upstream.headers.get('Content-Type') || 'application/json',
-        },
-    });
+    const maxRedirects = 3;
+    let currentUrl = url;
+    let currentInit = init;
+
+    for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+        const upstream = await fetchFn(currentUrl, { ...currentInit, redirect: 'manual' });
+
+        if (!isRedirectStatus(upstream.status)) {
+            return new Response(upstream.body, {
+                status: upstream.status,
+                headers: {
+                    ...corsHeaders,
+                    'Content-Type': upstream.headers.get('Content-Type') || 'application/json',
+                },
+            });
+        }
+
+        const location = upstream.headers.get('Location');
+        if (!location) {
+            return new Response(upstream.body, {
+                status: upstream.status,
+                headers: {
+                    ...corsHeaders,
+                    'Content-Type': upstream.headers.get('Content-Type') || 'application/json',
+                },
+            });
+        }
+
+        if (redirectCount === maxRedirects) {
+            return jsonResponse({ success: false, error: 'Upstream redirected too many times' }, 502, corsHeaders);
+        }
+
+        let nextUrl: URL;
+        try {
+            nextUrl = new URL(location, currentUrl);
+        } catch {
+            return jsonResponse({ success: false, error: 'Upstream redirect is invalid' }, 502, corsHeaders);
+        }
+
+        if (!validateUrl(nextUrl)) {
+            return jsonResponse({ success: false, error: 'Upstream redirect not allowed' }, 502, corsHeaders);
+        }
+
+        const method = (currentInit.method || 'GET').toString().toUpperCase();
+        if (upstream.status === 303 || ((upstream.status === 301 || upstream.status === 302) && method !== 'GET' && method !== 'HEAD')) {
+            const headers = new Headers(currentInit.headers);
+            headers.delete('Content-Type');
+            currentInit = {
+                ...currentInit,
+                method: 'GET',
+                body: undefined,
+                headers,
+            };
+        }
+
+        currentUrl = nextUrl.toString();
+    }
+
+    return jsonResponse({ success: false, error: 'Upstream request failed' }, 502, corsHeaders);
 }
 
 export async function handleApiAIRequest(request: Request, options: ApiAIHandlerOptions = {}): Promise<Response> {
@@ -398,6 +456,14 @@ export async function handleApiAIRequest(request: Request, options: ApiAIHandler
     }
 
     const { chatCompletionsUrl, modelsUrl } = buildOpenAICompatibleUrls(normalizedBaseUrl, options.onError);
+    const validateUrl = (urlToValidate: URL): boolean => {
+        if (urlToValidate.protocol !== 'https:' && !(options.allowInsecureHttp && urlToValidate.protocol === 'http:')) {
+            return false;
+        }
+        if (urlToValidate.username || urlToValidate.password || urlToValidate.hash) return false;
+        if (isPrivateNetworkHostname(urlToValidate.hostname)) return false;
+        return isUpstreamAllowed(urlToValidate, allowedPatterns);
+    };
 
     if (action === 'models') {
         return forward(
@@ -410,7 +476,8 @@ export async function handleApiAIRequest(request: Request, options: ApiAIHandler
                     'Authorization': `Bearer ${apiKey}`,
                 },
             },
-            corsHeaders
+            corsHeaders,
+            validateUrl
         );
     }
 
@@ -431,6 +498,7 @@ export async function handleApiAIRequest(request: Request, options: ApiAIHandler
             },
             body: JSON.stringify(payload),
         },
-        corsHeaders
+        corsHeaders,
+        validateUrl
     );
 }

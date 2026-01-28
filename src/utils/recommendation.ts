@@ -12,12 +12,17 @@ import { COMMON_CATEGORY_ID } from './constants';
 export const AUTO_COMMON_RECOMMEND_MIN_SCORE = 15;
 export const AUTO_COMMON_RECOMMEND_MAX_ITEMS = 12;
 
+const commonRecommendedCache = new WeakMap<LinkItem[], LinkItem[]>();
+
 export function getAutoCommonRecommendScore(link: LinkItem): number {
   // 默认指标：管理员模式下的点击次数
   return link.adminClicks ?? 0;
 }
 
 export function getCommonRecommendedLinks(links: LinkItem[]): LinkItem[] {
+  const cached = commonRecommendedCache.get(links);
+  if (cached) return cached;
+
   const manualRecommended = links.filter(
     (link) => link.recommended || link.categoryId === COMMON_CATEGORY_ID
   );
@@ -41,6 +46,7 @@ export function getCommonRecommendedLinks(links: LinkItem[]): LinkItem[] {
     .slice(0, AUTO_COMMON_RECOMMEND_MAX_ITEMS)
     .map(({ link }) => link);
 
-  return [...manualSorted, ...autoCandidates];
+  const result = [...manualSorted, ...autoCandidates];
+  commonRecommendedCache.set(links, result);
+  return result;
 }
-

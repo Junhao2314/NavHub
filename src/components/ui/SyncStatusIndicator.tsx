@@ -6,22 +6,24 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Cloud, CloudOff, RefreshCw, Check, AlertCircle, CloudUpload } from 'lucide-react';
-import { SyncStatus } from '../../types';
+import { SyncErrorKind, SyncStatus } from '../../types';
+import { SYNC_STATUS_AUTO_HIDE_DELAY_MS, SYNC_STATUS_EXIT_ANIMATION_MS } from '../../config/ui';
 
 interface SyncStatusIndicatorProps {
     status: SyncStatus;
     lastSyncTime: number | null;
+    errorMessage?: string | null;
+    errorKind?: SyncErrorKind | null;
     onManualSync?: () => void;
     onManualPull?: () => void;
     className?: string;
 }
 
-// 自动隐藏延迟 (毫秒)
-const AUTO_HIDE_DELAY = 2500;
-
 const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
     status,
     lastSyncTime,
+    errorMessage,
+    errorKind,
     onManualSync,
     onManualPull,
     className = ''
@@ -45,13 +47,13 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         setTimeout(() => {
             setVisible(false);
             setIsExiting(false);
-        }, 300); // 动画持续时间
+        }, SYNC_STATUS_EXIT_ANIMATION_MS); // 动画持续时间
     };
 
     // 安排自动隐藏
     const scheduleHide = () => {
         clearHideTimer();
-        hideTimer.current = setTimeout(startHide, AUTO_HIDE_DELAY);
+        hideTimer.current = setTimeout(startHide, SYNC_STATUS_AUTO_HIDE_DELAY_MS);
     };
 
     // 监听状态变化
@@ -111,14 +113,20 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                     animate: false
                 };
             case 'error':
+                {
+                    const label =
+                        errorKind === 'storage' ? '存储不可用'
+                            : errorKind === 'network' ? '网络错误'
+                                : '同步失败';
                 return {
                     icon: AlertCircle,
                     color: 'text-red-500',
                     bgColor: 'bg-red-500/10 dark:bg-red-500/20',
                     borderColor: 'border-red-500/30',
-                    label: '同步失败',
+                    label,
                     animate: false
                 };
+            }
             case 'conflict':
                 return {
                     icon: CloudOff,
@@ -168,7 +176,11 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         ${className}
       `}
             disabled={status === 'syncing'}
-            title={status === 'error' ? '点击重试' : '点击刷新'}
+            title={
+                status === 'error'
+                    ? (errorMessage ? `同步失败：${errorMessage}（点击重试）` : '点击重试')
+                    : '点击刷新'
+            }
         >
             <Icon
                 className={`w-4 h-4 ${config.color} ${config.animate ? 'animate-spin' : ''}`}
@@ -179,4 +191,3 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 };
 
 export default SyncStatusIndicator;
-

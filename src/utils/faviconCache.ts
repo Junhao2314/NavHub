@@ -1,5 +1,6 @@
 import { CustomFaviconCache, FaviconCacheEntry } from '../types';
 import { FAVICON_CACHE_KEY, FAVICON_CUSTOM_KEY, FAVICON_CUSTOM_META_KEY } from './constants';
+import { safeLocalStorageSetItem } from './storage';
 
 /**
  * Favicon Cache Management Module
@@ -82,21 +83,21 @@ const getCustomIconMeta = (): Record<string, number> => {
 };
 
 const saveCustomIconMeta = (meta: Record<string, number>): void => {
-  localStorage.setItem(FAVICON_CUSTOM_META_KEY, JSON.stringify(meta));
+  safeLocalStorageSetItem(FAVICON_CUSTOM_META_KEY, JSON.stringify(meta));
 };
 
 /**
  * Save the list of custom hostnames to localStorage
  */
 const saveCustomHostnames = (hostnames: string[]): void => {
-  localStorage.setItem(FAVICON_CUSTOM_KEY, JSON.stringify(hostnames));
+  safeLocalStorageSetItem(FAVICON_CUSTOM_KEY, JSON.stringify(hostnames));
 };
 
 /**
  * Save the favicon cache to localStorage
  */
 const saveLocalCache = (cache: Record<string, string>): void => {
-  localStorage.setItem(FAVICON_CACHE_KEY, JSON.stringify(cache));
+  safeLocalStorageSetItem(FAVICON_CACHE_KEY, JSON.stringify(cache));
 };
 
 const normalizeUpdatedAt = (value: unknown): number => {

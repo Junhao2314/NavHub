@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SearchMode, ExternalSearchSource, SearchConfig } from '../types';
 import { SEARCH_CONFIG_KEY } from '../utils/constants';
+import { safeLocalStorageGetItem, safeLocalStorageRemoveItem, safeLocalStorageSetItem } from '../utils/storage';
+import { normalizeHttpUrl } from '../utils/url';
 
 // Default search sources
 const buildDefaultSearchSources = (): ExternalSearchSource[] => {
@@ -64,7 +66,7 @@ export function useSearch() {
         setExternalSearchSources(sources);
         setSearchMode(mode);
         setSelectedSearchSource(resolvedSelected);
-        localStorage.setItem(SEARCH_CONFIG_KEY, JSON.stringify(searchConfig));
+        safeLocalStorageSetItem(SEARCH_CONFIG_KEY, JSON.stringify(searchConfig));
     }, [selectedSearchSource]);
 
     // Handle search mode change
@@ -84,7 +86,10 @@ export function useSearch() {
         saveSearchConfig(externalSearchSources, searchMode, source);
         if (searchQuery.trim()) {
             const searchUrl = source.url.replace('{query}', encodeURIComponent(searchQuery));
-            window.open(searchUrl, '_blank');
+            const safeUrl = normalizeHttpUrl(searchUrl);
+            if (safeUrl) {
+                window.open(safeUrl, '_blank', 'noopener,noreferrer');
+            }
         }
         setShowSearchSourcePopup(false);
         setHoveredSearchSource(null);
@@ -97,7 +102,10 @@ export function useSearch() {
                 const defaultSources = buildDefaultSearchSources();
                 saveSearchConfig(defaultSources, 'external', defaultSources[0]);
                 const searchUrl = defaultSources[0].url.replace('{query}', encodeURIComponent(searchQuery));
-                window.open(searchUrl, '_blank');
+                const safeUrl = normalizeHttpUrl(searchUrl);
+                if (safeUrl) {
+                    window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                }
                 return;
             }
 
@@ -111,7 +119,10 @@ export function useSearch() {
 
             if (source) {
                 const searchUrl = source.url.replace('{query}', encodeURIComponent(searchQuery));
-                window.open(searchUrl, '_blank');
+                const safeUrl = normalizeHttpUrl(searchUrl);
+                if (safeUrl) {
+                    window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                }
             }
         }
     }, [searchQuery, searchMode, externalSearchSources, selectedSearchSource, saveSearchConfig]);
@@ -133,7 +144,7 @@ export function useSearch() {
 
     // Initialize from localStorage
     useEffect(() => {
-        const savedSearchConfig = localStorage.getItem(SEARCH_CONFIG_KEY);
+        const savedSearchConfig = safeLocalStorageGetItem(SEARCH_CONFIG_KEY);
         if (savedSearchConfig) {
             try {
                 const parsed = JSON.parse(savedSearchConfig) as SearchConfig;
@@ -148,7 +159,15 @@ export function useSearch() {
                     setExternalSearchSources(sources);
                     setSelectedSearchSource(resolvedSelected);
                 }
-            } catch (e) { }
+            } catch (error) {
+                console.warn('[useSearch] Failed to parse search config from localStorage; resetting.', error);
+                safeLocalStorageRemoveItem(SEARCH_CONFIG_KEY);
+
+                const defaultSources = buildDefaultSearchSources();
+                setSearchMode('external');
+                setExternalSearchSources(defaultSources);
+                setSelectedSearchSource(defaultSources[0] || null);
+            }
         } else {
             const defaultSources = buildDefaultSearchSources();
             setSearchMode('external');

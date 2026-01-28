@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { X, Upload, FileText, ArrowRight, Check, AlertCircle, FolderInput, ListTree, Database } from 'lucide-react';
 import { Category, LinkItem, SearchConfig, AIConfig } from '../../types';
 import { parseBookmarks } from '../../services/bookmarkParser';
+import { normalizeHttpUrl } from '../../utils/url';
 import { useDialog } from '../ui/DialogProvider';
 
 interface ImportModalProps {
@@ -167,8 +168,32 @@ const ImportModal: React.FC<ImportModalProps> = ({
             throw new Error('Invalid backup file format');
         }
 
+        const sanitizedLinks: ParsedImportLink[] = [];
+        let dropped = 0;
+        for (const rawLink of data.links as unknown[]) {
+            if (!rawLink || typeof rawLink !== 'object') {
+                dropped += 1;
+                continue;
+            }
+            const urlValue = (rawLink as { url?: unknown }).url;
+            if (typeof urlValue !== 'string') {
+                dropped += 1;
+                continue;
+            }
+            const safeUrl = normalizeHttpUrl(urlValue);
+            if (!safeUrl) {
+                dropped += 1;
+                continue;
+            }
+            sanitizedLinks.push({ ...(rawLink as ParsedImportLink), url: safeUrl });
+        }
+
+        if (dropped > 0) {
+            notify(`已过滤 ${dropped} 条非 http/https 或无效 URL 的链接。`, 'warning');
+        }
+
         return {
-            links: data.links,
+            links: sanitizedLinks,
             categories: data.categories,
             searchConfig: data.searchConfig,
             aiConfig: data.aiConfig

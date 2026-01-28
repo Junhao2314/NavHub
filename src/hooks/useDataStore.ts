@@ -5,6 +5,123 @@ import { LOCAL_STORAGE_KEY, FAVICON_CACHE_KEY, COMMON_CATEGORY_ID } from '../uti
 import { generateId } from '../utils/id';
 import { getCommonRecommendedLinks } from '../utils/recommendation';
 import { useDialog } from '../components/ui/DialogProvider';
+import { isLucideIconName, LEGACY_ICON_ALIASES } from '../components/ui/lucideIconMap';
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../utils/storage';
+import { normalizeHttpUrl } from '../utils/url';
+
+const CATEGORY_ICON_FALLBACK = 'Folder';
+
+const isTextIconName = (rawName: string): boolean => {
+    const trimmed = rawName.trim();
+    if (!trimmed) return false;
+    return !/^[a-z0-9-]+$/i.test(trimmed);
+};
+
+const hasLucideIcon = (name: string): boolean => isLucideIconName(name);
+
+const normalizeLegacyAliasKey = (value: string): string => value.trim().toLowerCase();
+
+const resolveLegacyIconAlias = (value: string): string | null => {
+    const alias = LEGACY_ICON_ALIASES[normalizeLegacyAliasKey(value)];
+    return alias ?? null;
+};
+
+const kebabToPascal = (kebabName: string): string => (
+    kebabName
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join('')
+);
+
+const normalizeCategoryIcon = (rawIcon: unknown): string => {
+    if (typeof rawIcon !== 'string') return CATEGORY_ICON_FALLBACK;
+
+    const trimmed = rawIcon.trim();
+    if (!trimmed) return CATEGORY_ICON_FALLBACK;
+
+    if (isTextIconName(trimmed)) return trimmed;
+
+    const legacyAlias = resolveLegacyIconAlias(trimmed);
+    if (legacyAlias) return legacyAlias;
+
+    if (trimmed.includes('-')) {
+        return kebabToPascal(trimmed);
+    }
+
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
+type InvalidCategoryIcon = { name: string; icon: string };
+
+const formatInvalidIconNotice = (invalidIcons: InvalidCategoryIcon[]): string => {
+    const preview = invalidIcons
+        .slice(0, 3)
+        .map(({ name, icon }) => `${name}(${icon})`)
+        .join('、');
+    const suffix = invalidIcons.length > 3 ? ' 等' : '';
+    return `检测到 ${invalidIcons.length} 个分类图标不在 Lucide 子集内，已自动替换为 ${CATEGORY_ICON_FALLBACK}：${preview}${suffix}`;
+};
+
+const sanitizeCategories = (input: Category[]): { categories: Category[]; didChange: boolean; invalidIcons: InvalidCategoryIcon[] } => {
+    let didChange = false;
+    const invalidIcons: InvalidCategoryIcon[] = [];
+
+    const sanitized = input.map((category) => {
+        const normalizedIcon = normalizeCategoryIcon(category.icon);
+        let nextIcon = normalizedIcon;
+
+        if (!isTextIconName(normalizedIcon) && !hasLucideIcon(normalizedIcon)) {
+            invalidIcons.push({ name: category.name, icon: normalizedIcon });
+            nextIcon = CATEGORY_ICON_FALLBACK;
+        }
+
+        if (nextIcon === category.icon) return category;
+        didChange = true;
+        return { ...category, icon: nextIcon };
+    });
+
+    return didChange
+        ? { categories: sanitized, didChange, invalidIcons }
+        : { categories: input, didChange, invalidIcons };
+};
+
+const sanitizeLinks = (input: unknown): { links: LinkItem[]; didChange: boolean; dropped: number; normalized: number } => {
+    if (!Array.isArray(input)) {
+        return { links: INITIAL_LINKS, didChange: true, dropped: 0, normalized: 0 };
+    }
+
+    let didChange = false;
+    let dropped = 0;
+    let normalized = 0;
+    const sanitized: LinkItem[] = [];
+
+    for (const raw of input) {
+        if (!raw || typeof raw !== 'object') {
+            didChange = true;
+            dropped += 1;
+            continue;
+        }
+
+        const candidate = raw as LinkItem;
+        const safeUrl = normalizeHttpUrl(candidate.url);
+        if (!safeUrl) {
+            didChange = true;
+            dropped += 1;
+            continue;
+        }
+
+        if (safeUrl !== candidate.url) {
+            didChange = true;
+            normalized += 1;
+            sanitized.push({ ...candidate, url: safeUrl });
+            continue;
+        }
+
+        sanitized.push(candidate);
+    }
+
+    return didChange ? { links: sanitized, didChange, dropped, normalized } : { links: input as LinkItem[], didChange, dropped, normalized };
+};
 
 export const useDataStore = () => {
     const [links, setLinks] = useState<LinkItem[]>([]);
@@ -27,11 +144,9 @@ export const useDataStore = () => {
         const updatedLinks = linksToLoad.map(link => {
             if (!link.url) return link;
             try {
-                let domain = link.url;
-                if (!link.url.startsWith('http://') && !link.url.startsWith('https://')) {
-                    domain = 'https://' + link.url;
-                }
-                const urlObj = new URL(domain);
+                const safeUrl = normalizeHttpUrl(link.url);
+                if (!safeUrl) return link;
+                const urlObj = new URL(safeUrl);
                 const cachedIcon = cache[urlObj.hostname];
                 if (!cachedIcon) return link;
                 if (!link.icon || link.icon.includes('faviconextractor.com') || !cachedIcon.includes('faviconextractor.com')) {
@@ -47,7 +162,7 @@ export const useDataStore = () => {
     }, []);
 
     useEffect(() => {
-        const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const stored = safeLocalStorageGetItem(LOCAL_STORAGE_KEY);
         if (stored) {
             try {
                 const parsed = JSON.parse(stored);
@@ -66,14 +181,25 @@ export const useDataStore = () => {
                     ];
                 }
 
+                const {
+                    categories: sanitizedCategories,
+                    didChange: categoriesChanged,
+                    invalidIcons
+                } = sanitizeCategories(loadedCategories);
+                loadedCategories = sanitizedCategories;
+
                 // 检查是否有链接的categoryId不存在于当前分类中，将这些链接移动到默认分类
                 const validCategoryIds = new Set(loadedCategories.map((c: Category) => c.id));
                 const fallbackCategoryId = loadedCategories.find((c: Category) => c.id === 'common')?.id
                     || loadedCategories[0]?.id;
                 let loadedLinks = parsed.links || INITIAL_LINKS;
+                const { links: sanitizedLinks, didChange: urlsChanged, dropped: droppedUrls } = sanitizeLinks(loadedLinks);
+                loadedLinks = sanitizedLinks;
+                let linksChanged = false;
                 if (fallbackCategoryId) {
                     loadedLinks = loadedLinks.map((link: LinkItem) => {
                         if (!validCategoryIds.has(link.categoryId)) {
+                            linksChanged = true;
                             return { ...link, categoryId: fallbackCategoryId };
                         }
                         return link;
@@ -83,30 +209,47 @@ export const useDataStore = () => {
                 setLinks(loadedLinks);
                 setCategories(loadedCategories);
                 loadLinkIcons(loadedLinks);
+
+                if (invalidIcons.length > 0) {
+                    notify(formatInvalidIconNotice(invalidIcons), 'warning');
+                }
+
+                if (droppedUrls > 0) {
+                    notify(`已移除 ${droppedUrls} 条无效链接（仅支持 http/https）。`, 'warning');
+                }
+
+                if (categoriesChanged || linksChanged || urlsChanged) {
+                    safeLocalStorageSetItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: loadedLinks, categories: loadedCategories }));
+                }
             } catch (e) {
                 setLinks(INITIAL_LINKS);
                 setCategories(DEFAULT_CATEGORIES);
+                loadLinkIcons(INITIAL_LINKS);
             }
         } else {
             setLinks(INITIAL_LINKS);
             setCategories(DEFAULT_CATEGORIES);
+            loadLinkIcons(INITIAL_LINKS);
         }
         setIsLoaded(true);
-    }, [loadLinkIcons]);
+    }, [loadLinkIcons, notify]);
 
     const updateData = useCallback((newLinks: LinkItem[], newCategories: Category[]) => {
+        const { categories: sanitizedCategories } = sanitizeCategories(newCategories);
+        const { links: sanitizedLinks } = sanitizeLinks(newLinks);
         // 1. Optimistic UI Update
-        setLinks(newLinks);
-        setCategories(newCategories);
+        setLinks(sanitizedLinks);
+        setCategories(sanitizedCategories);
 
         // 2. Save to Local Cache
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: newLinks, categories: newCategories }));
+        safeLocalStorageSetItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: sanitizedLinks, categories: sanitizedCategories }));
     }, []);
 
     const addLink = useCallback((data: Omit<LinkItem, 'id' | 'createdAt'>) => {
-        let processedUrl = data.url;
-        if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
-            processedUrl = 'https://' + processedUrl;
+        const processedUrl = normalizeHttpUrl(data.url);
+        if (!processedUrl) {
+            notify('链接 URL 无效（仅支持 http/https）。', 'warning');
+            return;
         }
 
         const isRecommended = Boolean(data.recommended);
@@ -155,12 +298,13 @@ export const useDataStore = () => {
             });
             updateData(updatedLinks, categories);
         }
-    }, [links, categories, updateData]);
+    }, [links, categories, updateData, notify]);
 
     const updateLink = useCallback((data: Omit<LinkItem, 'createdAt'>) => {
-        let processedUrl = data.url;
-        if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
-            processedUrl = 'https://' + processedUrl;
+        const processedUrl = normalizeHttpUrl(data.url);
+        if (!processedUrl) {
+            notify('链接 URL 无效（仅支持 http/https）。', 'warning');
+            return;
         }
         const existing = links.find(l => l.id === data.id);
         if (!existing) return;
@@ -191,7 +335,7 @@ export const useDataStore = () => {
             recommendedOrder: nextRecommendedOrder
         } : l);
         updateData(updated, categories);
-    }, [links, categories, updateData]);
+    }, [links, categories, updateData, notify]);
 
     const deleteLink = useCallback((id: string) => {
         updateData(links.filter(l => l.id !== id), categories);

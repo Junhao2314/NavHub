@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AIConfig, SiteSettings } from '../types';
-import { AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
+import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
+import {
+    safeLocalStorageGetItem,
+    safeLocalStorageRemoveItem,
+    safeLocalStorageSetItem,
+    safeSessionStorageGetItem,
+    safeSessionStorageRemoveItem,
+    safeSessionStorageSetItem
+} from '../utils/storage';
 
 const DEFAULT_AI_CONFIG: AIConfig = {
     provider: 'gemini',
@@ -22,25 +30,75 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
     backgroundMotion: true
 };
 
+const persistAIConfigToStorage = (config: AIConfig): void => {
+    let sessionWritten = false;
+
+    if (config.apiKey) {
+        sessionWritten = safeSessionStorageSetItem(AI_API_KEY_SESSION_KEY, config.apiKey);
+        if (!sessionWritten) {
+            safeSessionStorageRemoveItem(AI_API_KEY_SESSION_KEY);
+        }
+    } else {
+        safeSessionStorageRemoveItem(AI_API_KEY_SESSION_KEY);
+        sessionWritten = true;
+    }
+
+    safeLocalStorageSetItem(
+        AI_CONFIG_KEY,
+        JSON.stringify({ ...config, apiKey: sessionWritten ? '' : config.apiKey })
+    );
+};
+
 export function useConfig() {
     // AI Config
     const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
-        const saved = localStorage.getItem(AI_CONFIG_KEY);
+        const sessionApiKey = safeSessionStorageGetItem(AI_API_KEY_SESSION_KEY) || '';
+        const saved = safeLocalStorageGetItem(AI_CONFIG_KEY);
         if (saved) {
             try {
-                return JSON.parse(saved);
-            } catch (e) { }
+                const parsed = JSON.parse(saved) as Partial<AIConfig>;
+                const legacyApiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : '';
+
+                if (legacyApiKey) {
+                    if (sessionApiKey) {
+                        safeLocalStorageSetItem(
+                            AI_CONFIG_KEY,
+                            JSON.stringify({ ...parsed, apiKey: '' })
+                        );
+                    } else {
+                        const written = safeSessionStorageSetItem(AI_API_KEY_SESSION_KEY, legacyApiKey);
+                        if (written) {
+                            safeLocalStorageSetItem(
+                                AI_CONFIG_KEY,
+                                JSON.stringify({ ...parsed, apiKey: '' })
+                            );
+                        }
+                    }
+                }
+
+                return {
+                    ...DEFAULT_AI_CONFIG,
+                    ...parsed,
+                    apiKey: sessionApiKey || legacyApiKey || ''
+                } satisfies AIConfig;
+            } catch (error) {
+                console.warn('[useConfig] Failed to parse AI config from localStorage; resetting.', error);
+                safeLocalStorageRemoveItem(AI_CONFIG_KEY);
+            }
         }
-        return DEFAULT_AI_CONFIG;
+        return { ...DEFAULT_AI_CONFIG, apiKey: sessionApiKey };
     });
 
     // Site Settings
     const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
-        const saved = localStorage.getItem(SITE_SETTINGS_KEY);
+        const saved = safeLocalStorageGetItem(SITE_SETTINGS_KEY);
         if (saved) {
             try {
                 return JSON.parse(saved);
-            } catch (e) { }
+            } catch (error) {
+                console.warn('[useConfig] Failed to parse site settings from localStorage; resetting.', error);
+                safeLocalStorageRemoveItem(SITE_SETTINGS_KEY);
+            }
         }
         return DEFAULT_SITE_SETTINGS;
     });
@@ -48,31 +106,31 @@ export function useConfig() {
     // Save AI config
     const saveAIConfig = useCallback((config: AIConfig, newSiteSettings?: SiteSettings) => {
         setAiConfig(config);
-        localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(config));
+        persistAIConfigToStorage(config);
 
         if (newSiteSettings) {
             setSiteSettings(newSiteSettings);
-            localStorage.setItem(SITE_SETTINGS_KEY, JSON.stringify(newSiteSettings));
+            safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(newSiteSettings));
         }
     }, []);
 
     // Restore AI config (from backup)
     const restoreAIConfig = useCallback((config: AIConfig) => {
         setAiConfig(config);
-        localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(config));
+        persistAIConfigToStorage(config);
     }, []);
 
     // Restore site settings (from sync)
     const restoreSiteSettings = useCallback((settings: SiteSettings) => {
         setSiteSettings(settings);
-        localStorage.setItem(SITE_SETTINGS_KEY, JSON.stringify(settings));
+        safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(settings));
     }, []);
 
     // Update site settings (e.g., card style)
     const updateSiteSettings = useCallback((updates: Partial<SiteSettings>) => {
         setSiteSettings(prev => {
             const newSettings = { ...prev, ...updates };
-            localStorage.setItem(SITE_SETTINGS_KEY, JSON.stringify(newSettings));
+            safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(newSettings));
             return newSettings;
         });
     }, []);

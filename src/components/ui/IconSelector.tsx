@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import * as LucideIcons from 'lucide-react';
-import { X, Search, ExternalLink } from 'lucide-react';
+import { Search, ExternalLink } from 'lucide-react';
 import Icon from './Icon';
+import { isLucideIconName, type LucideIconName } from './lucideIconMap';
 
 interface IconSelectorProps {
   onSelectIcon: (iconName: string) => void;
@@ -24,9 +24,18 @@ const commonIcons = [
   'Circle', 'Square', 'Triangle', 'Hexagon', 'Zap', 'Target',
   'Rocket', 'Plane', 'Car', 'Bike', 'Ship', 'Train',
   'Moon', 'Sun', 'CloudRain', 'CloudSnow', 'Wind', 'Thermometer',
-  'Github', 'Gitlab', 'Chrome', 'Firefox', 'Safari', 'Edge',
-  'MessageSquare', 'MessageCircle', 'Send', 'AtSign', 'Percent'
+  'Github', 'Gitlab', 'Chrome',
+  'MessageSquare', 'MessageCircle', 'Send', 'AtSign', 'Percent',
+  'Bot', 'Pin', 'Palette', 'Gamepad2'
 ];
+
+const isTextIcon = (rawName: string): boolean => {
+  const trimmed = rawName.trim();
+  if (!trimmed) return false;
+  return !/^[a-z0-9-]+$/i.test(trimmed);
+};
+
+const hasLucideIcon = (name: string): name is LucideIconName => isLucideIconName(name);
 
 const IconSelector: React.FC<IconSelectorProps> = ({ 
   onSelectIcon
@@ -35,11 +44,6 @@ const IconSelector: React.FC<IconSelectorProps> = ({
   const [selectedIcon, setSelectedIcon] = useState('Folder');
   const [customIconName, setCustomIconName] = useState('');
   const [isValidIcon, setIsValidIcon] = useState(true);
-
-  // 获取当前目标图标
-  const getCurrentIcon = () => {
-    return selectedIcon;
-  };
 
   // 过滤图标
   const filteredIcons = commonIcons.filter(icon => 
@@ -56,28 +60,22 @@ const IconSelector: React.FC<IconSelectorProps> = ({
 
   // 验证图标名称是否有效
   const validateIconName = (iconName: string): boolean => {
-    if (!iconName.trim()) return false;
-    
-    // 检查是否是常用图标列表中的图标
-    if (commonIcons.includes(iconName)) return true;
-    
-    // 检查是否是 Lucide 图标库中的图标
-    try {
-      // 首先尝试直接匹配
-      if (iconName in LucideIcons) return true;
-      
-      // 如果包含连字符，尝试转换为 PascalCase
-      if (iconName.includes('-')) {
-        const pascalName = kebabToPascal(iconName);
-        return pascalName in LucideIcons;
-      }
-      
-      // 尝试首字母大写
-      const capitalizedName = iconName.charAt(0).toUpperCase() + iconName.slice(1);
-      return capitalizedName in LucideIcons;
-    } catch {
-      return false;
+    const trimmed = iconName.trim();
+    if (!trimmed) return false;
+
+    // Allow emoji/text icons (Category.icon supports emoji too).
+    if (isTextIcon(trimmed)) return true;
+
+    if (hasLucideIcon(trimmed)) return true;
+
+    // If input is kebab-case, try converting to PascalCase (lucide-react export names).
+    if (trimmed.includes('-')) {
+      return hasLucideIcon(kebabToPascal(trimmed));
     }
+
+    // Try capitalizing first letter (e.g. "star" -> "Star")
+    const capitalizedName = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    return hasLucideIcon(capitalizedName);
   };
 
   const handleSelect = (iconName: string) => {
@@ -89,17 +87,20 @@ const IconSelector: React.FC<IconSelectorProps> = ({
   const handleCustomIconChange = (iconName: string) => {
     setCustomIconName(iconName);
     
-    if (iconName.trim()) {
-      const isValid = validateIconName(iconName);
+    const trimmed = iconName.trim();
+    if (trimmed) {
+      const isValid = validateIconName(trimmed);
       setIsValidIcon(isValid);
       if (isValid) {
         // 转换为正确的图标名称格式
-        let finalIconName = iconName;
-        if (iconName.includes('-')) {
-          finalIconName = kebabToPascal(iconName);
-        } else if (!commonIcons.includes(iconName)) {
-          // 如果不是常用图标，尝试首字母大写
-          finalIconName = iconName.charAt(0).toUpperCase() + iconName.slice(1);
+        let finalIconName = trimmed;
+        if (!isTextIcon(trimmed)) {
+          if (trimmed.includes('-')) {
+            finalIconName = kebabToPascal(trimmed);
+          } else if (!commonIcons.includes(trimmed)) {
+            // 如果不是常用图标，尝试首字母大写
+            finalIconName = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+          }
         }
         setSelectedIcon(finalIconName);
       }
@@ -109,7 +110,7 @@ const IconSelector: React.FC<IconSelectorProps> = ({
   };
 
   const handleConfirm = () => {
-    onSelectIcon(selectedIcon);
+    onSelectIcon(selectedIcon.trim());
   };
 
   return (
@@ -141,7 +142,7 @@ const IconSelector: React.FC<IconSelectorProps> = ({
               className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
               <ExternalLink size={12} />
-              查看所有图标
+              查看 Lucide 图标（仅部分可用）
             </a>
           </div>
           <div className="relative">
@@ -180,7 +181,7 @@ const IconSelector: React.FC<IconSelectorProps> = ({
       <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
         <div className="flex items-center justify-between">
           <div className="text-xs text-slate-500 dark:text-slate-400">
-            提示：可以输入 Lucide 图标名称或选择图标库
+            提示：支持 emoji/text；Lucide 图标仅支持项目内置的子集
           </div>
           <button
             onClick={handleConfirm}

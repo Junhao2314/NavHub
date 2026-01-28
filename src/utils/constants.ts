@@ -1,6 +1,9 @@
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from './storage';
+
 // Local Storage Keys
 export const LOCAL_STORAGE_KEY = 'ynav_data_cache_v2';
 export const AI_CONFIG_KEY = 'ynav_ai_config';
+export const AI_API_KEY_SESSION_KEY = 'ynav_ai_api_key_session';
 export const SEARCH_CONFIG_KEY = 'ynav_search_config';
 export const FAVICON_CACHE_KEY = 'ynav_favicon_cache';
 export const FAVICON_CUSTOM_KEY = 'ynav_favicon_custom';  // List of hostnames with user-customized icons
@@ -71,40 +74,51 @@ export interface DeviceInfo {
     createdAt: number;
 }
 
+let cachedDeviceId: string | null = null;
+
 // 生成或获取设备唯一ID
 export const getDeviceId = (): string => {
-    let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-    if (!deviceId) {
-        deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    if (cachedDeviceId) return cachedDeviceId;
 
-        // 保存设备信息
-        const deviceInfo: DeviceInfo = {
-            id: deviceId,
-            browser: getBrowserInfo(),
-            os: getOSInfo(),
-            createdAt: Date.now()
-        };
-        localStorage.setItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
-    } else {
+    const storedDeviceId = safeLocalStorageGetItem(DEVICE_ID_KEY);
+    if (storedDeviceId) {
+        cachedDeviceId = storedDeviceId;
+
         // 如果是旧版本的设备ID,补充设备信息
-        const existingInfo = localStorage.getItem(DEVICE_INFO_KEY);
+        const existingInfo = safeLocalStorageGetItem(DEVICE_INFO_KEY);
         if (!existingInfo) {
             const deviceInfo: DeviceInfo = {
-                id: deviceId,
+                id: storedDeviceId,
                 browser: getBrowserInfo(),
                 os: getOSInfo(),
                 createdAt: Date.now()
             };
-            localStorage.setItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
+            safeLocalStorageSetItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
         }
+
+        return storedDeviceId;
     }
+
+    const deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    cachedDeviceId = deviceId;
+
+    safeLocalStorageSetItem(DEVICE_ID_KEY, deviceId);
+
+    // 保存设备信息
+    const deviceInfo: DeviceInfo = {
+        id: deviceId,
+        browser: getBrowserInfo(),
+        os: getOSInfo(),
+        createdAt: Date.now()
+    };
+    safeLocalStorageSetItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
+
     return deviceId;
 };
 
 // 获取设备信息
 export const getDeviceInfo = (): DeviceInfo | null => {
-    const infoStr = localStorage.getItem(DEVICE_INFO_KEY);
+    const infoStr = safeLocalStorageGetItem(DEVICE_INFO_KEY);
     if (!infoStr) return null;
     try {
         return JSON.parse(infoStr);
