@@ -221,6 +221,7 @@ function App({ onReady }: AppProps) {
           onUpdateCategories={handleUpdateCategories}
           onDeleteCategory={handleDeleteCategory}
           closeOnBackdrop={closeOnBackdrop}
+          isAdmin={isAdmin}
         />
 
         <ImportModal

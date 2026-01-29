@@ -244,7 +244,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Category List */}
         <div className="space-y-0.5">
-          {categories.map((cat) => {
+          {categories
+            .filter((cat) => isAdmin || !cat.hidden)
+            .map((cat) => {
             const isSelected = selectedCategory === cat.id;
             const count = linkCounts[cat.id] || 0;
             return (
@@ -278,6 +280,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                       className={`truncate flex-1 text-left text-sm ${isSelected ? 'font-medium' : ''}`}
                     >
                       {cat.name}
+                      {isAdmin && cat.hidden && (
+                        <span className="ml-1.5 text-[10px] text-amber-500">(隐藏)</span>
+                      )}
                     </span>
                     {count > 0 && (
                       <span

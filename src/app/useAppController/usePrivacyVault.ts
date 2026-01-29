@@ -413,13 +413,17 @@ export const usePrivacyVault = ({
   );
 
   const handlePrivateEditLink = useCallback(
-    async (data: Omit<LinkItem, 'createdAt'>) => {
+    async (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
       if (!isPrivateUnlocked) {
         notify('请先解锁隐私分组', 'warning');
         return;
       }
+      if (!editingPrivateLink) {
+        notify('未找到要编辑的链接', 'warning');
+        return;
+      }
       const updatedLinks = privateLinks.map((link) =>
-        link.id === data.id
+        link.id === editingPrivateLink.id
           ? {
               ...link,
               ...data,
@@ -430,8 +434,9 @@ export const usePrivacyVault = ({
           : link,
       );
       await persistPrivateVault(updatedLinks);
+      setEditingPrivateLink(null);
     },
-    [isPrivateUnlocked, notify, persistPrivateVault, privateLinks],
+    [editingPrivateLink, isPrivateUnlocked, notify, persistPrivateVault, privateLinks],
   );
 
   const handlePrivateDeleteLink = useCallback(

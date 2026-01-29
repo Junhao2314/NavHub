@@ -238,6 +238,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const { pinnedLinks, commonRecommendedLinks, displayedLinks, activeDisplayedLinks } =
     useDisplayedLinks({
       links,
+      categories,
       privateLinks,
       selectedCategory,
       searchQuery,
@@ -398,6 +399,16 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       setSelectedCategory('all');
     }
   }, [isAdmin, selectedCategory, setSelectedCategory]);
+
+  // 当从管理员模式切换到用户模式时，如果当前选中的是隐藏分类，则自动切换到 'all'
+  useEffect(() => {
+    if (!isAdmin) {
+      const selectedCat = categories.find((c) => c.id === selectedCategory);
+      if (selectedCat?.hidden) {
+        setSelectedCategory('all');
+      }
+    }
+  }, [isAdmin, selectedCategory, categories, setSelectedCategory]);
 
   // === Bookmarklet URL Handler ===
   useBookmarkletAddLink({

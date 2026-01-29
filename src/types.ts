@@ -21,6 +21,7 @@ export interface Category {
   id: string;
   name: string;
   icon: string; // Lucide icon name or emoji
+  hidden?: boolean; // 是否隐藏（仅管理员可见）
 }
 
 export interface SiteSettings {

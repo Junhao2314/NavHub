@@ -23,6 +23,8 @@ import {
   Check,
   CheckSquare,
   Edit2,
+  Eye,
+  EyeOff,
   GripVertical,
   Palette,
   Plus,
@@ -43,6 +45,7 @@ interface CategoryManagerModalProps {
   onUpdateCategories: (newCategories: Category[]) => void;
   onDeleteCategory: (id: string) => void;
   closeOnBackdrop?: boolean;
+  isAdmin?: boolean;
 }
 
 type SortableItemRenderProps = {
@@ -86,6 +89,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   onUpdateCategories,
   onDeleteCategory,
   closeOnBackdrop = true,
+  isAdmin = false,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -262,6 +266,13 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
     onUpdateCategories([...categories, newCat]);
     setNewCatName('');
     setNewCatIcon('Folder');
+  };
+
+  const toggleCategoryHidden = (catId: string) => {
+    const newCats = categories.map((c) =>
+      c.id === catId ? { ...c, hidden: !c.hidden } : c,
+    );
+    onUpdateCategories(newCats);
   };
 
   const openIconSelector = (target: 'edit' | 'new') => {
@@ -457,6 +468,9 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                 {cat.id === 'common' && (
                                   <span className="ml-2 text-xs text-slate-400">(默认分类)</span>
                                 )}
+                                {cat.hidden && (
+                                  <span className="ml-2 text-xs text-amber-500">(已隐藏)</span>
+                                )}
                               </span>
                             </div>
                           )}
@@ -474,6 +488,19 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                               </button>
                             ) : (
                               <>
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => toggleCategoryHidden(cat.id)}
+                                    className={`p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 ${
+                                      cat.hidden
+                                        ? 'text-amber-500 hover:text-amber-600'
+                                        : 'text-slate-400 hover:text-slate-500'
+                                    }`}
+                                    title={cat.hidden ? '取消隐藏（用户模式可见）' : '隐藏分类（仅管理员可见）'}
+                                  >
+                                    {cat.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleStartEdit(cat)}
                                   className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { LinkItem } from '../../types';
+import type { Category, LinkItem } from '../../types';
 import { COMMON_CATEGORY_ID } from '../../utils/constants';
 import { computeDisplayedLinks, sortPinnedLinks } from './useDisplayedLinks';
+
+const defaultCategories: Category[] = [
+  { id: 'dev', name: '开发工具', icon: 'Code' },
+  { id: 'read', name: '阅读资讯', icon: 'BookOpen' },
+];
 
 describe('useDisplayedLinks helpers', () => {
   it('sorts pinned links by pinnedOrder then createdAt', () => {
@@ -56,6 +61,7 @@ describe('useDisplayedLinks helpers', () => {
           pinned: false,
         },
       ],
+      categories: defaultCategories,
       commonRecommendedLinks,
       privateLinks: [],
       selectedCategory: COMMON_CATEGORY_ID,
@@ -67,7 +73,7 @@ describe('useDisplayedLinks helpers', () => {
       isPrivateUnlocked: false,
     });
 
-    expect(result).toBe(commonRecommendedLinks);
+    expect(result).toEqual(commonRecommendedLinks);
   });
 
   it('internal search can include private links when allowed', () => {
@@ -82,6 +88,7 @@ describe('useDisplayedLinks helpers', () => {
           pinned: false,
         },
       ],
+      categories: defaultCategories,
       commonRecommendedLinks: [],
       privateLinks: [
         {
@@ -125,6 +132,7 @@ describe('useDisplayedLinks helpers', () => {
           pinned: false,
         },
       ],
+      categories: defaultCategories,
       commonRecommendedLinks: [],
       privateLinks: [],
       selectedCategory: 'dev',
@@ -137,5 +145,85 @@ describe('useDisplayedLinks helpers', () => {
     });
 
     expect(result.map((l) => l.id)).toEqual(['a']);
+  });
+
+  it('filters out hidden category links in user mode', () => {
+    const categoriesWithHidden: Category[] = [
+      { id: 'dev', name: '开发工具', icon: 'Code' },
+      { id: 'secret', name: '秘密分类', icon: 'Lock', hidden: true },
+    ];
+
+    const result = computeDisplayedLinks({
+      links: [
+        {
+          id: 'a',
+          title: 'A',
+          url: 'https://a.com',
+          categoryId: 'dev',
+          createdAt: 1,
+          pinned: false,
+        },
+        {
+          id: 'b',
+          title: 'B',
+          url: 'https://b.com',
+          categoryId: 'secret',
+          createdAt: 2,
+          pinned: false,
+        },
+      ],
+      categories: categoriesWithHidden,
+      commonRecommendedLinks: [],
+      privateLinks: [],
+      selectedCategory: 'all',
+      searchQuery: '',
+      searchMode: 'internal',
+      isAdmin: false,
+      privacyGroupEnabled: false,
+      privacyPasswordEnabled: true,
+      isPrivateUnlocked: false,
+    });
+
+    expect(result.map((l) => l.id)).toEqual(['a']);
+  });
+
+  it('shows hidden category links in admin mode', () => {
+    const categoriesWithHidden: Category[] = [
+      { id: 'dev', name: '开发工具', icon: 'Code' },
+      { id: 'secret', name: '秘密分类', icon: 'Lock', hidden: true },
+    ];
+
+    const result = computeDisplayedLinks({
+      links: [
+        {
+          id: 'a',
+          title: 'A',
+          url: 'https://a.com',
+          categoryId: 'dev',
+          createdAt: 1,
+          pinned: false,
+        },
+        {
+          id: 'b',
+          title: 'B',
+          url: 'https://b.com',
+          categoryId: 'secret',
+          createdAt: 2,
+          pinned: false,
+        },
+      ],
+      categories: categoriesWithHidden,
+      commonRecommendedLinks: [],
+      privateLinks: [],
+      selectedCategory: 'all',
+      searchQuery: '',
+      searchMode: 'internal',
+      isAdmin: true,
+      privacyGroupEnabled: false,
+      privacyPasswordEnabled: true,
+      isPrivateUnlocked: false,
+    });
+
+    expect(result.map((l) => l.id)).toEqual(['a', 'b']);
   });
 });

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { LinkItem, SearchMode } from '../../types';
+import type { Category, LinkItem, SearchMode } from '../../types';
 import { COMMON_CATEGORY_ID, PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import { getCommonRecommendedLinks } from '../../utils/recommendation';
 
@@ -17,6 +17,7 @@ export const sortPinnedLinks = (links: LinkItem[]) =>
 
 export const computeDisplayedLinks = (args: {
   links: LinkItem[];
+  categories: Category[];
   commonRecommendedLinks: LinkItem[];
   privateLinks: LinkItem[];
   selectedCategory: string;
@@ -39,17 +40,32 @@ export const computeDisplayedLinks = (args: {
     !args.privacyPasswordEnabled &&
     args.isPrivateUnlocked;
 
+  // 获取隐藏分类的ID集合（非管理员模式需要过滤）
+  const hiddenCategoryIds = args.isAdmin
+    ? new Set<string>()
+    : new Set(args.categories.filter((c) => c.hidden).map((c) => c.id));
+
+  // 过滤掉隐藏分类的链接（非管理员模式）
+  const visibleLinks = args.isAdmin
+    ? args.links
+    : args.links.filter((l) => !hiddenCategoryIds.has(l.categoryId));
+
+  // 过滤常用推荐链接（非管理员模式）
+  const visibleCommonRecommendedLinks = args.isAdmin
+    ? args.commonRecommendedLinks
+    : args.commonRecommendedLinks.filter((l) => !hiddenCategoryIds.has(l.categoryId));
+
   const baseLinks =
-    args.selectedCategory === COMMON_CATEGORY_ID ? args.commonRecommendedLinks : args.links;
+    args.selectedCategory === COMMON_CATEGORY_ID ? visibleCommonRecommendedLinks : visibleLinks;
 
   let result = baseLinks;
 
   // Search Filter
   if (q) {
     // 站内搜索时搜索全站资源，符合条件时包含隐私分组
-    let searchBase = isInternalSearchWithQuery ? args.links : baseLinks;
+    let searchBase = isInternalSearchWithQuery ? visibleLinks : baseLinks;
     if (isInternalSearchWithQuery && canSearchPrivate) {
-      searchBase = [...args.links, ...args.privateLinks];
+      searchBase = [...visibleLinks, ...args.privateLinks];
     }
     result = searchBase.filter(
       (l) =>
@@ -110,6 +126,7 @@ export const computeDisplayedPrivateLinks = (args: {
 
 export const useDisplayedLinks = (args: {
   links: LinkItem[];
+  categories: Category[];
   privateLinks: LinkItem[];
   selectedCategory: string;
   searchQuery: string;
@@ -119,7 +136,25 @@ export const useDisplayedLinks = (args: {
   privacyPasswordEnabled: boolean;
   isPrivateUnlocked: boolean;
 }) => {
-  const pinnedLinks = useMemo(() => sortPinnedLinks(args.links), [args.links]);
+  // 获取隐藏分类的ID集合（非管理员模式需要过滤）
+  const hiddenCategoryIds = useMemo(
+    () =>
+      args.isAdmin
+        ? new Set<string>()
+        : new Set(args.categories.filter((c) => c.hidden).map((c) => c.id)),
+    [args.isAdmin, args.categories],
+  );
+
+  // 过滤掉隐藏分类的链接用于置顶（非管理员模式）
+  const visibleLinks = useMemo(
+    () =>
+      args.isAdmin
+        ? args.links
+        : args.links.filter((l) => !hiddenCategoryIds.has(l.categoryId)),
+    [args.isAdmin, args.links, hiddenCategoryIds],
+  );
+
+  const pinnedLinks = useMemo(() => sortPinnedLinks(visibleLinks), [visibleLinks]);
 
   const commonRecommendedLinks = useMemo(() => getCommonRecommendedLinks(args.links), [args.links]);
 
@@ -127,6 +162,7 @@ export const useDisplayedLinks = (args: {
     () =>
       computeDisplayedLinks({
         links: args.links,
+        categories: args.categories,
         commonRecommendedLinks,
         privateLinks: args.privateLinks,
         selectedCategory: args.selectedCategory,
@@ -139,6 +175,7 @@ export const useDisplayedLinks = (args: {
       }),
     [
       args.links,
+      args.categories,
       args.privateLinks,
       args.selectedCategory,
       args.searchQuery,
