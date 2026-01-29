@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   safeLocalStorageGetItem,
   safeLocalStorageRemoveItem,
-  safeLocalStorageSetItem
+  safeLocalStorageSetItem,
 } from './storage';
 
 describe('storage utils', () => {
@@ -38,4 +38,3 @@ describe('storage utils', () => {
     expect(safeLocalStorageRemoveItem('k')).toBe(false);
   });
 });
-

@@ -1,14 +1,25 @@
-import { describe, expect, it, vi, afterEach } from 'vitest';
-import { handleApiSyncRequest, type KVNamespaceInterface, type SyncApiEnv } from '../../shared/syncApi';
-import { KV_MAIN_DATA_KEY } from '../../shared/syncApi/kv';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  handleApiSyncRequest,
+  type KVNamespaceInterface,
+  type SyncApiEnv,
+} from '../../shared/syncApi';
+import { KV_MAIN_DATA_KEY, SYNC_HISTORY_INDEX_VERSION } from '../../shared/syncApi/kv';
 
 class MemoryKV implements KVNamespaceInterface {
   private readonly store = new Map<string, string>();
+  readonly stats = { reads: 0, writes: 0, deletes: 0, lists: 0 };
 
   async get(
     key: string,
-    typeOrOptions: 'text' | 'json' | 'arrayBuffer' | 'stream' | { type: 'text' | 'json' | 'arrayBuffer' | 'stream'; cacheTtl?: number } = 'text'
+    typeOrOptions:
+      | 'text'
+      | 'json'
+      | 'arrayBuffer'
+      | 'stream'
+      | { type: 'text' | 'json' | 'arrayBuffer' | 'stream'; cacheTtl?: number } = 'text',
   ): Promise<any> {
+    this.stats.reads += 1;
     const value = this.store.get(key);
     if (value === undefined) return null;
     const type = typeof typeOrOptions === 'string' ? typeOrOptions : typeOrOptions.type;
@@ -17,10 +28,12 @@ class MemoryKV implements KVNamespaceInterface {
   }
 
   async put(key: string, value: string, _options?: { expirationTtl?: number }): Promise<void> {
+    this.stats.writes += 1;
     this.store.set(key, value);
   }
 
   async delete(key: string): Promise<void> {
+    this.stats.deletes += 1;
     this.store.delete(key);
   }
 
@@ -29,10 +42,12 @@ class MemoryKV implements KVNamespaceInterface {
     list_complete?: boolean;
     cursor?: string;
   }> {
+    this.stats.lists += 1;
     const prefix = options?.prefix ?? '';
-    const limit = typeof options?.limit === 'number' && Number.isFinite(options.limit)
-      ? Math.max(0, Math.floor(options.limit))
-      : 1000;
+    const limit =
+      typeof options?.limit === 'number' && Number.isFinite(options.limit)
+        ? Math.max(0, Math.floor(options.limit))
+        : 1000;
     const cursor = typeof options?.cursor === 'string' ? options.cursor : '';
     const startIndex = cursor ? Number.parseInt(cursor, 10) : 0;
     const resolvedStartIndex = Number.isFinite(startIndex) && startIndex > 0 ? startIndex : 0;
@@ -48,12 +63,16 @@ class MemoryKV implements KVNamespaceInterface {
     return {
       keys: paged.map((name) => ({ name })),
       list_complete,
-      cursor: list_complete ? undefined : String(nextCursorIndex)
+      cursor: list_complete ? undefined : String(nextCursorIndex),
     };
   }
 
   has(key: string): boolean {
     return this.store.has(key);
+  }
+
+  getStoredValue(key: string): string | undefined {
+    return this.store.get(key);
   }
 }
 
@@ -78,23 +97,26 @@ describe('syncApi backup endpoints', () => {
           links: [],
           categories: [],
           aiConfig: { provider: 'openai', apiKey: 'should-clear', model: 'x' },
-          meta: { updatedAt: 123, deviceId: 'device-1', version: 1 }
-        }
-      })
+          meta: { updatedAt: 123, deviceId: 'device-1', version: 1 },
+        },
+      }),
     });
 
     const createResponse = await handleApiSyncRequest(createRequest, env);
-    const createJson = await createResponse.json() as any;
+    const createJson = (await createResponse.json()) as any;
 
     expect(createResponse.status).toBe(200);
     expect(createJson.success).toBe(true);
     expect(createJson.backupKey).toBe('ynav:backup:2025-01-01T00-00-00-000Z');
 
-    const getRequest = new Request(`http://localhost/api/sync?action=backup&backupKey=${encodeURIComponent(createJson.backupKey)}`, {
-      method: 'GET',
-    });
+    const getRequest = new Request(
+      `http://localhost/api/sync?action=backup&backupKey=${encodeURIComponent(createJson.backupKey)}`,
+      {
+        method: 'GET',
+      },
+    );
     const getResponse = await handleApiSyncRequest(getRequest, env);
-    const getJson = await getResponse.json() as any;
+    const getJson = (await getResponse.json()) as any;
 
     expect(getResponse.status).toBe(200);
     expect(getJson.success).toBe(true);
@@ -109,11 +131,11 @@ describe('syncApi backup endpoints', () => {
     const request = new Request('http://localhost/api/sync?action=backup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({}),
     });
 
     const response = await handleApiSyncRequest(request, env);
-    const json = await response.json() as any;
+    const json = (await response.json()) as any;
 
     expect(response.status).toBe(400);
     expect(json.success).toBe(false);
@@ -130,7 +152,7 @@ describe('syncApi backup endpoints', () => {
       links: [{ id: 'a', title: 'old', url: 'https://old.example', categoryId: 'c', createdAt: 1 }],
       categories: [{ id: 'c', name: 'Cat', icon: 'Folder' }],
       aiConfig: { provider: 'openai', apiKey: 'old-secret', model: 'x' },
-      meta: { updatedAt: 111, deviceId: 'old-device', version: 5, syncKind: 'auto' }
+      meta: { updatedAt: 111, deviceId: 'old-device', version: 5, syncKind: 'auto' },
     };
     await kv.put(KV_MAIN_DATA_KEY, JSON.stringify(existing));
 
@@ -139,17 +161,23 @@ describe('syncApi backup endpoints', () => {
       links: [{ id: 'b', title: 'new', url: 'https://new.example', categoryId: 'c', createdAt: 2 }],
       categories: [{ id: 'c', name: 'Cat', icon: 'Folder' }],
       aiConfig: { provider: 'openai', apiKey: 'backup-secret', model: 'y' },
-      meta: { updatedAt: 222, deviceId: 'backup-device', version: 1, browser: 'Chrome', os: 'macOS' }
+      meta: {
+        updatedAt: 222,
+        deviceId: 'backup-device',
+        version: 1,
+        browser: 'Chrome',
+        os: 'macOS',
+      },
     };
     await kv.put(backupKey, JSON.stringify(backupData));
 
     const restoreRequest = new Request('http://localhost/api/sync?action=restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backupKey, deviceId: 'restore-device' })
+      body: JSON.stringify({ backupKey, deviceId: 'restore-device' }),
     });
     const restoreResponse = await handleApiSyncRequest(restoreRequest, env);
-    const restoreJson = await restoreResponse.json() as any;
+    const restoreJson = (await restoreResponse.json()) as any;
 
     expect(restoreResponse.status).toBe(200);
     expect(restoreJson.success).toBe(true);
@@ -160,9 +188,11 @@ describe('syncApi backup endpoints', () => {
     expect(restoreJson.data.meta.syncKind).toBe('manual');
     expect(restoreJson.data.aiConfig.apiKey).toBe('');
 
-    const rollbackGet = new Request(`http://localhost/api/sync?action=backup&key=${encodeURIComponent(restoreJson.rollbackKey)}`);
+    const rollbackGet = new Request(
+      `http://localhost/api/sync?action=backup&key=${encodeURIComponent(restoreJson.rollbackKey)}`,
+    );
     const rollbackResponse = await handleApiSyncRequest(rollbackGet, env);
-    const rollbackJson = await rollbackResponse.json() as any;
+    const rollbackJson = (await rollbackResponse.json()) as any;
 
     expect(rollbackResponse.status).toBe(200);
     expect(rollbackJson.success).toBe(true);
@@ -171,7 +201,7 @@ describe('syncApi backup endpoints', () => {
 
     const mainGet = new Request('http://localhost/api/sync', { method: 'GET' });
     const mainResponse = await handleApiSyncRequest(mainGet, env);
-    const mainJson = await mainResponse.json() as any;
+    const mainJson = (await mainResponse.json()) as any;
 
     expect(mainResponse.status).toBe(200);
     expect(mainJson.success).toBe(true);
@@ -186,29 +216,84 @@ describe('syncApi backup endpoints', () => {
     const current = {
       links: [],
       categories: [],
-      meta: { updatedAt: 1, deviceId: 'device-1', version: 3 }
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 3 },
     };
     await kv.put(KV_MAIN_DATA_KEY, JSON.stringify(current));
 
     const historyKey = 'ynav:backup:history-2025-01-01T00-00-00-000Z_deadbeef';
-    await kv.put(historyKey, JSON.stringify({
-      links: [],
-      categories: [],
-      meta: { updatedAt: 1, deviceId: 'device-1', version: 3 }
-    }));
+    await kv.put(
+      historyKey,
+      JSON.stringify({
+        links: [],
+        categories: [],
+        meta: { updatedAt: 1, deviceId: 'device-1', version: 3 },
+      }),
+    );
 
     const request = new Request('http://localhost/api/sync?action=backup', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backupKey: historyKey })
+      body: JSON.stringify({ backupKey: historyKey }),
     });
 
     const response = await handleApiSyncRequest(request, env);
-    const json = await response.json() as any;
+    const json = (await response.json()) as any;
 
     expect(response.status).toBe(400);
     expect(json.success).toBe(false);
     expect(kv.has(historyKey)).toBe(true);
+  });
+
+  it('deletes a sync-history record using index without reading the record body', async () => {
+    const kv = new MemoryKV();
+    const env: SyncApiEnv = { YNAV_KV: kv };
+
+    await kv.put(
+      KV_MAIN_DATA_KEY,
+      JSON.stringify({
+        links: [],
+        categories: [],
+        meta: { updatedAt: 1, deviceId: 'device-1', version: 5 },
+      }),
+    );
+
+    const historyKey = 'ynav:backup:history-2025-01-01T00-00-00-000Z_deadbeef';
+    await kv.put(
+      historyKey,
+      JSON.stringify({
+        links: [],
+        categories: [],
+        meta: { updatedAt: 1, deviceId: 'device-1', version: 4 },
+      }),
+    );
+
+    await kv.put(
+      'ynav:sync_history_index',
+      JSON.stringify({
+        version: SYNC_HISTORY_INDEX_VERSION,
+        sources: ['ynav', 'navhub'],
+        items: [{ key: historyKey, meta: { updatedAt: 1, deviceId: 'device-1', version: 4 } }],
+      }),
+    );
+
+    const request = new Request('http://localhost/api/sync?action=backup', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backupKey: historyKey }),
+    });
+
+    const response = await handleApiSyncRequest(request, env);
+    const json = (await response.json()) as any;
+
+    expect(response.status).toBe(200);
+    expect(json.success).toBe(true);
+    expect(kv.has(historyKey)).toBe(false);
+    expect(kv.stats.reads).toBe(2);
+
+    const storedIndexRaw = kv.getStoredValue('ynav:sync_history_index');
+    expect(storedIndexRaw).toBeTruthy();
+    const storedIndex = JSON.parse(storedIndexRaw as string) as any;
+    expect(storedIndex.items).toEqual([]);
   });
 
   it('deletes a non-history backup record', async () => {
@@ -216,38 +301,44 @@ describe('syncApi backup endpoints', () => {
     const env: SyncApiEnv = { YNAV_KV: kv };
 
     const backupKey = 'ynav:backup:2025-01-02T00-00-00-000Z';
-    await kv.put(backupKey, JSON.stringify({
-      links: [],
-      categories: [],
-      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 }
-    }));
+    await kv.put(
+      backupKey,
+      JSON.stringify({
+        links: [],
+        categories: [],
+        meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+      }),
+    );
 
     const request = new Request('http://localhost/api/sync?action=backup', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backupKey })
+      body: JSON.stringify({ backupKey }),
     });
 
     const response = await handleApiSyncRequest(request, env);
-    const json = await response.json() as any;
+    const json = (await response.json()) as any;
 
     expect(response.status).toBe(200);
     expect(json.success).toBe(true);
     expect(kv.has(backupKey)).toBe(false);
+    expect(kv.stats.reads).toBe(0);
   });
 
   it('returns 400 for invalid backupKey in get-backup', async () => {
     const kv = new MemoryKV();
     const env: SyncApiEnv = { YNAV_KV: kv };
 
-    const request = new Request('http://localhost/api/sync?action=backup&backupKey=not-a-backup-key', {
-      method: 'GET'
-    });
+    const request = new Request(
+      'http://localhost/api/sync?action=backup&backupKey=not-a-backup-key',
+      {
+        method: 'GET',
+      },
+    );
     const response = await handleApiSyncRequest(request, env);
-    const json = await response.json() as any;
+    const json = (await response.json()) as any;
 
     expect(response.status).toBe(400);
     expect(json.success).toBe(false);
   });
 });
-

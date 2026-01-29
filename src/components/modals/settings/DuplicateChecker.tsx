@@ -1,6 +1,14 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { Copy, Trash2, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, FolderOpen } from 'lucide-react';
-import { LinkItem, Category } from '../../../types';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  Trash2,
+} from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Category, LinkItem } from '../../../types';
 
 interface DuplicateGroup {
   key: string;
@@ -24,7 +32,11 @@ const normalizeUrl = (url: string): string => {
     let path = u.pathname.replace(/\/+$/, '') || '/';
     return `${host}${path}`.toLowerCase();
   } catch {
-    return url.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '');
+    return url
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .replace(/\/+$/, '');
   }
 };
 
@@ -43,7 +55,7 @@ const similarity = (s1: string, s2: string): number => {
   const longer = s1.length > s2.length ? s1 : s2;
   const shorter = s1.length > s2.length ? s2 : s1;
   if (longer.length === 0) return 1.0;
-  
+
   const costs: number[] = [];
   for (let i = 0; i <= shorter.length; i++) {
     let lastValue = i;
@@ -64,7 +76,12 @@ const similarity = (s1: string, s2: string): number => {
   return (longer.length - costs[longer.length]) / longer.length;
 };
 
-const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, onDeleteLink, onNavigateToCategory }) => {
+const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
+  links,
+  categories,
+  onDeleteLink,
+  onNavigateToCategory,
+}) => {
   const [expanded, setExpanded] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSimilar, setShowSimilar] = useState(true);
@@ -72,19 +89,25 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
   // 创建分类 ID 到名称的映射
   const categoryMap = useMemo(() => {
     const map = new Map<string, string>();
-    categories.forEach(cat => map.set(cat.id, cat.name));
+    categories.forEach((cat) => map.set(cat.id, cat.name));
     return map;
   }, [categories]);
 
-  const getCategoryName = useCallback((categoryId: string) => {
-    return categoryMap.get(categoryId) || '未知分类';
-  }, [categoryMap]);
+  const getCategoryName = useCallback(
+    (categoryId: string) => {
+      return categoryMap.get(categoryId) || '未知分类';
+    },
+    [categoryMap],
+  );
 
-  const handleNavigate = useCallback((categoryId: string) => {
-    if (onNavigateToCategory) {
-      onNavigateToCategory(categoryId);
-    }
-  }, [onNavigateToCategory]);
+  const handleNavigate = useCallback(
+    (categoryId: string) => {
+      if (onNavigateToCategory) {
+        onNavigateToCategory(categoryId);
+      }
+    },
+    [onNavigateToCategory],
+  );
 
   // 检测重复和相似的链接
   const duplicateGroups = useMemo<DuplicateGroup[]>(() => {
@@ -93,7 +116,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
 
     // 1. 完全相同的 URL
     const urlMap = new Map<string, LinkItem[]>();
-    links.forEach(link => {
+    links.forEach((link) => {
       const normalized = normalizeUrl(link.url);
       const existing = urlMap.get(normalized) || [];
       existing.push(link);
@@ -103,7 +126,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
     urlMap.forEach((items, key) => {
       if (items.length > 1) {
         groups.push({ key: `exact-${key}`, type: 'exact-url', links: items });
-        items.forEach(item => processed.add(item.id));
+        items.forEach((item) => processed.add(item.id));
       }
     });
 
@@ -111,7 +134,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
 
     // 2. 相似的 URL（同域名不同路径）
     const domainMap = new Map<string, LinkItem[]>();
-    links.forEach(link => {
+    links.forEach((link) => {
       if (processed.has(link.id)) return;
       const domain = getDomain(link.url);
       const existing = domainMap.get(domain) || [];
@@ -128,7 +151,13 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
             const url2 = normalizeUrl(items[j].url);
             if (similarity(url1, url2) > 0.7 && url1 !== url2) {
               const key = `similar-url-${items[i].id}-${items[j].id}`;
-              if (!groups.some(g => g.links.some(l => l.id === items[i].id) && g.links.some(l => l.id === items[j].id))) {
+              if (
+                !groups.some(
+                  (g) =>
+                    g.links.some((l) => l.id === items[i].id) &&
+                    g.links.some((l) => l.id === items[j].id),
+                )
+              ) {
                 groups.push({ key, type: 'similar-url', links: [items[i], items[j]] });
               }
             }
@@ -139,15 +168,22 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
 
     // 3. 相似的标题
     const titleChecked = new Set<string>();
-    links.forEach(link1 => {
+    links.forEach((link1) => {
       if (processed.has(link1.id) || titleChecked.has(link1.id)) return;
-      links.forEach(link2 => {
+      links.forEach((link2) => {
         if (link1.id === link2.id || processed.has(link2.id) || titleChecked.has(link2.id)) return;
         const t1 = link1.title.toLowerCase().trim();
         const t2 = link2.title.toLowerCase().trim();
         if (t1 === t2 || similarity(t1, t2) > 0.8) {
           const key = `similar-title-${link1.id}-${link2.id}`;
-          if (!groups.some(g => g.type === 'similar-title' && g.links.some(l => l.id === link1.id) && g.links.some(l => l.id === link2.id))) {
+          if (
+            !groups.some(
+              (g) =>
+                g.type === 'similar-title' &&
+                g.links.some((l) => l.id === link1.id) &&
+                g.links.some((l) => l.id === link2.id),
+            )
+          ) {
             groups.push({ key, type: 'similar-title', links: [link1, link2] });
             titleChecked.add(link1.id);
             titleChecked.add(link2.id);
@@ -159,32 +195,41 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
     return groups;
   }, [links, showSimilar]);
 
-  const handleDelete = useCallback(async (id: string) => {
-    setDeletingId(id);
-    try {
-      onDeleteLink(id);
-    } finally {
-      setDeletingId(null);
-    }
-  }, [onDeleteLink]);
+  const handleDelete = useCallback(
+    async (id: string) => {
+      setDeletingId(id);
+      try {
+        onDeleteLink(id);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [onDeleteLink],
+  );
 
-  const exactCount = duplicateGroups.filter(g => g.type === 'exact-url').length;
-  const similarCount = duplicateGroups.filter(g => g.type !== 'exact-url').length;
+  const exactCount = duplicateGroups.filter((g) => g.type === 'exact-url').length;
+  const similarCount = duplicateGroups.filter((g) => g.type !== 'exact-url').length;
   const totalCount = exactCount + similarCount;
 
   const getTypeLabel = (type: DuplicateGroup['type']) => {
     switch (type) {
-      case 'exact-url': return '完全重复';
-      case 'similar-url': return '相似 URL';
-      case 'similar-title': return '相似标题';
+      case 'exact-url':
+        return '完全重复';
+      case 'similar-url':
+        return '相似 URL';
+      case 'similar-title':
+        return '相似标题';
     }
   };
 
   const getTypeColor = (type: DuplicateGroup['type']) => {
     switch (type) {
-      case 'exact-url': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200';
-      case 'similar-url': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200';
-      case 'similar-title': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200';
+      case 'exact-url':
+        return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200';
+      case 'similar-url':
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200';
+      case 'similar-title':
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200';
     }
   };
 
@@ -217,7 +262,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
               onClick={() => setShowSimilar(!showSimilar)}
               className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${showSimilar ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'}`}
             >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${showSimilar ? 'translate-x-5' : 'translate-x-1'}`} />
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${showSimilar ? 'translate-x-5' : 'translate-x-1'}`}
+              />
             </button>
           </div>
 
@@ -235,24 +282,43 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
             </div>
           ) : (
             <div className="space-y-3 max-h-80 overflow-y-auto">
-              {duplicateGroups.map(group => (
-                <div key={group.key} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 p-3">
+              {duplicateGroups.map((group) => (
+                <div
+                  key={group.key}
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 p-3"
+                >
                   <div className="flex items-center gap-2 mb-2">
-                    {group.type === 'exact-url' && <AlertTriangle size={12} className="text-red-500" />}
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${getTypeColor(group.type)}`}>
+                    {group.type === 'exact-url' && (
+                      <AlertTriangle size={12} className="text-red-500" />
+                    )}
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${getTypeColor(group.type)}`}
+                    >
                       {getTypeLabel(group.type)}
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {group.links.map(link => (
-                      <div key={link.id} className="flex items-center justify-between gap-2 p-2 rounded bg-white dark:bg-slate-900/60">
+                    {group.links.map((link) => (
+                      <div
+                        key={link.id}
+                        className="flex items-center justify-between gap-2 p-2 rounded bg-white dark:bg-slate-900/60"
+                      >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            {link.icon && <img src={link.icon} alt="" className="w-4 h-4 rounded" />}
-                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{link.title}</span>
+                            {link.icon && (
+                              <img src={link.icon} alt="" className="w-4 h-4 rounded" />
+                            )}
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">
+                              {link.title}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 mt-1">
-                            <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 hover:text-accent truncate">
+                            <a
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 hover:text-accent truncate"
+                            >
                               <ExternalLink size={10} />
                               <span className="truncate max-w-[150px]">{link.url}</span>
                             </a>
@@ -263,7 +329,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
                               title={`跳转到「${getCategoryName(link.categoryId)}」分类`}
                             >
                               <FolderOpen size={10} />
-                              <span className="truncate max-w-[60px]">{getCategoryName(link.categoryId)}</span>
+                              <span className="truncate max-w-[60px]">
+                                {getCategoryName(link.categoryId)}
+                              </span>
                             </button>
                           </div>
                         </div>
@@ -274,7 +342,10 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ links, categories, 
                           className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shrink-0"
                           title="删除此卡片"
                         >
-                          <Trash2 size={14} className={deletingId === link.id ? 'animate-spin' : ''} />
+                          <Trash2
+                            size={14}
+                            className={deletingId === link.id ? 'animate-spin' : ''}
+                          />
                         </button>
                       </div>
                     ))}

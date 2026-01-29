@@ -1,5 +1,5 @@
-import React from 'react';
 import type { LucideIcon } from 'lucide-react';
+import React from 'react';
 
 type LucideIconModule = { default: LucideIcon };
 
@@ -123,7 +123,7 @@ export function getLucideIconLazy(name: LucideIconName): React.LazyExoticCompone
   const cached = lazyIconCache.get(name);
   if (cached) return cached;
 
-  const LazyIcon = React.lazy(LUCIDE_ICON_IMPORTERS[name]);
+  const LazyIcon = React.lazy(LUCIDE_ICON_IMPORTERS[name] as () => Promise<LucideIconModule>);
   lazyIconCache.set(name, LazyIcon);
   return LazyIcon;
 }
@@ -131,5 +131,5 @@ export function getLucideIconLazy(name: LucideIconName): React.LazyExoticCompone
 // Legacy icon aliases from previous icon sets (extend as needed).
 export const LEGACY_ICON_ALIASES: Record<string, LucideIconName> = {
   'folder-open': 'Folder',
-  'folderopen': 'Folder',
+  folderopen: 'Folder',
 };

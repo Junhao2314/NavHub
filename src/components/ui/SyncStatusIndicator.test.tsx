@@ -1,15 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import SyncStatusIndicator from './SyncStatusIndicator';
-import type { SyncStatus } from '../../types';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SYNC_STATUS_AUTO_HIDE_DELAY_MS, SYNC_STATUS_EXIT_ANIMATION_MS } from '../../config/ui';
+import type { SyncStatus } from '../../types';
+import SyncStatusIndicator from './SyncStatusIndicator';
 
 describe('SyncStatusIndicator', () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
 
-  const render = async (status: SyncStatus, options?: { onManualSync?: () => void; onManualPull?: () => void }) => {
+  const render = async (
+    status: SyncStatus,
+    options?: { onManualSync?: () => void; onManualPull?: () => void },
+  ) => {
     if (!root) root = createRoot(container);
     await act(async () => {
       root?.render(

@@ -1,9 +1,10 @@
 // @vitest-environment node
-import { describe, it } from 'vitest';
+
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as ts from 'typescript';
+import { describe, it } from 'vitest';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const srcRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -68,12 +69,18 @@ const findEmptyCatchBlocks = (): OffendingCatch[] => {
       content,
       ts.ScriptTarget.ESNext,
       true,
-      getScriptKind(filePath)
+      getScriptKind(filePath),
     );
 
     const visit = (node: ts.Node) => {
-      if (ts.isTryStatement(node) && node.catchClause && isEmptyCatchBlock(sourceFile, node.catchClause)) {
-        const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.catchClause.getStart(sourceFile));
+      if (
+        ts.isTryStatement(node) &&
+        node.catchClause &&
+        isEmptyCatchBlock(sourceFile, node.catchClause)
+      ) {
+        const { line, character } = sourceFile.getLineAndCharacterOfPosition(
+          node.catchClause.getStart(sourceFile),
+        );
         offenders.push({
           file: path.relative(repoRoot, filePath).replaceAll('\\', '/'),
           line: line + 1,
@@ -101,7 +108,7 @@ describe('error handling guards', () => {
     throw new Error(
       `Disallowed empty catch block detected.\n` +
         `Add handling (rethrow/log/recover) or an explicit comment explaining why it's safe to ignore.\n\n` +
-        formatted
+        formatted,
     );
   });
 });

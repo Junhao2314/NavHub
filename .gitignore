@@ -22,4 +22,5 @@ yarn-debug.log*
 
 .wrangler
 test
-
+playwright-report/
+test-results/

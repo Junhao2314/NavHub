@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useConfig } from './useConfig';
-import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIConfig, SiteSettings } from '../types';
+import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
+import { useConfig } from './useConfig';
 
 describe('useConfig', () => {
   let container: HTMLDivElement;
@@ -72,7 +72,12 @@ describe('useConfig', () => {
   });
 
   it('restores saved config from localStorage', async () => {
-    const savedAIConfig: AIConfig = { provider: 'openai', apiKey: 'k', baseUrl: 'https://api', model: 'gpt' };
+    const savedAIConfig: AIConfig = {
+      provider: 'openai',
+      apiKey: 'k',
+      baseUrl: 'https://api',
+      model: 'gpt',
+    };
     const savedSiteSettings: SiteSettings = {
       title: 'My Title',
       navTitle: 'MyNav',
@@ -106,7 +111,12 @@ describe('useConfig', () => {
   it('saveAIConfig persists AI config and optional site settings', async () => {
     const { get } = await renderConfig();
 
-    const nextAIConfig: AIConfig = { provider: 'openai', apiKey: 'k2', baseUrl: 'https://api2', model: 'gpt-2' };
+    const nextAIConfig: AIConfig = {
+      provider: 'openai',
+      apiKey: 'k2',
+      baseUrl: 'https://api2',
+      model: 'gpt-2',
+    };
     const nextSiteSettings: SiteSettings = {
       ...get().siteSettings,
       title: 'Next Title',
@@ -122,7 +132,10 @@ describe('useConfig', () => {
     expect(get().siteSettings.title).toBe('Next Title');
     expect(document.title).toBe('Next Title');
 
-    expect(JSON.parse(localStorage.getItem(AI_CONFIG_KEY) ?? '{}')).toEqual({ ...nextAIConfig, apiKey: '' });
+    expect(JSON.parse(localStorage.getItem(AI_CONFIG_KEY) ?? '{}')).toEqual({
+      ...nextAIConfig,
+      apiKey: '',
+    });
     expect(sessionStorage.getItem(AI_API_KEY_SESSION_KEY)).toBe(nextAIConfig.apiKey);
     expect(JSON.parse(localStorage.getItem(SITE_SETTINGS_KEY) ?? '{}').title).toBe('Next Title');
 
@@ -142,12 +155,17 @@ describe('useConfig', () => {
       key: () => null,
       get length() {
         return 0;
-      }
+      },
     } as unknown as Storage);
 
     const { get } = await renderConfig();
 
-    const nextAIConfig: AIConfig = { provider: 'openai', apiKey: 'k2', baseUrl: 'https://api2', model: 'gpt-2' };
+    const nextAIConfig: AIConfig = {
+      provider: 'openai',
+      apiKey: 'k2',
+      baseUrl: 'https://api2',
+      model: 'gpt-2',
+    };
 
     act(() => {
       get().saveAIConfig(nextAIConfig);

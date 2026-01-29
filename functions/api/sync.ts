@@ -7,6 +7,5 @@
 import { handleApiSyncRequest, type SyncApiEnv } from '../../shared/syncApi';
 
 export const onRequest = async (context: { request: Request; env: SyncApiEnv }) => {
-    return handleApiSyncRequest(context.request, context.env);
+  return handleApiSyncRequest(context.request, context.env);
 };
-

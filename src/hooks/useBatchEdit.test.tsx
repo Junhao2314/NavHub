@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useBatchEdit } from './useBatchEdit';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, LinkItem } from '../types';
+import { useBatchEdit } from './useBatchEdit';
 
 const dialog = vi.hoisted(() => ({
   notify: vi.fn(),
@@ -24,7 +24,15 @@ describe('useBatchEdit', () => {
 
   const links: LinkItem[] = [
     { id: '1', title: 'A', url: 'https://a.com', categoryId: 'dev', createdAt: 1 },
-    { id: '2', title: 'B', url: 'https://b.com', categoryId: 'dev', createdAt: 2, pinned: true, pinnedOrder: 0 },
+    {
+      id: '2',
+      title: 'B',
+      url: 'https://b.com',
+      categoryId: 'dev',
+      createdAt: 2,
+      pinned: true,
+      pinnedOrder: 0,
+    },
     { id: '3', title: 'C', url: 'https://c.com', categoryId: 'dev', createdAt: 3 },
   ];
 
@@ -184,4 +192,3 @@ describe('useBatchEdit', () => {
     expect(get().selectedLinks.size).toBe(0);
   });
 });
-

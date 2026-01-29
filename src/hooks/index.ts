@@ -1,11 +1,12 @@
 // Export all hooks from a single entry point
-export { useDataStore } from './useDataStore';
-export { useTheme, type ThemeMode } from './useTheme';
-export { useSearch } from './useSearch';
-export { useModals } from './useModals';
-export { useContextMenu } from './useContextMenu';
+
 export { useBatchEdit } from './useBatchEdit';
-export { useSorting } from './useSorting';
 export { useConfig } from './useConfig';
+export { useContextMenu } from './useContextMenu';
+export { useDataStore } from './useDataStore';
+export { useModals } from './useModals';
+export { useSearch } from './useSearch';
 export { useSidebar } from './useSidebar';
-export { useSyncEngine, buildSyncData, type PushToCloudOptions } from './useSyncEngine';
+export { useSorting } from './useSorting';
+export { buildSyncData, type PushToCloudOptions, useSyncEngine } from './useSyncEngine';
+export { type ThemeMode, useTheme } from './useTheme';

@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useTheme } from './useTheme';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { THEME_KEY } from '../utils/constants';
+import { useTheme } from './useTheme';
 
 type MatchMediaListener = (event: { matches: boolean }) => void;
 

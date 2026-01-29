@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import ContextMenu from './ContextMenu';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category } from '../../types';
+import ContextMenu from './ContextMenu';
 
 describe('ContextMenu', () => {
   let container: HTMLDivElement;
@@ -91,7 +91,7 @@ describe('ContextMenu', () => {
 
     await render({ isOpen: true, onClose, onCopyLink });
 
-    const copyButton = Array.from(container.querySelectorAll('button')).find(button =>
+    const copyButton = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('复制链接'),
     ) as HTMLButtonElement | undefined;
     expect(copyButton).toBeTruthy();
@@ -110,7 +110,7 @@ describe('ContextMenu', () => {
 
     await render({ isOpen: true, onClose, onMoveLink });
 
-    const categoryButton = Array.from(container.querySelectorAll('button')).find(button =>
+    const categoryButton = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('分类 2'),
     ) as HTMLButtonElement | undefined;
     expect(categoryButton).toBeTruthy();
@@ -123,4 +123,3 @@ describe('ContextMenu', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
-

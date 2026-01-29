@@ -21,7 +21,10 @@ const parseEnvBool = (value?: string): boolean => {
   return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
 };
 
-export const onRequest = async (context: { request: Request; env?: PagesEnv }): Promise<Response> => {
+export const onRequest = async (context: {
+  request: Request;
+  env?: PagesEnv;
+}): Promise<Response> => {
   const env = context.env || {};
   return handleApiAIRequest(context.request, {
     allowedBaseUrlHosts: parseEnvList(env.AI_PROXY_ALLOWED_HOSTS),

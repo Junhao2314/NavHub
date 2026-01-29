@@ -1,15 +1,11 @@
-import {
-  PRIVACY_PASSWORD_KEY,
-  SYNC_ADMIN_SESSION_KEY,
-  SYNC_PASSWORD_KEY
-} from './constants';
+import { PRIVACY_PASSWORD_KEY, SYNC_ADMIN_SESSION_KEY, SYNC_PASSWORD_KEY } from './constants';
 import {
   safeLocalStorageGetItem,
   safeLocalStorageRemoveItem,
   safeLocalStorageSetItem,
   safeSessionStorageGetItem,
   safeSessionStorageRemoveItem,
-  safeSessionStorageSetItem
+  safeSessionStorageSetItem,
 } from './storage';
 
 const getSessionValueWithLegacyLocalMigration = (key: string): string => {
@@ -34,9 +30,8 @@ const getSessionValueWithLegacyLocalMigration = (key: string): string => {
   return legacyValue;
 };
 
-export const getSyncPassword = (): string => (
-  getSessionValueWithLegacyLocalMigration(SYNC_PASSWORD_KEY)
-);
+export const getSyncPassword = (): string =>
+  getSessionValueWithLegacyLocalMigration(SYNC_PASSWORD_KEY);
 
 export const setSyncPassword = (password: string): void => {
   if (password) {
@@ -57,9 +52,8 @@ export const clearSyncPassword = (): void => {
   safeLocalStorageRemoveItem(SYNC_PASSWORD_KEY);
 };
 
-export const isSyncAdminSession = (): boolean => (
-  getSessionValueWithLegacyLocalMigration(SYNC_ADMIN_SESSION_KEY) === '1'
-);
+export const isSyncAdminSession = (): boolean =>
+  getSessionValueWithLegacyLocalMigration(SYNC_ADMIN_SESSION_KEY) === '1';
 
 export const setSyncAdminSession = (enabled: boolean): void => {
   safeLocalStorageRemoveItem(SYNC_ADMIN_SESSION_KEY);
@@ -75,9 +69,8 @@ export const clearSyncAdminSession = (): void => {
   safeLocalStorageRemoveItem(SYNC_ADMIN_SESSION_KEY);
 };
 
-export const getPrivacyPassword = (): string => (
-  getSessionValueWithLegacyLocalMigration(PRIVACY_PASSWORD_KEY)
-);
+export const getPrivacyPassword = (): string =>
+  getSessionValueWithLegacyLocalMigration(PRIVACY_PASSWORD_KEY);
 
 export const setPrivacyPassword = (password: string): void => {
   if (password) {

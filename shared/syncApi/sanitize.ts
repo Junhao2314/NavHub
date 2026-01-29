@@ -7,14 +7,15 @@ import type { NavHubSyncData } from './types';
  * 以便管理员客户端在本地解密/恢复配置；因此不要用于非管理员响应。
  */
 export const sanitizeSensitiveData = (data: NavHubSyncData): NavHubSyncData => {
-    const safeAiConfig = data.aiConfig && typeof data.aiConfig === 'object'
-        ? { ...data.aiConfig, apiKey: '' }
-        : undefined;
+  const safeAiConfig =
+    data.aiConfig && typeof data.aiConfig === 'object'
+      ? { ...data.aiConfig, apiKey: '' }
+      : undefined;
 
-    return {
-        ...data,
-        aiConfig: safeAiConfig
-    };
+  return {
+    ...data,
+    aiConfig: safeAiConfig,
+  };
 };
 
 /**
@@ -24,15 +25,16 @@ export const sanitizeSensitiveData = (data: NavHubSyncData): NavHubSyncData => {
  * 以避免将任何可用于推断或解密隐私的数据暴露给非管理员用户。
  */
 export const sanitizePublicData = (data: NavHubSyncData): NavHubSyncData => {
-    const safeAiConfig = data.aiConfig && typeof data.aiConfig === 'object'
-        ? { ...data.aiConfig, apiKey: '' }
-        : undefined;
+  const safeAiConfig =
+    data.aiConfig && typeof data.aiConfig === 'object'
+      ? { ...data.aiConfig, apiKey: '' }
+      : undefined;
 
-    return {
-        ...data,
-        aiConfig: safeAiConfig,
-        privateVault: undefined,
-        encryptedSensitiveConfig: undefined,
-        privacyConfig: undefined
-    };
+  return {
+    ...data,
+    aiConfig: safeAiConfig,
+    privateVault: undefined,
+    encryptedSensitiveConfig: undefined,
+    privacyConfig: undefined,
+  };
 };

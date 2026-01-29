@@ -1,7 +1,7 @@
+import { ChevronRight, Copy, CopyPlus, Edit2, FolderInput, Pin, Star, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
-import { Copy, Edit2, Trash2, Pin, Star, CopyPlus, FolderInput, ChevronRight } from 'lucide-react';
-import { Category } from '../../types';
 import { CONTEXT_MENU_VIEWPORT_GUARD_PX } from '../../config/ui';
+import { Category } from '../../types';
 import { cn } from '../../utils/cn';
 
 interface ContextMenuProps {
@@ -31,7 +31,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   onMoveLink,
   onDeleteLink,
   onTogglePin,
-  onToggleRecommended
+  onToggleRecommended,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +68,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   // 确保菜单位置不会超出屏幕边界
   const adjustedPosition = {
     x: Math.min(position.x, window.innerWidth - CONTEXT_MENU_VIEWPORT_GUARD_PX.width),
-    y: Math.min(position.y, window.innerHeight - CONTEXT_MENU_VIEWPORT_GUARD_PX.height)
+    y: Math.min(position.y, window.innerHeight - CONTEXT_MENU_VIEWPORT_GUARD_PX.height),
   };
 
   const menuItems = [
@@ -77,13 +77,22 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     {
       icon: FolderInput,
       label: '转移分组',
-      onClick: () => { },
-      hasSubmenu: true
+      onClick: () => {},
+      hasSubmenu: true,
     },
     { icon: Edit2, label: '编辑链接', onClick: onEditLink },
     { icon: Pin, label: '置顶/取消置顶', onClick: onTogglePin },
-    { icon: Star, label: isRecommended ? '取消常用推荐' : '加入常用推荐', onClick: onToggleRecommended },
-    { icon: Trash2, label: '删除链接', onClick: onDeleteLink, className: 'text-red-500 dark:text-red-400' }
+    {
+      icon: Star,
+      label: isRecommended ? '取消常用推荐' : '加入常用推荐',
+      onClick: onToggleRecommended,
+    },
+    {
+      icon: Trash2,
+      label: '删除链接',
+      onClick: onDeleteLink,
+      className: 'text-red-500 dark:text-red-400',
+    },
   ];
 
   return (
@@ -92,7 +101,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
       className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-xl py-1.5 min-w-[180px] backdrop-blur-sm bg-white/95 dark:bg-slate-900/95"
       style={{
         left: adjustedPosition.x,
-        top: adjustedPosition.y
+        top: adjustedPosition.y,
       }}
     >
       {menuItems.map((item, index) => (
@@ -111,7 +120,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
             )}
           >
             <div className="flex items-center gap-3">
-              <item.icon size={15} className={item.className || 'text-slate-500 dark:text-slate-400'} />
+              <item.icon
+                size={15}
+                className={item.className || 'text-slate-500 dark:text-slate-400'}
+              />
               <span>{item.label}</span>
             </div>
             {item.hasSubmenu && <ChevronRight size={14} className="text-slate-400" />}

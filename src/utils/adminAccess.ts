@@ -12,7 +12,11 @@ type AdminAccessToastRecord = {
 const ADMIN_ACCESS_TOAST_DEDUP_WINDOW_MS = 800;
 let lastAdminAccessToast: AdminAccessToastRecord | null = null;
 
-export const requireAdminAccess = (isAdmin: boolean, notify: NotifyFn, message?: string): boolean => {
+export const requireAdminAccess = (
+  isAdmin: boolean,
+  notify: NotifyFn,
+  message?: string,
+): boolean => {
   if (isAdmin) return true;
   const toastMessage = message ?? ADMIN_EDIT_DISABLED_HINT;
   const now = Date.now();

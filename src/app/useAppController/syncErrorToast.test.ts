@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decideSyncErrorToast,
   SYNC_ERROR_TOAST_COOLDOWN_MS,
-  USER_INITIATED_SYNC_WINDOW_MS
+  USER_INITIATED_SYNC_WINDOW_MS,
 } from './syncErrorToast';
 
 describe('syncErrorToast', () => {
@@ -13,7 +13,7 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 0,
       lastToast: null,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     expect(result.toastMessage).toBeNull();
@@ -28,7 +28,7 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 0,
       lastToast: null,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     expect(result.toastMessage).toBe('同步失败：网络错误');
@@ -42,7 +42,7 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 0,
       lastToast: null,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     const second = decideSyncErrorToast({
@@ -51,7 +51,7 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 0,
       lastToast: first.nextToast,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     expect(second.toastMessage).toBeNull();
@@ -65,7 +65,7 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 1000,
       lastToast: null,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     const second = decideSyncErrorToast({
@@ -74,7 +74,7 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 1200,
       lastToast: first.nextToast,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     expect(first.toastMessage).toBe('同步失败：网络错误');
@@ -88,7 +88,7 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 0,
       lastToast: null,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     const second = decideSyncErrorToast({
@@ -97,10 +97,9 @@ describe('syncErrorToast', () => {
       lastUserInitiatedAt: 0,
       lastToast: first.nextToast,
       userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
-      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS
+      cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
     });
 
     expect(second.toastMessage).toBe('同步失败：推送失败');
   });
 });
-

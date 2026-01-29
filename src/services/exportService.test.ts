@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { generateBookmarkHtml } from './exportService';
 import type { Category, LinkItem } from '../types';
+import { generateBookmarkHtml } from './exportService';
 
 describe('generateBookmarkHtml', () => {
   it('escapes href and icon attributes to prevent attribute injection', () => {
     const categories: Category[] = [{ id: 'c', name: 'Cat', icon: 'Star' }];
     const url = 'https://example.com" onmouseover="alert(1)';
     const icon = 'https://icons.example.com/favicon.ico" onerror="alert(2)';
-    const links: LinkItem[] = [{ id: '1', title: 'T', url, icon, categoryId: 'c', createdAt: 1000 }];
+    const links: LinkItem[] = [
+      { id: '1', title: 'T', url, icon, categoryId: 'c', createdAt: 1000 },
+    ];
 
     const html = generateBookmarkHtml(links, categories);
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -24,7 +26,8 @@ describe('generateBookmarkHtml', () => {
 
   it('prevents markup injection via malicious href values', () => {
     const categories: Category[] = [{ id: 'c', name: 'Cat', icon: 'Star' }];
-    const url = 'https://example.com/"><script id="pwn">alert(1)</script><a href="https://safe.example.com';
+    const url =
+      'https://example.com/"><script id="pwn">alert(1)</script><a href="https://safe.example.com';
     const links: LinkItem[] = [{ id: '1', title: 'T', url, categoryId: 'c', createdAt: 1000 }];
 
     const html = generateBookmarkHtml(links, categories);
@@ -37,7 +40,9 @@ describe('generateBookmarkHtml', () => {
 
   it('escapes href values for uncategorized links', () => {
     const url = 'https://uncat.example/" onclick="alert(1)';
-    const links: LinkItem[] = [{ id: '1', title: 'T', url, categoryId: 'missing', createdAt: 1000 }];
+    const links: LinkItem[] = [
+      { id: '1', title: 'T', url, categoryId: 'missing', createdAt: 1000 },
+    ];
 
     const html = generateBookmarkHtml(links, []);
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -47,4 +52,3 @@ describe('generateBookmarkHtml', () => {
     expect(doc.querySelector('a')?.getAttribute('onclick')).toBeNull();
   });
 });
-

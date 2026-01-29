@@ -22,7 +22,12 @@ const stableJsonStringify = (value: unknown): string => {
   const seen = new Set<unknown>();
 
   const encode = (input: unknown): string => {
-    if (input && typeof input === 'object' && 'toJSON' in input && typeof (input as { toJSON: unknown }).toJSON === 'function') {
+    if (
+      input &&
+      typeof input === 'object' &&
+      'toJSON' in input &&
+      typeof (input as { toJSON: unknown }).toJSON === 'function'
+    ) {
       return encode((input as { toJSON: () => unknown }).toJSON());
     }
 
@@ -92,18 +97,16 @@ const stableJsonStringify = (value: unknown): string => {
 };
 
 const normalizeCustomFaviconCacheForSignature = (
-  cache: SyncPayload['customFaviconCache']
+  cache: SyncPayload['customFaviconCache'],
 ): SyncPayload['customFaviconCache'] => {
   // customFaviconCache.entries 的顺序不应影响“是否变化”的判定：按 hostname 排序后再参与签名。
   if (!cache || !Array.isArray(cache.entries)) return cache;
 
-  const sortedEntries = cache.entries
-    .slice()
-    .sort((a, b) => a.hostname.localeCompare(b.hostname));
+  const sortedEntries = cache.entries.slice().sort((a, b) => a.hostname.localeCompare(b.hostname));
 
   return {
     ...cache,
-    entries: sortedEntries
+    entries: sortedEntries,
   };
 };
 
@@ -113,7 +116,7 @@ export const buildSyncFullSignature = (payload: SyncPayload): string => {
   const { encryptedSensitiveConfig, customFaviconCache, ...rest } = payload;
   return stableJsonStringify({
     ...rest,
-    customFaviconCache: normalizeCustomFaviconCacheForSignature(customFaviconCache)
+    customFaviconCache: normalizeCustomFaviconCacheForSignature(customFaviconCache),
   });
 };
 
@@ -130,6 +133,6 @@ export const buildSyncBusinessSignature = (payload: SyncPayload): string => {
   return stableJsonStringify({
     ...rest,
     links: strippedLinks,
-    customFaviconCache: normalizeCustomFaviconCacheForSignature(customFaviconCache)
+    customFaviconCache: normalizeCustomFaviconCacheForSignature(customFaviconCache),
   });
 };

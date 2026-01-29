@@ -24,7 +24,7 @@ export function getCommonRecommendedLinks(links: LinkItem[]): LinkItem[] {
   if (cached) return cached;
 
   const manualRecommended = links.filter(
-    (link) => link.recommended || link.categoryId === COMMON_CATEGORY_ID
+    (link) => link.recommended || link.categoryId === COMMON_CATEGORY_ID,
   );
   const manualIds = new Set(manualRecommended.map((link) => link.id));
 

@@ -5,7 +5,7 @@ describe('/api/ai proxy', () => {
   it('returns CORS headers for OPTIONS', async () => {
     const request = new Request('http://localhost/api/ai', {
       method: 'OPTIONS',
-      headers: { Origin: 'http://localhost' }
+      headers: { Origin: 'http://localhost' },
     });
     const response = await handleApiAIRequest(request);
 
@@ -19,7 +19,7 @@ describe('/api/ai proxy', () => {
   it('rejects disallowed CORS origins by default', async () => {
     const request = new Request('http://localhost/api/ai', {
       method: 'OPTIONS',
-      headers: { Origin: 'https://evil.com' }
+      headers: { Origin: 'https://evil.com' },
     });
     const response = await handleApiAIRequest(request);
 
@@ -29,12 +29,14 @@ describe('/api/ai proxy', () => {
   });
 
   it('rejects invalid JSON bodies', async () => {
-    const fetchFn = vi.fn(async () => new Response('should not be called')) as unknown as typeof fetch;
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
 
     const request = new Request('http://localhost/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: '{'
+      body: '{',
     });
 
     const response = await handleApiAIRequest(request, { fetchFn });
@@ -44,13 +46,15 @@ describe('/api/ai proxy', () => {
   });
 
   it('reports request body parse errors via onError', async () => {
-    const fetchFn = vi.fn(async () => new Response('should not be called')) as unknown as typeof fetch;
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
     const onError = vi.fn();
 
     const request = new Request('http://localhost/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: '{'
+      body: '{',
     });
 
     const response = await handleApiAIRequest(request, { fetchFn, onError });
@@ -67,7 +71,7 @@ describe('/api/ai proxy', () => {
       expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
       return new Response('{"data":["m1"]}', {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }) as unknown as typeof fetch;
 
@@ -76,11 +80,14 @@ describe('/api/ai proxy', () => {
       headers: { 'Content-Type': 'application/json', Origin: 'http://localhost' },
       body: JSON.stringify({
         baseUrl: 'example.com',
-        apiKey: 'test-key'
-      })
+        apiKey: 'test-key',
+      }),
     });
 
-    const response = await handleApiAIRequest(request, { fetchFn, allowedBaseUrlHosts: ['example.com'] });
+    const response = await handleApiAIRequest(request, {
+      fetchFn,
+      allowedBaseUrlHosts: ['example.com'],
+    });
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('application/json');
@@ -93,7 +100,7 @@ describe('/api/ai proxy', () => {
       start(controller) {
         controller.enqueue(new TextEncoder().encode('data: hello\n\n'));
         controller.close();
-      }
+      },
     });
 
     const upstream = {
@@ -102,7 +109,7 @@ describe('/api/ai proxy', () => {
       body: upstreamBody,
       text: () => {
         throw new Error('upstream.text() should not be called');
-      }
+      },
     } as unknown as Response;
 
     const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -117,8 +124,8 @@ describe('/api/ai proxy', () => {
       headers: { 'Content-Type': 'application/json', Origin: 'http://localhost' },
       body: JSON.stringify({
         apiKey: 'test-key',
-        payload: { model: 'gpt-test', messages: [], stream: true }
-      })
+        payload: { model: 'gpt-test', messages: [], stream: true },
+      }),
     });
 
     const response = await handleApiAIRequest(request, { fetchFn });
@@ -138,7 +145,7 @@ describe('/api/ai proxy', () => {
       expect(init?.body).toBe(JSON.stringify(payload));
       return new Response('{"id":"1"}', {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }) as unknown as typeof fetch;
 
@@ -148,13 +155,13 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://api.example.com/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, {
       fetchFn,
-      allowedBaseUrlHosts: ['*.example.com']
+      allowedBaseUrlHosts: ['*.example.com'],
     });
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -165,7 +172,9 @@ describe('/api/ai proxy', () => {
   it('does not allow wildcard patterns to match apex domains', async () => {
     const payload = { model: 'gpt-test', messages: [] };
 
-    const fetchFn = vi.fn(async () => new Response('should not be called')) as unknown as typeof fetch;
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
 
     const request = new Request('http://localhost/api/ai?action=chat', {
       method: 'POST',
@@ -173,13 +182,13 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, {
       fetchFn,
-      allowedBaseUrlHosts: ['*.example.com']
+      allowedBaseUrlHosts: ['*.example.com'],
     });
 
     expect(fetchFn).not.toHaveBeenCalled();
@@ -197,7 +206,7 @@ describe('/api/ai proxy', () => {
       expect(init?.body).toBe(JSON.stringify(payload));
       return new Response('{"id":"1"}', {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }) as unknown as typeof fetch;
 
@@ -207,13 +216,13 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://example.com:8443/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, {
       fetchFn,
-      allowedBaseUrlHosts: ['example.com:443', 'example.com:8443']
+      allowedBaseUrlHosts: ['example.com:443', 'example.com:8443'],
     });
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -234,8 +243,8 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'ftp://example.com/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, { fetchFn });
@@ -246,7 +255,9 @@ describe('/api/ai proxy', () => {
 
   it('reports baseUrl parse errors via onError', async () => {
     const payload = { model: 'gpt-test', messages: [] };
-    const fetchFn = vi.fn(async () => new Response('should not be called')) as unknown as typeof fetch;
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
     const onError = vi.fn();
 
     const request = new Request('http://localhost/api/ai?action=chat', {
@@ -255,8 +266,8 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://%%%%',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, { fetchFn, onError });
@@ -276,7 +287,7 @@ describe('/api/ai proxy', () => {
       expect(init?.body).toBe(JSON.stringify(payload));
       return new Response('{"id":"1"}', {
         status: 201,
-        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
       });
     }) as unknown as typeof fetch;
 
@@ -285,8 +296,8 @@ describe('/api/ai proxy', () => {
       headers: { 'Content-Type': 'application/json', Origin: 'http://localhost' },
       body: JSON.stringify({
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, { fetchFn });
@@ -300,7 +311,9 @@ describe('/api/ai proxy', () => {
   it('rejects baseUrl hosts that are not allowlisted', async () => {
     const payload = { model: 'gpt-test', messages: [] };
 
-    const fetchFn = vi.fn(async () => new Response('should not be called')) as unknown as typeof fetch;
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
 
     const request = new Request('http://localhost/api/ai?action=chat', {
       method: 'POST',
@@ -308,8 +321,8 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, { fetchFn });
@@ -320,7 +333,9 @@ describe('/api/ai proxy', () => {
 
   it('rejects allow-all host patterns', async () => {
     const payload = { model: 'gpt-test', messages: [] };
-    const fetchFn = vi.fn(async () => new Response('should not be called')) as unknown as typeof fetch;
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
 
     const request = new Request('http://localhost/api/ai?action=chat', {
       method: 'POST',
@@ -328,8 +343,8 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
     const response = await handleApiAIRequest(request, { fetchFn, allowedBaseUrlHosts: ['*'] });
@@ -348,7 +363,7 @@ describe('/api/ai proxy', () => {
       if (url.endsWith('/v1/chat/completions')) {
         return new Response(null, {
           status: 308,
-          headers: { Location: '/v1/chat/completions/' }
+          headers: { Location: '/v1/chat/completions/' },
         });
       }
 
@@ -359,7 +374,7 @@ describe('/api/ai proxy', () => {
 
       return new Response('{\"id\":\"1\"}', {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }) as unknown as typeof fetch;
 
@@ -369,11 +384,14 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
-    const response = await handleApiAIRequest(request, { fetchFn, allowedBaseUrlHosts: ['example.com'] });
+    const response = await handleApiAIRequest(request, {
+      fetchFn,
+      allowedBaseUrlHosts: ['example.com'],
+    });
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('{\"id\":\"1\"}');
@@ -387,7 +405,7 @@ describe('/api/ai proxy', () => {
       expect(init?.redirect).toBe('manual');
       return new Response(null, {
         status: 307,
-        headers: { Location: 'https://evil.com/v1/chat/completions' }
+        headers: { Location: 'https://evil.com/v1/chat/completions' },
       });
     }) as unknown as typeof fetch;
 
@@ -397,13 +415,19 @@ describe('/api/ai proxy', () => {
       body: JSON.stringify({
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key',
-        payload
-      })
+        payload,
+      }),
     });
 
-    const response = await handleApiAIRequest(request, { fetchFn, allowedBaseUrlHosts: ['example.com'] });
+    const response = await handleApiAIRequest(request, {
+      fetchFn,
+      allowedBaseUrlHosts: ['example.com'],
+    });
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ success: false, error: 'Upstream redirect not allowed' });
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'Upstream redirect not allowed',
+    });
   });
 });

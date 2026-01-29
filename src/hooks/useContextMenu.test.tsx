@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useContextMenu } from './useContextMenu';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, LinkItem } from '../types';
+import { useContextMenu } from './useContextMenu';
 
 const dialog = vi.hoisted(() => ({
   notify: vi.fn(),
@@ -20,7 +20,15 @@ describe('useContextMenu', () => {
   const categories: Category[] = [{ id: 'dev', name: 'Dev', icon: 'Code' }];
   const links: LinkItem[] = [
     { id: '1', title: 'A', url: 'https://a.com', categoryId: 'dev', createdAt: 1 },
-    { id: '2', title: 'B', url: 'https://b.com', categoryId: 'dev', createdAt: 2, pinned: true, pinnedOrder: 0 },
+    {
+      id: '2',
+      title: 'B',
+      url: 'https://b.com',
+      categoryId: 'dev',
+      createdAt: 2,
+      pinned: true,
+      pinnedOrder: 0,
+    },
   ];
 
   const renderMenu = async (isBatchEditMode: boolean) => {
@@ -183,4 +191,3 @@ describe('useContextMenu', () => {
     expect(get().contextMenu.isOpen).toBe(false);
   });
 });
-

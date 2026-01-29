@@ -1,8 +1,8 @@
+import { registerSW } from 'virtual:pwa-register';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { DialogProvider } from './components/ui/DialogProvider';
-import { registerSW } from 'virtual:pwa-register';
 import './index.css';
 
 // 隐藏加载动画
@@ -16,14 +16,14 @@ const hideLoader = () => {
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+  throw new Error('Could not find root element to mount to');
 }
 
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
     updateSW(true);
-  }
+  },
 });
 
 const root = ReactDOM.createRoot(rootElement);
@@ -32,5 +32,5 @@ root.render(
     <DialogProvider>
       <App onReady={hideLoader} />
     </DialogProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

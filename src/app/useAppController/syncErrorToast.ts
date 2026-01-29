@@ -29,8 +29,9 @@ export const decideSyncErrorToast = (args: {
   }
 
   // 窗口期内视为“用户发起”：相同错误不做冷却去重（用户会期待立刻反馈）。
-  const isUserInitiated = args.lastUserInitiatedAt > 0
-    && args.now - args.lastUserInitiatedAt < args.userInitiatedWindowMs;
+  const isUserInitiated =
+    args.lastUserInitiatedAt > 0 &&
+    args.now - args.lastUserInitiatedAt < args.userInitiatedWindowMs;
   const cooldown = isUserInitiated ? 0 : args.cooldownMs;
   const lastToast = args.lastToast;
   // 仅对“相同错误文本”做去重：不同错误应提示（便于排查/反馈）。

@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useModals } from './useModals';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LinkItem } from '../types';
+import { useModals } from './useModals';
 
 describe('useModals', () => {
   let container: HTMLDivElement;
@@ -131,4 +131,3 @@ describe('useModals', () => {
     expect(get().isSearchConfigModalOpen).toBe(false);
   });
 });
-

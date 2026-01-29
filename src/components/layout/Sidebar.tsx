@@ -1,10 +1,10 @@
+import { ChevronLeft, Settings } from 'lucide-react';
 import React from 'react';
-import { Settings, ChevronLeft } from 'lucide-react';
-import { Category } from '../../types';
-import Icon from '../ui/Icon';
-import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
-import { cn } from '../../utils/cn';
 import { SIDEBAR_SHOW_DATE_PROBABILITY, SIDEBAR_TYPEWRITER_MS } from '../../config/ui';
+import { Category } from '../../types';
+import { cn } from '../../utils/cn';
+import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
+import Icon from '../ui/Icon';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -25,6 +25,7 @@ interface SidebarProps {
   onSelectPrivate: () => void;
   onToggleCollapsed: () => void;
   onOpenCategoryManager: () => void;
+  onOpenImport?: () => void;
   onOpenSettings: () => void;
 }
 
@@ -47,7 +48,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSelectPrivate,
   onToggleCollapsed,
   onOpenCategoryManager,
-  onOpenSettings
+  onOpenSettings,
 }) => {
   // 状态机：'typing' | 'pausing' | 'deleting'
   const [phase, setPhase] = React.useState<'typing' | 'pausing' | 'deleting'>('typing');
@@ -95,7 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (displayText.length > 0) {
         // 继续删除
         timeout = setTimeout(() => {
-          setDisplayText(prev => prev.slice(0, -1));
+          setDisplayText((prev) => prev.slice(0, -1));
         }, deleteSpeed);
       } else {
         // 删除完毕，决定下一个文本
@@ -135,17 +136,24 @@ const Sidebar: React.FC<SidebarProps> = ({
           isSidebarCollapsed ? 'px-2' : 'px-4',
         )}
       >
-        <div className={`flex items-center ${isSidebarCollapsed ? 'w-full justify-center' : 'gap-2'}`}>
+        <div
+          className={`flex items-center ${isSidebarCollapsed ? 'w-full justify-center' : 'gap-2'}`}
+        >
           {isSidebarCollapsed ? (
             <button
               onClick={onToggleCollapsed}
               className="h-9 w-9 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-white/10 flex items-center justify-center transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-accent/20 hover:border-accent/30 hover:bg-white dark:hover:bg-slate-800 hover:scale-105 active:scale-95 group"
               title="展开侧边栏"
             >
-              <span className="font-mono font-black text-xl text-slate-700 dark:text-slate-200 group-hover:text-accent transition-colors duration-300">N</span>
+              <span className="font-mono font-black text-xl text-slate-700 dark:text-slate-200 group-hover:text-accent transition-colors duration-300">
+                N
+              </span>
             </button>
           ) : (
-            <div className="relative flex items-center justify-center font-mono font-bold text-lg cursor-pointer select-none group" title={navTitleText}>
+            <div
+              className="relative flex items-center justify-center font-mono font-bold text-lg cursor-pointer select-none group"
+              title={navTitleText}
+            >
               {/* Ghost element for layout sizing (holds the widest possible width) */}
               <div className="flex items-center opacity-0 pointer-events-none" aria-hidden="true">
                 <span className="mr-1.5">~/</span>
@@ -156,7 +164,9 @@ const Sidebar: React.FC<SidebarProps> = ({
               {/* Visible animated content */}
               <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center">
                 <span className="text-accent mr-1.5">~/</span>
-                <span className="text-slate-700 dark:text-slate-200 tracking-tight">{displayText}</span>
+                <span className="text-slate-700 dark:text-slate-200 tracking-tight">
+                  {displayText}
+                </span>
                 <span className="w-2.5 h-5 bg-accent ml-1 animate-pulse rounded-[2px] opacity-80 shadow-[0_0_8px_rgb(var(--accent-color)/0.6)]"></span>
               </div>
             </div>
@@ -186,22 +196,27 @@ const Sidebar: React.FC<SidebarProps> = ({
         <button
           onClick={onSelectAll}
           title="置顶网站"
-          className={`relative w-full rounded-xl transition-all duration-200 mb-1 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${selectedCategory === 'all'
-            ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
-            }`}
+          className={`relative w-full rounded-xl transition-all duration-200 mb-1 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${
+            selectedCategory === 'all'
+              ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+          }`}
         >
           {!isSidebarCollapsed && selectedCategory === 'all' && (
             <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-accent shadow-[0_0_8px_rgb(var(--accent-color)/0.4)]"></span>
           )}
-          <div className={`flex items-center justify-center transition-colors ${isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1'} ${selectedCategory === 'all' ? 'text-accent' : 'text-slate-500 dark:text-slate-400'}`}>
+          <div
+            className={`flex items-center justify-center transition-colors ${isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1'} ${selectedCategory === 'all' ? 'text-accent' : 'text-slate-500 dark:text-slate-400'}`}
+          >
             <Icon name="Pin" size={18} />
           </div>
           {!isSidebarCollapsed && (
             <>
               <span className="font-medium flex-1 text-left">置顶网站</span>
               {linkCounts['pinned'] > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedCategory === 'all' ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50'}`}>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedCategory === 'all' ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50'}`}
+                >
                   {linkCounts['pinned']}
                 </span>
               )}
@@ -210,7 +225,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {/* Category Header */}
-        <div className={`flex items-center mt-4 mb-2 ${isSidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'}`}>
+        <div
+          className={`flex items-center mt-4 mb-2 ${isSidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'}`}
+        >
           {!isSidebarCollapsed && (
             <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
               分类目录
@@ -235,29 +252,37 @@ const Sidebar: React.FC<SidebarProps> = ({
                 key={cat.id}
                 onClick={() => onSelectCategory(cat)}
                 title={isSidebarCollapsed ? cat.name : undefined}
-                className={`relative w-full rounded-xl transition-all duration-200 group ${isSidebarCollapsed
-                  ? 'flex items-center justify-center p-2.5'
-                  : 'flex items-center gap-3 px-3 py-2'
-                  } ${isSelected
+                className={`relative w-full rounded-xl transition-all duration-200 group ${
+                  isSidebarCollapsed
+                    ? 'flex items-center justify-center p-2.5'
+                    : 'flex items-center gap-3 px-3 py-2'
+                } ${
+                  isSelected
                     ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
-                  }`}
+                }`}
               >
                 {!isSidebarCollapsed && isSelected && (
                   <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-accent shadow-[0_0_8px_rgb(var(--accent-color)/0.4)]"></span>
                 )}
-                <div className={`flex items-center justify-center transition-colors ${isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1.5 rounded-md'
-                  } ${isSelected
-                    ? 'text-accent'
-                    : 'text-slate-500 dark:text-slate-500'
-                  }`}>
+                <div
+                  className={`flex items-center justify-center transition-colors ${
+                    isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1.5 rounded-md'
+                  } ${isSelected ? 'text-accent' : 'text-slate-500 dark:text-slate-500'}`}
+                >
                   <Icon name={cat.icon} size={16} />
                 </div>
                 {!isSidebarCollapsed && (
                   <>
-                    <span className={`truncate flex-1 text-left text-sm ${isSelected ? 'font-medium' : ''}`}>{cat.name}</span>
+                    <span
+                      className={`truncate flex-1 text-left text-sm ${isSelected ? 'font-medium' : ''}`}
+                    >
+                      {cat.name}
+                    </span>
                     {count > 0 && (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${isSelected ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 group-hover:border-transparent'}`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${isSelected ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 group-hover:border-transparent'}`}
+                      >
                         {count}
                       </span>
                     )}
@@ -275,22 +300,27 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={onSelectPrivate}
               title="隐私分组"
-              className={`relative w-full rounded-xl transition-all duration-200 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${selectedCategory === PRIVATE_CATEGORY_ID
-                ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
-                }`}
+              className={`relative w-full rounded-xl transition-all duration-200 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${
+                selectedCategory === PRIVATE_CATEGORY_ID
+                  ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+              }`}
             >
               {!isSidebarCollapsed && selectedCategory === PRIVATE_CATEGORY_ID && (
                 <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-accent shadow-[0_0_8px_rgb(var(--accent-color)/0.4)]"></span>
               )}
-              <div className={`flex items-center justify-center transition-colors ${isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1'} ${selectedCategory === PRIVATE_CATEGORY_ID ? 'text-accent' : 'text-slate-500 dark:text-slate-400'}`}>
+              <div
+                className={`flex items-center justify-center transition-colors ${isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1'} ${selectedCategory === PRIVATE_CATEGORY_ID ? 'text-accent' : 'text-slate-500 dark:text-slate-400'}`}
+              >
                 <Icon name="Lock" size={18} />
               </div>
               {!isSidebarCollapsed && (
                 <>
                   <span className="font-medium flex-1 text-left">隐私分组</span>
                   {isPrivateUnlocked && privateCount > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedCategory === PRIVATE_CATEGORY_ID ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50'}`}>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedCategory === PRIVATE_CATEGORY_ID ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50'}`}
+                    >
                       {privateCount}
                     </span>
                   )}

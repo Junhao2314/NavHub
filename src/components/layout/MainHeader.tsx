@@ -1,5 +1,19 @@
+import {
+  CheckCircle,
+  GripVertical,
+  LayoutGrid,
+  List,
+  Menu,
+  Monitor,
+  Moon,
+  MoreHorizontal,
+  Save,
+  Search,
+  Settings,
+  Sun,
+  X,
+} from 'lucide-react';
 import React, { useState } from 'react';
-import { Search, Moon, Sun, Menu, Monitor, Settings, GripVertical, Save, X, MoreHorizontal, LayoutGrid, List, CheckCircle } from 'lucide-react';
 import { ExternalSearchSource, SearchMode } from '../../types';
 import { ADMIN_EDIT_DISABLED_HINT } from '../../utils/adminAccess';
 
@@ -82,7 +96,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   onCancelCategorySorting,
   onAddLink,
   onOpenSettings,
-  onEditDisabled
+  onEditDisabled,
 }) => {
   const editDisabledHint = ADMIN_EDIT_DISABLED_HINT;
   const showSortControls = canSortPinned || canSortCategory || isSortingPinned || isSortingCategory;
@@ -123,10 +137,11 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                   onClick={() => onSearchSourceSelect(source)}
                   onMouseEnter={() => onHoverSearchSource(source)}
                   onMouseLeave={() => onHoverSearchSource(null)}
-                  className={`px-2 py-2.5 text-sm rounded-lg transition-all flex flex-col items-center gap-1.5 ${selectedSearchSource?.id === source.id
-                    ? 'bg-accent/15 text-accent'
-                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
+                  className={`px-2 py-2.5 text-sm rounded-lg transition-all flex flex-col items-center gap-1.5 ${
+                    selectedSearchSource?.id === source.id
+                      ? 'bg-accent/15 text-accent'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
                 >
                   <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                     <img
@@ -135,7 +150,8 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       className="w-4 h-4"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
+                        target.src =
+                          'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
                       }}
                     />
                   </div>
@@ -150,20 +166,22 @@ const MainHeader: React.FC<MainHeaderProps> = ({
         <div className="flex items-center gap-1 pl-1.5 py-1">
           <button
             onClick={() => onSearchModeChange('internal')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${searchMode === 'internal'
-              ? 'bg-white dark:bg-slate-800 text-accent shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-              : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
-              }`}
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+              searchMode === 'internal'
+                ? 'bg-white dark:bg-slate-800 text-accent shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
+            }`}
             title="站内搜索"
           >
             站内
           </button>
           <button
             onClick={() => onSearchModeChange('external')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${searchMode === 'external'
-              ? 'bg-white dark:bg-slate-800 text-accent shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-              : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
-              }`}
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+              searchMode === 'external'
+                ? 'bg-white dark:bg-slate-800 text-accent shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
+            }`}
             title="站外搜索"
           >
             站外
@@ -188,14 +206,15 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           >
             {searchMode === 'internal' ? (
               <Search size={15} />
-            ) : (hoveredSearchSource || selectedSearchSource) ? (
+            ) : hoveredSearchSource || selectedSearchSource ? (
               <img
                 src={`https://www.faviconextractor.com/favicon/${new URL((hoveredSearchSource || selectedSearchSource).url).hostname}?larger=true`}
                 alt={(hoveredSearchSource || selectedSearchSource).name}
                 className="w-4 h-4"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
+                  target.src =
+                    'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
                 }}
               />
             ) : (
@@ -236,10 +255,11 @@ const MainHeader: React.FC<MainHeaderProps> = ({
         {searchMode === 'external' && (
           <button
             onClick={canEdit ? onOpenSearchConfig : onEditDisabled}
-            className={`px-3 transition-colors ${canEdit
-              ? 'text-slate-400 hover:text-accent'
-              : 'text-slate-400 opacity-60 cursor-not-allowed'
-              }`}
+            className={`px-3 transition-colors ${
+              canEdit
+                ? 'text-slate-400 hover:text-accent'
+                : 'text-slate-400 opacity-60 cursor-not-allowed'
+            }`}
             title={canEdit ? '管理搜索源' : editDisabledHint}
             aria-disabled={!canEdit}
           >
@@ -254,7 +274,10 @@ const MainHeader: React.FC<MainHeaderProps> = ({
     <header className="sticky top-0 z-30 border-b border-slate-200/30 dark:border-white/5 bg-white/40 dark:bg-slate-950/40 backdrop-blur-2xl">
       <div className="h-14 px-4 lg:px-8 flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <button onClick={onOpenSidebar} className="lg:hidden p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+          <button
+            onClick={onOpenSidebar}
+            className="lg:hidden p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          >
             <Menu size={20} />
           </button>
         </div>
@@ -279,20 +302,22 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           <div className="hidden md:flex items-center p-1 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 mr-2 backdrop-blur-sm">
             <button
               onClick={() => onViewModeChange('simple')}
-              className={`p-1.5 rounded-lg transition-all ${siteCardStyle === 'simple'
-                ? 'bg-white dark:bg-slate-700 text-accent shadow-sm ring-1 ring-black/5 dark:ring-white/10'
-                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
-                }`}
+              className={`p-1.5 rounded-lg transition-all ${
+                siteCardStyle === 'simple'
+                  ? 'bg-white dark:bg-slate-700 text-accent shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
+              }`}
               title="简约视图"
             >
               <List size={16} />
             </button>
             <button
               onClick={() => onViewModeChange('detailed')}
-              className={`p-1.5 rounded-lg transition-all ${siteCardStyle === 'detailed'
-                ? 'bg-white dark:bg-slate-700 text-accent shadow-sm ring-1 ring-black/5 dark:ring-white/10'
-                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
-                }`}
+              className={`p-1.5 rounded-lg transition-all ${
+                siteCardStyle === 'detailed'
+                  ? 'bg-white dark:bg-slate-700 text-accent shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
+              }`}
               title="详情视图"
             >
               <LayoutGrid size={16} />
@@ -300,30 +325,44 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           </div>
 
           {/* Sort Controls */}
-          {showSortControls && (
-            isSorting ? (
+          {showSortControls &&
+            (isSorting ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm animate-in fade-in zoom-in-95 duration-200">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
                   正在排序
                 </span>
                 <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                 <button
-                  onClick={canEdit ? (isSortingPinned ? onSavePinnedSorting : onSaveCategorySorting) : onEditDisabled}
-                  className={`p-1 rounded-full transition-all ${canEdit
-                    ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:scale-105'
-                    : 'text-green-600 opacity-60 cursor-not-allowed'
-                    }`}
+                  onClick={
+                    canEdit
+                      ? isSortingPinned
+                        ? onSavePinnedSorting
+                        : onSaveCategorySorting
+                      : onEditDisabled
+                  }
+                  className={`p-1 rounded-full transition-all ${
+                    canEdit
+                      ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:scale-105'
+                      : 'text-green-600 opacity-60 cursor-not-allowed'
+                  }`}
                   title={canEdit ? '保存排序' : editDisabledHint}
                   aria-disabled={!canEdit}
                 >
                   <CheckCircle size={16} />
                 </button>
                 <button
-                  onClick={canEdit ? (isSortingPinned ? onCancelPinnedSorting : onCancelCategorySorting) : onEditDisabled}
-                  className={`p-1 rounded-full transition-all ${canEdit
-                    ? 'text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:scale-105'
-                    : 'text-slate-400 opacity-60 cursor-not-allowed'
-                    }`}
+                  onClick={
+                    canEdit
+                      ? isSortingPinned
+                        ? onCancelPinnedSorting
+                        : onCancelCategorySorting
+                      : onEditDisabled
+                  }
+                  className={`p-1 rounded-full transition-all ${
+                    canEdit
+                      ? 'text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:scale-105'
+                      : 'text-slate-400 opacity-60 cursor-not-allowed'
+                  }`}
                   title={canEdit ? '取消' : editDisabledHint}
                   aria-disabled={!canEdit}
                 >
@@ -332,18 +371,24 @@ const MainHeader: React.FC<MainHeaderProps> = ({
               </div>
             ) : (
               <button
-                onClick={canEdit ? (canSortPinned ? onStartPinnedSorting : onStartCategorySorting) : onEditDisabled}
-                className={`p-2 rounded-xl transition-all border border-transparent ${canEdit
-                  ? 'text-slate-500 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-200/50 dark:hover:border-white/5'
-                  : 'text-slate-500 opacity-60 cursor-not-allowed'
-                  }`}
+                onClick={
+                  canEdit
+                    ? canSortPinned
+                      ? onStartPinnedSorting
+                      : onStartCategorySorting
+                    : onEditDisabled
+                }
+                className={`p-2 rounded-xl transition-all border border-transparent ${
+                  canEdit
+                    ? 'text-slate-500 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-200/50 dark:hover:border-white/5'
+                    : 'text-slate-500 opacity-60 cursor-not-allowed'
+                }`}
                 title={canEdit ? sortLabel : editDisabledHint}
                 aria-disabled={!canEdit}
               >
                 <GripVertical size={18} />
               </button>
-            )
-          )}
+            ))}
 
           {/* Theme Toggle */}
           {/* Settings Group */}
@@ -355,42 +400,57 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 className="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
                 title="切换主题"
               >
-                {themeMode === 'system' ? <Monitor size={16} /> : darkMode ? <Moon size={16} /> : <Sun size={16} />}
+                {themeMode === 'system' ? (
+                  <Monitor size={16} />
+                ) : darkMode ? (
+                  <Moon size={16} />
+                ) : (
+                  <Sun size={16} />
+                )}
               </button>
 
               {showThemeMenu && (
                 <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowThemeMenu(false)}
-                  />
+                  <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)} />
                   <div className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <button
-                      onClick={() => { onSetTheme('light'); setShowThemeMenu(false); }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${themeMode === 'light'
-                        ? 'bg-accent/10 text-accent font-medium'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
+                      onClick={() => {
+                        onSetTheme('light');
+                        setShowThemeMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
+                        themeMode === 'light'
+                          ? 'bg-accent/10 text-accent font-medium'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
                     >
                       <Sun size={16} />
                       <span>浅色模式</span>
                     </button>
                     <button
-                      onClick={() => { onSetTheme('dark'); setShowThemeMenu(false); }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${themeMode === 'dark'
-                        ? 'bg-accent/10 text-accent font-medium'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
+                      onClick={() => {
+                        onSetTheme('dark');
+                        setShowThemeMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
+                        themeMode === 'dark'
+                          ? 'bg-accent/10 text-accent font-medium'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
                     >
                       <Moon size={16} />
                       <span>深色模式</span>
                     </button>
                     <button
-                      onClick={() => { onSetTheme('system'); setShowThemeMenu(false); }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${themeMode === 'system'
-                        ? 'bg-accent/10 text-accent font-medium'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
+                      onClick={() => {
+                        onSetTheme('system');
+                        setShowThemeMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
+                        themeMode === 'system'
+                          ? 'bg-accent/10 text-accent font-medium'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
                     >
                       <Monitor size={16} />
                       <span>跟随系统</span>
@@ -413,10 +473,11 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           {/* Add Link - Primary Action */}
           <button
             onClick={canEdit ? onAddLink : onEditDisabled}
-            className={`relative overflow-hidden group flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-200 ${canEdit
-              ? 'bg-gradient-to-r from-accent to-accent/80 hover:from-accent hover:to-accent/90 text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 active:scale-95'
-              : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
-              }`}
+            className={`relative overflow-hidden group flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-200 ${
+              canEdit
+                ? 'bg-gradient-to-r from-accent to-accent/80 hover:from-accent hover:to-accent/90 text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 active:scale-95'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
+            }`}
             title={canEdit ? '添加链接' : editDisabledHint}
             aria-disabled={!canEdit}
           >
@@ -424,17 +485,14 @@ const MainHeader: React.FC<MainHeaderProps> = ({
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full animate-shimmer-slow pointer-events-none" />
             )}
             <span className="relative z-10 flex items-center gap-0.5">
-              <span className="text-lg leading-none">+</span> <span className="hidden sm:inline">添加</span>
+              <span className="text-lg leading-none">+</span>{' '}
+              <span className="hidden sm:inline">添加</span>
             </span>
           </button>
         </div>
       </div>
 
-      {isMobileSearchOpen && (
-        <div className="md:hidden px-4 pb-3">
-          {searchBar}
-        </div>
-      )}
+      {isMobileSearchOpen && <div className="md:hidden px-4 pb-3">{searchBar}</div>}
     </header>
   );
 };

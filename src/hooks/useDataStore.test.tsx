@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useDataStore } from './useDataStore';
-import { LOCAL_STORAGE_KEY } from '../utils/constants';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, LinkItem } from '../types';
+import { LOCAL_STORAGE_KEY } from '../utils/constants';
+import { useDataStore } from './useDataStore';
 
 const dialog = vi.hoisted(() => ({
   notify: vi.fn(),
@@ -74,7 +74,10 @@ describe('useDataStore', () => {
       { id: 'l1', title: 'T', url: 'https://t.com', categoryId: 'missing', createdAt: 1 },
     ];
 
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -95,7 +98,10 @@ describe('useDataStore', () => {
       { id: 'l1', title: 'T', url: 'https://t.com', categoryId: 'common', createdAt: 1 },
     ];
 
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -123,7 +129,10 @@ describe('useDataStore', () => {
       { id: 'common', name: 'Common', icon: 'Star' },
       { id: 'dev', name: 'Dev', icon: 'Code' },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: [], categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: [], categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -142,7 +151,10 @@ describe('useDataStore', () => {
 
   it('deleteCategory warns when trying to delete the last category', async () => {
     const storedCategories: Category[] = [{ id: 'only', name: 'Only', icon: 'Star' }];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: [], categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: [], categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -162,7 +174,10 @@ describe('useDataStore', () => {
     const storedLinks: LinkItem[] = [
       { id: 'l1', title: 'T', url: 'https://t.com', categoryId: 'dev', createdAt: 1 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -179,7 +194,10 @@ describe('useDataStore', () => {
     const storedLinks: LinkItem[] = [
       { id: 'l1', title: 'Old', url: 'https://old.com', categoryId: 'dev', createdAt: 1 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -197,12 +215,20 @@ describe('useDataStore', () => {
     const storedLinks: LinkItem[] = [
       { id: 'l1', title: 'Old', url: 'https://old.com', categoryId: 'dev', createdAt: 1 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
     act(() => {
-      get().updateLink({ id: 'l1', title: 'New', url: 'ftp://example.com', categoryId: 'dev' } as any);
+      get().updateLink({
+        id: 'l1',
+        title: 'New',
+        url: 'ftp://example.com',
+        categoryId: 'dev',
+      } as any);
     });
 
     expect(dialog.notify).toHaveBeenCalledWith('链接 URL 无效（仅支持 http/https）。', 'warning');
@@ -215,7 +241,10 @@ describe('useDataStore', () => {
       { id: 'l1', title: 'One', url: 'https://one.com', categoryId: 'dev', createdAt: 1 },
       { id: 'l2', title: 'Two', url: 'https://two.com', categoryId: 'dev', createdAt: 2 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -233,7 +262,10 @@ describe('useDataStore', () => {
     const storedLinks: LinkItem[] = [
       { id: 'l1', title: 'One', url: 'https://one.com', categoryId: 'dev', createdAt: 1 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -254,10 +286,21 @@ describe('useDataStore', () => {
   it('togglePin toggles pinned state and assigns pinnedOrder', async () => {
     const storedCategories: Category[] = [{ id: 'dev', name: 'Dev', icon: 'Code' }];
     const storedLinks: LinkItem[] = [
-      { id: 'p1', title: 'Pinned', url: 'https://pinned.com', categoryId: 'dev', createdAt: 1, pinned: true, pinnedOrder: 0 },
+      {
+        id: 'p1',
+        title: 'Pinned',
+        url: 'https://pinned.com',
+        categoryId: 'dev',
+        createdAt: 1,
+        pinned: true,
+        pinnedOrder: 0,
+      },
       { id: 'l1', title: 'One', url: 'https://one.com', categoryId: 'dev', createdAt: 2 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -285,9 +328,19 @@ describe('useDataStore', () => {
     ];
     const storedLinks: LinkItem[] = [
       { id: 'm', title: 'Manual', url: 'https://manual.com', categoryId: 'common', createdAt: 1 },
-      { id: 'a', title: 'Auto', url: 'https://auto.com', categoryId: 'dev', createdAt: 2, adminClicks: 20 },
+      {
+        id: 'a',
+        title: 'Auto',
+        url: 'https://auto.com',
+        categoryId: 'dev',
+        createdAt: 2,
+        adminClicks: 20,
+      },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -305,11 +358,30 @@ describe('useDataStore', () => {
   it('reorderPinnedLinks updates pinnedOrder and keeps pinned links first', async () => {
     const storedCategories: Category[] = [{ id: 'dev', name: 'Dev', icon: 'Code' }];
     const storedLinks: LinkItem[] = [
-      { id: 'p1', title: 'Pinned 1', url: 'https://p1.com', categoryId: 'dev', createdAt: 1, pinned: true, pinnedOrder: 0 },
-      { id: 'p2', title: 'Pinned 2', url: 'https://p2.com', categoryId: 'dev', createdAt: 2, pinned: true, pinnedOrder: 1 },
+      {
+        id: 'p1',
+        title: 'Pinned 1',
+        url: 'https://p1.com',
+        categoryId: 'dev',
+        createdAt: 1,
+        pinned: true,
+        pinnedOrder: 0,
+      },
+      {
+        id: 'p2',
+        title: 'Pinned 2',
+        url: 'https://p2.com',
+        categoryId: 'dev',
+        createdAt: 2,
+        pinned: true,
+        pinnedOrder: 1,
+      },
       { id: 'l1', title: 'One', url: 'https://one.com', categoryId: 'dev', createdAt: 3, order: 0 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
@@ -331,18 +403,29 @@ describe('useDataStore', () => {
     const storedLinks: LinkItem[] = [
       { id: 'l1', title: 'One', url: 'https://one.com', categoryId: 'dev', createdAt: 1 },
     ];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ links: storedLinks, categories: storedCategories }));
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: storedLinks, categories: storedCategories }),
+    );
 
     const { get } = await renderStore();
 
     act(() => {
       get().importData(
-        [{ id: 'l2', title: 'Two', url: 'https://two.com', categoryId: 'dev', createdAt: 2 } as any],
+        [
+          {
+            id: 'l2',
+            title: 'Two',
+            url: 'https://two.com',
+            categoryId: 'dev',
+            createdAt: 2,
+          } as any,
+        ],
         [
           { id: 'dev', name: 'Dev', icon: 'Code' },
           { id: 'x', name: 'Dev', icon: 'Code' },
           { id: 'design', name: 'Design', icon: 'Palette' },
-        ] as any
+        ] as any,
       );
     });
 

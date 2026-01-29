@@ -1,4 +1,4 @@
-import { Category, LinkItem } from "../types";
+import { Category, LinkItem } from '../types';
 
 /**
  * Generates a Netscape Bookmark HTML string compatible with Chrome/Edge/Firefox import.
@@ -19,29 +19,29 @@ export const generateBookmarkHtml = (links: LinkItem[], categories: Category[]):
   // Helper to escape HTML special characters
   const escapeHtml = (unsafe: string) => {
     return unsafe
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   };
 
   // Group links by category
   const linksByCat = new Map<string, LinkItem[]>();
-  links.forEach(link => {
+  links.forEach((link) => {
     const list = linksByCat.get(link.categoryId) || [];
     list.push(link);
     linksByCat.set(link.categoryId, list);
   });
 
   // 1. Process Categories
-  categories.forEach(cat => {
+  categories.forEach((cat) => {
     const catLinks = linksByCat.get(cat.id) || [];
-    
+
     html += `    <DT><H3 ADD_DATE="${now}" LAST_MODIFIED="${now}">${escapeHtml(cat.name)}</H3>\n`;
     html += `    <DL><p>\n`;
-    
-    catLinks.forEach(link => {
+
+    catLinks.forEach((link) => {
       const date = Math.floor(link.createdAt / 1000);
       const iconAttr = link.icon ? ` ICON="${escapeHtml(link.icon)}"` : '';
       html += `        <DT><A HREF="${escapeHtml(link.url)}" ADD_DATE="${date}"${iconAttr}>${escapeHtml(link.title)}</A>\n`;
@@ -51,15 +51,15 @@ export const generateBookmarkHtml = (links: LinkItem[], categories: Category[]):
   });
 
   // 2. Process Uncategorized (links with invalid categoryId)
-  const validCatIds = new Set(categories.map(c => c.id));
-  const uncategorized = links.filter(l => !validCatIds.has(l.categoryId));
+  const validCatIds = new Set(categories.map((c) => c.id));
+  const uncategorized = links.filter((l) => !validCatIds.has(l.categoryId));
 
   if (uncategorized.length > 0) {
     html += `    <DT><H3 ADD_DATE="${now}" LAST_MODIFIED="${now}">未分类</H3>\n`;
     html += `    <DL><p>\n`;
-    uncategorized.forEach(link => {
-        const date = Math.floor(link.createdAt / 1000);
-        html += `        <DT><A HREF="${escapeHtml(link.url)}" ADD_DATE="${date}">${escapeHtml(link.title)}</A>\n`;
+    uncategorized.forEach((link) => {
+      const date = Math.floor(link.createdAt / 1000);
+      html += `        <DT><A HREF="${escapeHtml(link.url)}" ADD_DATE="${date}">${escapeHtml(link.title)}</A>\n`;
     });
     html += `    </DL><p>\n`;
   }
@@ -71,7 +71,7 @@ export const generateBookmarkHtml = (links: LinkItem[], categories: Category[]):
 
 const triggerDownload = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
@@ -81,12 +81,12 @@ const triggerDownload = (blob: Blob, filename: string) => {
 };
 
 export const downloadHtmlFile = (content: string, filename: string = 'bookmarks.html') => {
-  const blob = new Blob([content], { type: "text/html" });
+  const blob = new Blob([content], { type: 'text/html' });
   triggerDownload(blob, filename);
 };
 
-export const downloadJsonFile = (data: unknown, filename: string = "navhub_backup.json") => {
-  const content = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-  const blob = new Blob([content], { type: "application/json" });
+export const downloadJsonFile = (data: unknown, filename: string = 'navhub_backup.json') => {
+  const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  const blob = new Blob([content], { type: 'application/json' });
   triggerDownload(blob, filename);
 };

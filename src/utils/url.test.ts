@@ -38,4 +38,3 @@ describe('normalizeHttpUrl', () => {
     expect(normalizeHttpUrl('/foo')).toBeNull();
   });
 });
-

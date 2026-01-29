@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useSorting } from './useSorting';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, LinkItem } from '../types';
+import { useSorting } from './useSorting';
 
 describe('useSorting', () => {
   let container: HTMLDivElement;
@@ -32,7 +32,9 @@ describe('useSorting', () => {
     const reorderLinks = vi.fn();
     const reorderPinnedLinks = vi.fn();
 
-    const links: LinkItem[] = [{ id: '1', title: 't', url: 'https://e.com', categoryId: 'dev', createdAt: 1 }];
+    const links: LinkItem[] = [
+      { id: '1', title: 't', url: 'https://e.com', categoryId: 'dev', createdAt: 1 },
+    ];
     const categories: Category[] = [{ id: 'dev', name: 'Dev', icon: 'Code' }];
 
     let api: ReturnType<typeof useSorting> | null = null;
@@ -134,4 +136,3 @@ describe('useSorting', () => {
     expect(reorderPinnedLinks).not.toHaveBeenCalled();
   });
 });
-

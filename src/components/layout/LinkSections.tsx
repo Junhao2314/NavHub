@@ -1,17 +1,23 @@
-﻿import React from 'react';
+﻿import { closestCorners, DndContext, DragEndEvent, SensorDescriptor } from '@dnd-kit/core';
+import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
+import { CheckSquare, Pin, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { VirtuosoGrid } from 'react-virtuoso';
-import { DndContext, DragEndEvent, closestCorners, SensorDescriptor } from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
-import { Pin, Trash2, CheckSquare, Upload, Search, X, RefreshCw } from 'lucide-react';
+import {
+  CLOCK_TICK_MS,
+  MOVE_MENU_CLOSE_DELAY_MS,
+  MOVE_MENU_OFFSET_PX,
+  MOVE_MENU_PADDING_PX,
+  MOVE_MENU_WIDTH_PX,
+} from '../../config/ui';
 import { Category, LinkItem, SearchMode } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
-import { CLOCK_TICK_MS, MOVE_MENU_CLOSE_DELAY_MS, MOVE_MENU_OFFSET_PX, MOVE_MENU_PADDING_PX, MOVE_MENU_WIDTH_PX } from '../../config/ui';
+import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
 import SortableLinkCard from '../ui/SortableLinkCard';
-import { useDialog } from '../ui/DialogProvider';
 
 interface HitokotoPayload {
   hitokoto: string;
@@ -80,9 +86,7 @@ const ClockWidget: React.FC = () => {
       <div className="text-4xl font-mono font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-br from-slate-700 to-slate-900 dark:from-white dark:to-slate-400">
         {formatTime(time)}
       </div>
-      <div className="text-xs font-medium text-accent mt-1 opacity-80">
-        {formatDate(time)}
-      </div>
+      <div className="text-xs font-medium text-accent mt-1 opacity-80">{formatDate(time)}</div>
     </div>
   );
 };
@@ -118,11 +122,11 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   isPrivateUnlocked,
   onPrivateUnlock,
   privateUnlockHint,
-  privateUnlockSubHint
+  privateUnlockSubHint,
 }) => {
   const isPrivateCategory = selectedCategory === PRIVATE_CATEGORY_ID;
-  const showPinnedSection = pinnedLinks.length > 0 && !searchQuery && (selectedCategory === 'all');
-  const showMainSection = (selectedCategory !== 'all' || searchQuery);
+  const showPinnedSection = pinnedLinks.length > 0 && !searchQuery && selectedCategory === 'all';
+  const showMainSection = selectedCategory !== 'all' || searchQuery;
   const isSimpleView = siteCardStyle === 'simple';
   const gridClassName = isSimpleView
     ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
@@ -135,17 +139,17 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     if (!node) return;
     setScrollParent((current) => current ?? node);
   }, []);
-  
+
   // 站内搜索时显示分类名称
   const isInternalSearchWithQuery = searchMode === 'internal' && searchQuery.trim();
   const categoryMap = React.useMemo(() => {
     const map: Record<string, string> = {};
-    categories.forEach(cat => {
+    categories.forEach((cat) => {
       map[cat.id] = cat.name;
     });
     return map;
   }, [categories]);
-  
+
   const [hitokoto, setHitokoto] = React.useState<HitokotoPayload | null>(null);
   const [isHitokotoLoading, setIsHitokotoLoading] = React.useState(false);
   const hitokotoFetchingRef = React.useRef(false);
@@ -206,35 +210,38 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     safeLocalStorageSetItem(HITOKOTO_CACHE_KEY, JSON.stringify(cache));
   };
 
-  const fetchHitokoto = React.useCallback(async (notifyOnError = false) => {
-    if (hitokotoFetchingRef.current) return;
-    hitokotoFetchingRef.current = true;
-    setIsHitokotoLoading(true);
-    try {
-      const response = await fetch('https://v1.hitokoto.cn');
-      if (!response.ok) {
-        throw new Error(`Hitokoto request failed: ${response.status}`);
+  const fetchHitokoto = React.useCallback(
+    async (notifyOnError = false) => {
+      if (hitokotoFetchingRef.current) return;
+      hitokotoFetchingRef.current = true;
+      setIsHitokotoLoading(true);
+      try {
+        const response = await fetch('https://v1.hitokoto.cn');
+        if (!response.ok) {
+          throw new Error(`Hitokoto request failed: ${response.status}`);
+        }
+        const payload = (await response.json()) as HitokotoPayload;
+        if (!payload?.hitokoto) {
+          throw new Error('Hitokoto payload missing text');
+        }
+        const normalized = {
+          hitokoto: payload.hitokoto,
+          from: payload.from,
+          from_who: payload.from_who ?? null,
+        };
+        setHitokoto(normalized);
+        writeHitokotoCache(normalized);
+      } catch (error) {
+        if (notifyOnError) {
+          notify('获取一言失败，请稍后再试。', 'warning');
+        }
+      } finally {
+        hitokotoFetchingRef.current = false;
+        setIsHitokotoLoading(false);
       }
-      const payload = (await response.json()) as HitokotoPayload;
-      if (!payload?.hitokoto) {
-        throw new Error('Hitokoto payload missing text');
-      }
-      const normalized = {
-        hitokoto: payload.hitokoto,
-        from: payload.from,
-        from_who: payload.from_who ?? null
-      };
-      setHitokoto(normalized);
-      writeHitokotoCache(normalized);
-    } catch (error) {
-      if (notifyOnError) {
-        notify('获取一言失败，请稍后再试。', 'warning');
-      }
-    } finally {
-      hitokotoFetchingRef.current = false;
-      setIsHitokotoLoading(false);
-    }
-  }, [notify]);
+    },
+    [notify],
+  );
 
   React.useEffect(() => {
     const cache = readHitokotoCache();
@@ -285,7 +292,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     const padding = MOVE_MENU_PADDING_PX;
     const left = Math.max(
       padding,
-      Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - padding)
+      Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - padding),
     );
     const top = rect.bottom + MOVE_MENU_OFFSET_PX;
     setMoveMenuPosition({ top, left });
@@ -316,10 +323,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     }
   }, []);
 
-  const handleBatchMoveSelect = React.useCallback((targetCategoryId: string) => {
-    onBatchMove(targetCategoryId);
-    setMoveMenuOpen(false);
-  }, [onBatchMove]);
+  const handleBatchMoveSelect = React.useCallback(
+    (targetCategoryId: string) => {
+      onBatchMove(targetCategoryId);
+      setMoveMenuOpen(false);
+    },
+    [onBatchMove],
+  );
 
   React.useEffect(() => {
     if (!moveMenuOpen) return;
@@ -339,11 +349,12 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   }, [isBatchEditMode]);
 
   return (
-    <div ref={setScrollParentRef} className="flex-1 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide">
+    <div
+      ref={setScrollParentRef}
+      className="flex-1 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide"
+    >
       {/* Content wrapper with max-width - Added min-h and flex to push footer to bottom */}
       <div className="max-w-[1600px] mx-auto min-h-full flex flex-col">
-
-
         {/* Dashboard Header / Greeting */}
         {!searchQuery && selectedCategory === 'all' && (
           <div className="pt-8 pb-4 flex items-end justify-between">
@@ -351,9 +362,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
                 {getGreeting()}，<span className="text-accent">{siteTitle}</span>
               </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">
-                准备开始高效的一天了吗？
-              </p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">准备开始高效的一天了吗？</p>
             </div>
             {/* Clock Widget */}
             <div className="hidden sm:block text-right">
@@ -377,9 +386,15 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               </div>
               {/* Stats as badge */}
               <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{linksCount} 站点</span>
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{categories.length} 分类</span>
-                <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">{pinnedLinks.length} 置顶</span>
+                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                  {linksCount} 站点
+                </span>
+                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                  {categories.length} 分类
+                </span>
+                <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">
+                  {pinnedLinks.length} 置顶
+                </span>
               </div>
             </div>
 
@@ -434,14 +449,19 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               <div className="flex items-center gap-3">
                 {selectedCategory !== 'all' && (
                   <div className="p-2 rounded-lg bg-accent/10">
-                    <Icon name={activeCategory?.icon || 'Folder'} size={16} className="text-accent" />
+                    <Icon
+                      name={activeCategory?.icon || 'Folder'}
+                      size={16}
+                      className="text-accent"
+                    />
                   </div>
                 )}
                 <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">
                   {selectedCategory === 'all'
-                    ? (searchQuery ? '搜索结果' : '所有链接')
-                    : (activeCategory?.name || '未命名分类')
-                  }
+                    ? searchQuery
+                      ? '搜索结果'
+                      : '所有链接'
+                    : activeCategory?.name || '未命名分类'}
                 </h2>
                 {displayedLinks.length > 0 && (
                   <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full">
@@ -492,7 +512,9 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         title="全选/取消全选"
                       >
                         <CheckSquare size={13} />
-                        <span>{selectedLinksCount === displayedLinks.length ? '取消全选' : '全选'}</span>
+                        <span>
+                          {selectedLinksCount === displayedLinks.length ? '取消全选' : '全选'}
+                        </span>
                       </button>
                       <div
                         className="relative"
@@ -528,7 +550,9 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300">{privateUnlockHint}</p>
                 {privateUnlockSubHint && (
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{privateUnlockSubHint}</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                    {privateUnlockSubHint}
+                  </p>
                 )}
                 <div className="mt-4 w-full max-w-xs">
                   <input
@@ -544,7 +568,9 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     }}
                   />
                   {privateUnlockError && (
-                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">{privateUnlockError}</div>
+                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                      {privateUnlockError}
+                    </div>
                   )}
                   <button
                     type="button"
@@ -556,76 +582,77 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   </button>
                 </div>
               </div>
-            ) : (
-              displayedLinks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                  <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-                    <Search size={32} className="opacity-40" />
-                  </div>
-                  <p className="text-sm">没有找到相关内容</p>
-                  {selectedCategory !== 'all' && (
-                    <button onClick={onAddLink} className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded">添加一个?</button>
-                  )}
+            ) : displayedLinks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
+                  <Search size={32} className="opacity-40" />
                 </div>
-              ) : (
-                isSortingMode === selectedCategory ? (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCorners}
-                    onDragEnd={onDragEnd}
+                <p className="text-sm">没有找到相关内容</p>
+                {selectedCategory !== 'all' && (
+                  <button
+                    onClick={onAddLink}
+                    className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded"
                   >
-                    <SortableContext
-                      items={displayedLinks.map((link) => link.id)}
-                      strategy={rectSortingStrategy}
-                    >
-                      <div className={`grid ${gridGap} ${gridClassName}`}>
-                        {displayedLinks.map((link) => (
-                          <SortableLinkCard
-                            key={link.id}
-                            link={link}
-                            siteCardStyle={siteCardStyle}
-                            isSortingMode={true}
-                            isSortingPinned={false}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                ) : (
-                  scrollParent ? (
-                    <VirtuosoGrid
-                      customScrollParent={scrollParent}
-                      data={displayedLinks}
-                      computeItemKey={(_, link) => link.id}
-                      listClassName={`grid ${gridGap} ${gridClassName}`}
-                      itemClassName="min-w-0"
-                      increaseViewportBy={{ top: 600, bottom: 800 }}
-                      itemContent={(_, link) => (
-                        <LinkCard
-                          link={link}
-                          siteCardStyle={siteCardStyle}
-                          isBatchEditMode={isBatchEditMode}
-                          isSelected={selectedLinks.has(link.id)}
-                          categoryName={isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined}
-                          onSelect={onLinkSelect}
-                          onContextMenu={onLinkContextMenu}
-                          onEdit={onLinkEdit}
-                          onOpenLink={onLinkOpen}
-                        />
-                      )}
-                    />
-                  ) : (
-                    <div className={`grid ${gridGap} ${gridClassName}`}>
-                      {Array.from({ length: Math.min(displayedLinks.length, 12) }, (_, index) => (
-                        <div
-                          key={index}
-                          className="h-20 rounded-xl bg-slate-100/80 dark:bg-slate-800/40 animate-pulse"
-                        />
-                      ))}
-                    </div>
-                  )
-                )
-              )
+                    添加一个?
+                  </button>
+                )}
+              </div>
+            ) : isSortingMode === selectedCategory ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragEnd={onDragEnd}
+              >
+                <SortableContext
+                  items={displayedLinks.map((link) => link.id)}
+                  strategy={rectSortingStrategy}
+                >
+                  <div className={`grid ${gridGap} ${gridClassName}`}>
+                    {displayedLinks.map((link) => (
+                      <SortableLinkCard
+                        key={link.id}
+                        link={link}
+                        siteCardStyle={siteCardStyle}
+                        isSortingMode={true}
+                        isSortingPinned={false}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            ) : scrollParent ? (
+              <VirtuosoGrid
+                customScrollParent={scrollParent}
+                data={displayedLinks}
+                computeItemKey={(_, link) => link.id}
+                listClassName={`grid ${gridGap} ${gridClassName}`}
+                itemClassName="min-w-0"
+                increaseViewportBy={{ top: 600, bottom: 800 }}
+                itemContent={(_, link) => (
+                  <LinkCard
+                    link={link}
+                    siteCardStyle={siteCardStyle}
+                    isBatchEditMode={isBatchEditMode}
+                    isSelected={selectedLinks.has(link.id)}
+                    categoryName={
+                      isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined
+                    }
+                    onSelect={onLinkSelect}
+                    onContextMenu={onLinkContextMenu}
+                    onEdit={onLinkEdit}
+                    onOpenLink={onLinkOpen}
+                  />
+                )}
+              />
+            ) : (
+              <div className={`grid ${gridGap} ${gridClassName}`}>
+                {Array.from({ length: Math.min(displayedLinks.length, 12) }, (_, index) => (
+                  <div
+                    key={index}
+                    className="h-20 rounded-xl bg-slate-100/80 dark:bg-slate-800/40 animate-pulse"
+                  />
+                ))}
+              </div>
             )}
           </section>
         )}
@@ -662,25 +689,29 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
           </div>
         </footer>
       </div>
-      {moveMenuOpen && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed z-[70] w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden"
-          style={{ top: moveMenuPosition.top, left: moveMenuPosition.left }}
-          onMouseEnter={cancelCloseMoveMenu}
-          onMouseLeave={scheduleCloseMoveMenu}
-        >
-          {categories.filter((cat) => cat.id !== selectedCategory).map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => handleBatchMoveSelect(cat.id)}
-              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
+      {moveMenuOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed z-[70] w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden"
+            style={{ top: moveMenuPosition.top, left: moveMenuPosition.left }}
+            onMouseEnter={cancelCloseMoveMenu}
+            onMouseLeave={scheduleCloseMoveMenu}
+          >
+            {categories
+              .filter((cat) => cat.id !== selectedCategory)
+              .map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => handleBatchMoveSelect(cat.id)}
+                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {cat.name}
+                </button>
+              ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

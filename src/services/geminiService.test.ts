@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchAvailableModels } from './geminiService';
 import type { AIConfig } from '../types';
+import { fetchAvailableModels } from './geminiService';
 
 describe('fetchAvailableModels', () => {
   afterEach(() => {
@@ -12,10 +12,7 @@ describe('fetchAvailableModels', () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
       return new Response(
         JSON.stringify({
-          models: [
-            { name: 'models/gemini-2.5-flash' },
-            { name: 'models/text-bison-001' },
-          ],
+          models: [{ name: 'models/gemini-2.5-flash' }, { name: 'models/text-bison-001' }],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );

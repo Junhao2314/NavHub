@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { TOAST_AUTO_DISMISS_MS } from '../../config/ui';
 
 type ToastVariant = 'info' | 'success' | 'warning' | 'error';
@@ -50,14 +50,17 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(item => item.id !== id));
+    setToasts((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  const notify = useCallback((message: string, variant: ToastVariant = 'info') => {
-    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    setToasts(prev => [...prev, { id, message, variant }]);
-    setTimeout(() => removeToast(id), TOAST_AUTO_DISMISS_MS);
-  }, [removeToast]);
+  const notify = useCallback(
+    (message: string, variant: ToastVariant = 'info') => {
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      setToasts((prev) => [...prev, { id, message, variant }]);
+      setTimeout(() => removeToast(id), TOAST_AUTO_DISMISS_MS);
+    },
+    [removeToast],
+  );
 
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -65,11 +68,14 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   }, []);
 
-  const handleResolve = useCallback((value: boolean) => {
-    if (!confirmState) return;
-    confirmState.resolve(value);
-    setConfirmState(null);
-  }, [confirmState]);
+  const handleResolve = useCallback(
+    (value: boolean) => {
+      if (!confirmState) return;
+      confirmState.resolve(value);
+      setConfirmState(null);
+    },
+    [confirmState],
+  );
 
   const contextValue = useMemo(() => ({ notify, confirm }), [notify, confirm]);
 
@@ -79,7 +85,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       {/* Toasts */}
       <div className="fixed top-5 right-5 z-[120] space-y-2">
-        {toasts.map(toast => {
+        {toasts.map((toast) => {
           const Icon = getToastIcon(toast.variant);
           return (
             <div
@@ -110,12 +116,18 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800/50">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${confirmState.options.variant === 'danger'
-                  ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                  : 'bg-accent/10 text-accent'
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                    confirmState.options.variant === 'danger'
+                      ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                      : 'bg-accent/10 text-accent'
                   }`}
                 >
-                  {confirmState.options.variant === 'danger' ? <AlertTriangle size={18} /> : <Info size={18} />}
+                  {confirmState.options.variant === 'danger' ? (
+                    <AlertTriangle size={18} />
+                  ) : (
+                    <Info size={18} />
+                  )}
                 </div>
                 <div className="flex-1">
                   <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -138,10 +150,11 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               </button>
               <button
                 onClick={() => handleResolve(true)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors shadow-sm ${confirmState.options.variant === 'danger'
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-accent hover:bg-accent/90'
-                  }`}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors shadow-sm ${
+                  confirmState.options.variant === 'danger'
+                    ? 'bg-red-500 hover:bg-red-600'
+                    : 'bg-accent hover:bg-accent/90'
+                }`}
               >
                 {confirmState.options.confirmText || '确定'}
               </button>

@@ -1,15 +1,15 @@
 // 深色模式下的背景色调色板 - 柔和的浅色系，按色相排列
 const DARK_BG_PALETTE = [
-  { bg: '#ffe4e6', text: '#9f1239', hue: 0 },    // rose - 红色系
-  { bg: '#ffedd5', text: '#9a3412', hue: 30 },   // orange - 橙色系
-  { bg: '#fef3c7', text: '#92400e', hue: 45 },   // amber - 黄色系
-  { bg: '#d1fae5', text: '#065f46', hue: 150 },  // emerald - 绿色系
-  { bg: '#ccfbf1', text: '#115e59', hue: 170 },  // teal - 青绿色系
-  { bg: '#cffafe', text: '#155e75', hue: 190 },  // cyan - 青色系
-  { bg: '#dbeafe', text: '#1e40af', hue: 220 },  // blue - 蓝色系
-  { bg: '#e0e7ff', text: '#3730a3', hue: 240 },  // indigo - 靛蓝色系
-  { bg: '#ede9fe', text: '#5b21b6', hue: 270 },  // violet - 紫色系
-  { bg: '#fae8ff', text: '#86198f', hue: 300 },  // fuchsia - 品红色系
+  { bg: '#ffe4e6', text: '#9f1239', hue: 0 }, // rose - 红色系
+  { bg: '#ffedd5', text: '#9a3412', hue: 30 }, // orange - 橙色系
+  { bg: '#fef3c7', text: '#92400e', hue: 45 }, // amber - 黄色系
+  { bg: '#d1fae5', text: '#065f46', hue: 150 }, // emerald - 绿色系
+  { bg: '#ccfbf1', text: '#115e59', hue: 170 }, // teal - 青绿色系
+  { bg: '#cffafe', text: '#155e75', hue: 190 }, // cyan - 青色系
+  { bg: '#dbeafe', text: '#1e40af', hue: 220 }, // blue - 蓝色系
+  { bg: '#e0e7ff', text: '#3730a3', hue: 240 }, // indigo - 靛蓝色系
+  { bg: '#ede9fe', text: '#5b21b6', hue: 270 }, // violet - 紫色系
+  { bg: '#fae8ff', text: '#86198f', hue: 300 }, // fuchsia - 品红色系
 ];
 
 // 中性背景（用于灰度图标）
@@ -31,16 +31,16 @@ const LIGHT_CARD_BG_PALETTE = [
 
 // 卡片背景调色板 - 深色模式（非常淡的色调，保持对比度）
 const DARK_CARD_BG_PALETTE = [
-  'rgba(159, 18, 57, 0.12)',   // rose
-  'rgba(154, 52, 18, 0.12)',   // orange
-  'rgba(146, 64, 14, 0.12)',   // amber
-  'rgba(6, 95, 70, 0.12)',     // emerald
-  'rgba(17, 94, 89, 0.12)',    // teal
-  'rgba(21, 94, 117, 0.12)',   // cyan
-  'rgba(30, 64, 175, 0.12)',   // blue
-  'rgba(55, 48, 163, 0.12)',   // indigo
-  'rgba(91, 33, 182, 0.12)',   // violet
-  'rgba(134, 25, 143, 0.12)',  // fuchsia
+  'rgba(159, 18, 57, 0.12)', // rose
+  'rgba(154, 52, 18, 0.12)', // orange
+  'rgba(146, 64, 14, 0.12)', // amber
+  'rgba(6, 95, 70, 0.12)', // emerald
+  'rgba(17, 94, 89, 0.12)', // teal
+  'rgba(21, 94, 117, 0.12)', // cyan
+  'rgba(30, 64, 175, 0.12)', // blue
+  'rgba(55, 48, 163, 0.12)', // indigo
+  'rgba(91, 33, 182, 0.12)', // violet
+  'rgba(134, 25, 143, 0.12)', // fuchsia
 ];
 
 // 获取卡片背景色
@@ -82,7 +82,10 @@ export const normalizeHexColor = (value?: string) => {
   const hex = toHex(value);
   if (/^[0-9a-fA-F]{6}$/.test(hex)) return `#${hex.toLowerCase()}`;
   if (/^[0-9a-fA-F]{3}$/.test(hex)) {
-    const expanded = hex.split('').map(ch => `${ch}${ch}`).join('');
+    const expanded = hex
+      .split('')
+      .map((ch) => `${ch}${ch}`)
+      .join('');
     return `#${expanded.toLowerCase()}`;
   }
   return null;
@@ -116,18 +119,28 @@ export const getDarkBgStyle = (icon?: string, url?: string, title?: string) => {
 
 // RGB 转 HSL
 const rgbToHsl = (r: number, g: number, b: number) => {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b);
   const l = (max + min) / 2;
-  let h = 0, s = 0;
-  
+  let h = 0,
+    s = 0;
+
   if (max !== min) {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
     switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
+      case r:
+        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        break;
+      case g:
+        h = ((b - r) / d + 2) / 6;
+        break;
+      case b:
+        h = ((r - g) / d + 4) / 6;
+        break;
     }
   }
   return { h: h * 360, s, l };
@@ -135,13 +148,11 @@ const rgbToHsl = (r: number, g: number, b: number) => {
 
 // 根据图标主色调选择对比背景色（加入种子，避免大量同色图标映射到同一个背景）
 const getContrastingBg = (dominantHue: number, seed: string): { bg: string; text: string } => {
-  const ranked = DARK_BG_PALETTE
-    .map((palette) => {
-      let distance = Math.abs(palette.hue - dominantHue);
-      if (distance > 180) distance = 360 - distance;
-      return { palette, distance };
-    })
-    .sort((a, b) => b.distance - a.distance);
+  const ranked = DARK_BG_PALETTE.map((palette) => {
+    let distance = Math.abs(palette.hue - dominantHue);
+    if (distance > 180) distance = 360 - distance;
+    return { palette, distance };
+  }).sort((a, b) => b.distance - a.distance);
 
   const poolSize = Math.min(3, ranked.length);
   const index = hashString(seed || String(dominantHue)) % poolSize;
@@ -165,7 +176,7 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
   if (iconColorCache.has(iconUrl)) {
     return Promise.resolve(iconColorCache.get(iconUrl)!);
   }
-  
+
   return new Promise((resolve) => {
     const fallback = () => {
       const seeded = getSeededDarkBg(iconUrl);
@@ -175,7 +186,7 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
 
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    
+
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
@@ -184,72 +195,77 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
           fallback();
           return;
         }
-        
+
         // 缩小图片以加快分析
         const size = 32;
         canvas.width = size;
         canvas.height = size;
         ctx.drawImage(img, 0, 0, size, size);
-        
+
         const imageData = ctx.getImageData(0, 0, size, size);
         const pixels = imageData.data;
-        
+
         // 收集非透明、非白、非黑像素的颜色
         const colors: { h: number; s: number; l: number }[] = [];
-        
+
         for (let i = 0; i < pixels.length; i += 4) {
           const r = pixels[i];
           const g = pixels[i + 1];
           const b = pixels[i + 2];
           const a = pixels[i + 3];
-          
+
           // 跳过透明像素
           if (a < 128) continue;
-          
+
           // 跳过接近白色或黑色的像素
           const brightness = (r + g + b) / 3;
           if (brightness > 240 || brightness < 15) continue;
-          
+
           const hsl = rgbToHsl(r, g, b);
           // 只收集有一定饱和度的颜色
           if (hsl.s > 0.1) {
             colors.push(hsl);
           }
         }
-        
+
         if (colors.length === 0) {
           fallback();
           return;
         }
-        
+
         // 计算平均色相和饱和度
-        let sumHue = 0, sumSat = 0;
+        let sumHue = 0,
+          sumSat = 0;
         for (const c of colors) {
           sumHue += c.h;
           sumSat += c.s;
         }
         const avgHue = sumHue / colors.length;
         const avgSat = sumSat / colors.length;
-        
-        const result = avgSat < 0.15
-          ? getSeededDarkBg(iconUrl)
-          : getContrastingBg(avgHue, iconUrl);
+
+        const result = avgSat < 0.15 ? getSeededDarkBg(iconUrl) : getContrastingBg(avgHue, iconUrl);
         iconColorCache.set(iconUrl, result);
         resolve(result);
       } catch {
         fallback();
       }
     };
-    
+
     img.onerror = () => {
       fallback();
     };
-    
+
     img.src = iconUrl;
   });
 };
 
-export const getIconToneStyle = (hexColor?: string, isDark?: boolean, icon?: string, url?: string, title?: string) => {
+export const getIconToneStyle = (
+  hexColor?: string,
+  isDark?: boolean,
+  icon?: string,
+  url?: string,
+  title?: string,
+) => {
   // 如果有自定义颜色
   if (hexColor) {
     const rgb = hexToRgb(hexColor);
@@ -258,20 +274,20 @@ export const getIconToneStyle = (hexColor?: string, isDark?: boolean, icon?: str
         // 深色模式：用浅色版本的自定义颜色
         return {
           backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`,
-          color: `rgb(${Math.min(rgb.r + 60, 255)}, ${Math.min(rgb.g + 60, 255)}, ${Math.min(rgb.b + 60, 255)})`
+          color: `rgb(${Math.min(rgb.r + 60, 255)}, ${Math.min(rgb.g + 60, 255)}, ${Math.min(rgb.b + 60, 255)})`,
         };
       }
       return {
         backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`,
-        color: `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+        color: `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`,
       };
     }
   }
-  
+
   // 深色模式下使用差异化背景
   if (isDark) {
     return getDarkBgStyle(icon, url, title);
   }
-  
+
   return undefined;
 };

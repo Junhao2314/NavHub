@@ -1,12 +1,16 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Sparkles, Loader2, Pin, Star, Wand2, Trash2, Upload, Tag } from 'lucide-react';
-import { LinkItem, Category, AIConfig } from '../../types';
+import { Loader2, Pin, Sparkles, Star, Tag, Trash2, Upload, Wand2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS,
+  LINK_MODAL_SUCCESS_MESSAGE_HIDE_MS,
+  LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS,
+} from '../../config/ui';
 import { generateLinkDescription, suggestCategory } from '../../services/geminiService';
-import { useDialog } from '../ui/DialogProvider';
+import { AIConfig, Category, LinkItem } from '../../types';
+import { getIcon as getFaviconIcon, setIcon as setFaviconIcon } from '../../utils/faviconCache';
 import { getIconToneStyle, normalizeHexColor } from '../../utils/iconTone';
-import { setIcon as setFaviconIcon, getIcon as getFaviconIcon } from '../../utils/faviconCache';
 import { normalizeHttpUrl } from '../../utils/url';
-import { LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS, LINK_MODAL_SUCCESS_MESSAGE_HIDE_MS, LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS } from '../../config/ui';
+import { useDialog } from '../ui/DialogProvider';
 
 interface LinkModalProps {
   isOpen: boolean;
@@ -31,7 +35,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
   aiConfig,
   defaultCategoryId,
   closeOnBackdrop = true,
-  existingTags = []
+  existingTags = [],
 }) => {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
@@ -59,8 +63,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
     if (!existingTags || existingTags.length === 0) return [];
     const input = tagInput.toLowerCase().trim();
     return existingTags
-      .filter(tag => !tags.some(t => t.toLowerCase() === tag.toLowerCase()))
-      .filter(tag => !input || tag.toLowerCase().includes(input))
+      .filter((tag) => !tags.some((t) => t.toLowerCase() === tag.toLowerCase()))
+      .filter((tag) => !input || tag.toLowerCase().includes(input))
       .slice(0, 8);
   }, [existingTags, tags, tagInput]);
 
@@ -104,9 +108,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
         setTagInput('');
         // 如果有默认分类ID且该分类存在，则使用默认分类
         // 否则选择第一个非"常用推荐"的分类，避免用户不知道链接保存到哪里
-        const defaultCategory = defaultCategoryId && categories.find(cat => cat.id === defaultCategoryId);
-        const fallbackCategory = categories.find(cat => cat.id !== 'common') || categories[0];
-        setCategoryId(defaultCategory ? defaultCategoryId : (fallbackCategory?.id || 'common'));
+        const defaultCategory =
+          defaultCategoryId && categories.find((cat) => cat.id === defaultCategoryId);
+        const fallbackCategory = categories.find((cat) => cat.id !== 'common') || categories[0];
+        setCategoryId(defaultCategory ? defaultCategoryId : fallbackCategory?.id || 'common');
         setPinned(false);
         setRecommended(false);
         setIcon('');
@@ -119,14 +124,14 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const parseTags = (value: string) => {
     return value
       .split(/[,\n，；;]+/g)
-      .map(tag => tag.trim())
+      .map((tag) => tag.trim())
       .filter(Boolean);
   };
 
   const normalizeTags = (value: string[]) => {
     const seen = new Set<string>();
     const result: string[] = [];
-    value.forEach(tag => {
+    value.forEach((tag) => {
       const trimmed = tag.trim();
       if (!trimmed) return;
       const key = trimmed.toLowerCase();
@@ -140,16 +145,16 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const commitTagInput = () => {
     const incoming = parseTags(tagInput);
     if (incoming.length === 0) return;
-    setTags(prev => normalizeTags([...prev, ...incoming]));
+    setTags((prev) => normalizeTags([...prev, ...incoming]));
     setTagInput('');
   };
 
   const removeTag = (tagToRemove: string) => {
-    setTags(prev => prev.filter(tag => tag !== tagToRemove));
+    setTags((prev) => prev.filter((tag) => tag !== tagToRemove));
   };
 
   const selectTagSuggestion = (tag: string) => {
-    setTags(prev => normalizeTags([...prev, tag]));
+    setTags((prev) => normalizeTags([...prev, tag]));
     setTagInput('');
     setShowTagSuggestions(false);
     tagInputRef.current?.focus();
@@ -163,7 +168,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
     }
 
     if (e.key === 'Backspace' && tagInput.trim() === '') {
-      setTags(prev => prev.slice(0, -1));
+      setTags((prev) => prev.slice(0, -1));
     }
 
     if (e.key === 'Escape') {
@@ -218,7 +223,6 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
     // 保存链接数据
     onSave({
-      id: initialData?.id || '',
       title,
       url: finalUrl,
       icon,
@@ -227,7 +231,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
       tags: nextTags.length > 0 ? nextTags : undefined,
       categoryId,
       pinned,
-      recommended
+      recommended,
     });
 
     // 如果有自定义图标URL，缓存到本地
@@ -260,7 +264,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const handleAIAssist = async () => {
     if (!url || !title) return;
     if (!aiConfig.apiKey) {
-      notify("请先点击侧边栏左下角设置图标配置 AI API Key", 'warning');
+      notify('请先点击侧边栏左下角设置图标配置 AI API Key', 'warning');
       return;
     }
 
@@ -275,13 +279,12 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
       if (desc) setDescription(desc);
       if (cat && cat !== categoryId) {
-        const name = categories.find(c => c.id === cat)?.name;
+        const name = categories.find((c) => c.id === cat)?.name;
         notify(`AI 推荐分类：${name || cat}（右上角可手动切换）`, 'info');
       }
-
     } catch (e) {
-      console.error("AI Assist failed", e);
-      notify("AI 生成失败，请检查 AI 配置或查看控制台日志", 'error');
+      console.error('AI Assist failed', e);
+      notify('AI 生成失败，请检查 AI 配置或查看控制台日志', 'error');
     } finally {
       setIsGenerating(false);
     }
@@ -321,8 +324,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
       // Requirements: 3.2 - Auto-fetched icons are NOT marked as custom
       setFaviconIcon(domain, iconUrl, false);
     } catch (e) {
-      console.error("Failed to fetch icon", e);
-      notify("无法获取图标，请检查URL是否正确", 'error');
+      console.error('Failed to fetch icon', e);
+      notify('无法获取图标，请检查URL是否正确', 'error');
     } finally {
       setIsFetchingIcon(false);
     }
@@ -334,7 +337,14 @@ const LinkModal: React.FC<LinkModalProps> = ({
     if (!file) return;
 
     // 验证文件类型
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'];
+    const validTypes = [
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/svg+xml',
+      'image/x-icon',
+      'image/vnd.microsoft.icon',
+    ];
     if (!validTypes.includes(file.type)) {
       notify('请上传 PNG、JPG、SVG 或 ICO 格式的图标', 'warning');
       return;
@@ -429,7 +439,9 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 onClick={() => setBatchMode(!batchMode)}
               >
-                <div className={`w-2 h-2 rounded-full ${batchMode ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                <div
+                  className={`w-2 h-2 rounded-full ${batchMode ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                />
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-400 select-none">
                   {batchMode ? '批量模式已开' : '批量模式'}
                 </span>
@@ -452,12 +464,13 @@ const LinkModal: React.FC<LinkModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPinned(!pinned)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${pinned
-                  ? 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-700/50 dark:text-amber-400'
-                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-750'
-                  }`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${
+                  pinned
+                    ? 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-700/50 dark:text-amber-400'
+                    : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-750'
+                }`}
               >
-                <Pin size={13} className={pinned ? "fill-current" : ""} />
+                <Pin size={13} className={pinned ? 'fill-current' : ''} />
                 {pinned ? '已置顶' : '置顶'}
               </button>
 
@@ -472,11 +485,16 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       ? 'bg-accent/10 border-accent/20 text-accent dark:bg-accent/15 dark:border-accent/20'
                       : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-750'
                 }`}
-                title={categoryId === 'common' 
-                  ? '当前分类已是「常用推荐」' 
-                  : '加入「常用推荐」，同时保留原分类'}
+                title={
+                  categoryId === 'common'
+                    ? '当前分类已是「常用推荐」'
+                    : '加入「常用推荐」，同时保留原分类'
+                }
               >
-                <Star size={13} className={recommended || categoryId === 'common' ? "fill-current" : ""} />
+                <Star
+                  size={13}
+                  className={recommended || categoryId === 'common' ? 'fill-current' : ''}
+                />
                 {categoryId === 'common' ? '已在此分类' : recommended ? '已推荐' : '推荐'}
               </button>
 
@@ -499,13 +517,27 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full appearance-none pl-3 pr-8 py-1.5 text-xs font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600 cursor-pointer"
               >
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
                 ))}
               </select>
               <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="10"
+                  height="6"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
             </div>
@@ -547,11 +579,26 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     src={icon}
                     alt="Icon"
                     className="w-full h-full object-contain"
-                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
                   />
                 ) : (
                   <div className="text-slate-300 dark:text-slate-600">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
                   </div>
                 )}
               </div>
@@ -573,7 +620,11 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="自动获取"
                     >
-                      {isFetchingIcon ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                      {isFetchingIcon ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Wand2 size={16} />
+                      )}
                     </button>
                     <button
                       type="button"
@@ -595,11 +646,16 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       onChange={(e) => setAutoFetchIcon(e.target.checked)}
                       className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700"
                     />
-                    <label htmlFor="autoFetchIcon" className="text-[10px] text-slate-500 dark:text-slate-400 select-none cursor-pointer">
+                    <label
+                      htmlFor="autoFetchIcon"
+                      className="text-[10px] text-slate-500 dark:text-slate-400 select-none cursor-pointer"
+                    >
                       输入链接时自动获取
                     </label>
                   </div>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">支持 SVG, PNG, ICO</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                    支持 SVG, PNG, ICO
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400">图标颜色</span>
@@ -638,14 +694,18 @@ const LinkModal: React.FC<LinkModalProps> = ({
             {/* Description */}
             <div className="relative">
               <div className="absolute right-3 top-3">
-                {(title && url) && (
+                {title && url && (
                   <button
                     type="button"
                     onClick={handleAIAssist}
                     disabled={isGenerating}
                     className="flex items-center gap-1 text-[10px] font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded-md"
                   >
-                    {isGenerating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                    {isGenerating ? (
+                      <Loader2 size={10} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={10} />
+                    )}
                     {isGenerating ? '生成中...' : 'AI 填写'}
                   </button>
                 )}
@@ -665,7 +725,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 {tags.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => { setTags([]); setTagInput(''); }}
+                    onClick={() => {
+                      setTags([]);
+                      setTagInput('');
+                    }}
                     className="text-[10px] font-medium text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                   >
                     清空
@@ -684,7 +747,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
                   onKeyDown={handleTagKeyDown}
                   onFocus={() => setShowTagSuggestions(true)}
                   onBlur={() => {
-                    setTimeout(() => setShowTagSuggestions(false), LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS);
+                    setTimeout(
+                      () => setShowTagSuggestions(false),
+                      LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS,
+                    );
                     commitTagInput();
                   }}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
@@ -697,7 +763,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       <Tag size={10} />
                       已有标签
                     </div>
-                    {filteredTagSuggestions.map(tag => (
+                    {filteredTagSuggestions.map((tag) => (
                       <button
                         key={tag}
                         type="button"
@@ -741,7 +807,18 @@ const LinkModal: React.FC<LinkModalProps> = ({
           <div className="pt-2 relative">
             {showSuccessMessage && (
               <div className="absolute -top-12 left-0 right-0 mx-auto w-fit z-10 px-4 py-2 bg-emerald-500 text-white text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
                 保存成功
               </div>
             )}
@@ -751,7 +828,19 @@ const LinkModal: React.FC<LinkModalProps> = ({
               className="w-full bg-slate-900 dark:bg-accent text-white font-bold py-3.5 px-4 rounded-xl hover:bg-slate-800 dark:hover:bg-accent/90 transition-all shadow-lg shadow-slate-200 dark:shadow-none active:scale-[0.99] text-sm flex items-center justify-center gap-2"
             >
               <span>保存链接</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M5 12h14"></path>
+                <path d="M12 5l7 7-7 7"></path>
+              </svg>
             </button>
           </div>
         </form>

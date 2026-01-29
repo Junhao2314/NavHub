@@ -11,7 +11,12 @@ export const normalizeHttpUrl = (input: string): string | null => {
 
   const trimmed = input.trim();
   if (!trimmed) return null;
-  if ((trimmed.startsWith('/') && !trimmed.startsWith('//')) || trimmed.startsWith('?') || trimmed.startsWith('#')) return null;
+  if (
+    (trimmed.startsWith('/') && !trimmed.startsWith('//')) ||
+    trimmed.startsWith('?') ||
+    trimmed.startsWith('#')
+  )
+    return null;
 
   let candidate = trimmed;
   if (trimmed.startsWith('//')) {

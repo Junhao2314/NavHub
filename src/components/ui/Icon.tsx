@@ -1,5 +1,5 @@
-import React, { Suspense } from 'react';
 import { Link } from 'lucide-react';
+import React, { Suspense } from 'react';
 import { getLucideIconLazy, isLucideIconName } from './lucideIconMap';
 
 interface IconProps {
@@ -31,7 +31,11 @@ const Icon: React.FC<IconProps> = ({ name, size = 20, className }) => {
 
   if (isTextIcon(trimmed)) {
     return (
-      <span className={className} style={{ fontSize: size, lineHeight: 1, display: 'inline-flex' }} aria-hidden="true">
+      <span
+        className={className}
+        style={{ fontSize: size, lineHeight: 1, display: 'inline-flex' }}
+        aria-hidden="true"
+      >
         {trimmed}
       </span>
     );

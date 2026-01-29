@@ -4,14 +4,16 @@ import { parsePlainPrivateVault } from './privateVault';
 describe('parsePlainPrivateVault', () => {
   it('parses plaintext vault payload with links array', () => {
     const payload = {
-      links: [{ id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1 }]
+      links: [{ id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1 }],
     };
 
     expect(parsePlainPrivateVault(JSON.stringify(payload))).toEqual(payload);
   });
 
   it('parses legacy plaintext array as links', () => {
-    const links = [{ id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1 }];
+    const links = [
+      { id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1 },
+    ];
     expect(parsePlainPrivateVault(JSON.stringify(links))).toEqual({ links });
   });
 
@@ -25,17 +27,23 @@ describe('parsePlainPrivateVault', () => {
         123,
         false,
         [],
-        { id: 'nested', title: { text: 'nope' }, url: 'https://example.com/nested', categoryId: 'c', createdAt: 1 },
+        {
+          id: 'nested',
+          title: { text: 'nope' },
+          url: 'https://example.com/nested',
+          categoryId: 'c',
+          createdAt: 1,
+        },
         { id: '2', title: 't2', url: 'https://example.com/2', categoryId: 'c', createdAt: '2' },
-        { id: '3', title: 't3', url: 'https://example.com/3', categoryId: 'c', createdAt: 'nope' }
-      ]
+        { id: '3', title: 't3', url: 'https://example.com/3', categoryId: 'c', createdAt: 'nope' },
+      ],
     };
 
     expect(parsePlainPrivateVault(JSON.stringify(payload))).toEqual({
       links: [
         { id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1 },
-        { id: '2', title: 't2', url: 'https://example.com/2', categoryId: 'c', createdAt: 2 }
-      ]
+        { id: '2', title: 't2', url: 'https://example.com/2', categoryId: 'c', createdAt: 2 },
+      ],
     });
   });
 
@@ -52,13 +60,22 @@ describe('parsePlainPrivateVault', () => {
           description: { text: 'nope' },
           tags: ['tag', 1, { nope: true }, ['nested']],
           pinned: 'true',
-          extra: { nested: { value: 1 } }
-        }
-      ]
+          extra: { nested: { value: 1 } },
+        },
+      ],
     };
 
     expect(parsePlainPrivateVault(JSON.stringify(payload))).toEqual({
-      links: [{ id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1, tags: ['tag'] }]
+      links: [
+        {
+          id: '1',
+          title: 't',
+          url: 'https://example.com',
+          categoryId: 'c',
+          createdAt: 1,
+          tags: ['tag'],
+        },
+      ],
     });
   });
 
@@ -68,7 +85,7 @@ describe('parsePlainPrivateVault', () => {
       title: `t${index}`,
       url: `https://example.com/${index}`,
       categoryId: 'c',
-      createdAt: index
+      createdAt: index,
     }));
 
     const parsed = parsePlainPrivateVault(JSON.stringify({ links }));

@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useSidebar } from './useSidebar';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category } from '../types';
+import { useSidebar } from './useSidebar';
 
 describe('useSidebar', () => {
   let container: HTMLDivElement;
@@ -97,4 +97,3 @@ describe('useSidebar', () => {
     expect(get().sidebarWidthClass).toBe('w-64 lg:w-20');
   });
 });
-

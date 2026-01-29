@@ -4,21 +4,21 @@ import { safeLocalStorageSetItem } from './storage';
 
 /**
  * Favicon Cache Management Module
- * 
+ *
  * Manages favicon caching with support for distinguishing between
  * user-customized icons and auto-fetched icons.
- * 
+ *
  * Local Storage Keys:
  * - FAVICON_CACHE_KEY: Complete favicon cache (Record<string, string>)
  * - FAVICON_CUSTOM_KEY: List of hostnames with user-customized icons (string[])
- * 
+ *
  * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
  */
 
 /**
  * Get the complete local favicon cache
  * Returns a mapping of hostname to icon URL
- * 
+ *
  * @returns Record<string, string> - hostname to iconUrl mapping
  */
 export const getLocalCache = (): Record<string, string> => {
@@ -39,7 +39,7 @@ export const getLocalCache = (): Record<string, string> => {
 
 /**
  * Get the list of hostnames with user-customized icons
- * 
+ *
  * @returns string[] - array of hostnames that have custom icons
  */
 const getCustomHostnames = (): string[] => {
@@ -111,31 +111,31 @@ const normalizeUpdatedAt = (value: unknown): number => {
 /**
  * Get user-customized icons as FaviconCacheEntry array
  * Only returns entries where the user manually set the icon
- * 
+ *
  * Requirements: 3.1, 3.4 - Only sync user-customized icons
- * 
+ *
  * @returns FaviconCacheEntry[] - array of custom icon entries
  */
 export const getCustomIcons = (): FaviconCacheEntry[] => {
   const cache = getLocalCache();
   const customHostnames = getCustomHostnames();
   const meta = getCustomIconMeta();
-  
+
   return customHostnames
-    .filter(hostname => hostname in cache)
-    .map(hostname => ({
+    .filter((hostname) => hostname in cache)
+    .map((hostname) => ({
       hostname,
       iconUrl: cache[hostname],
       isCustom: true,
-      updatedAt: meta[hostname] ?? 0
+      updatedAt: meta[hostname] ?? 0,
     }));
 };
 
 /**
  * Set an icon for a hostname
- * 
+ *
  * Requirements: 3.2 - Mark icons as custom when user manually sets them
- * 
+ *
  * @param hostname - The hostname (e.g., 'github.com')
  * @param iconUrl - The icon URL (can be data URL or external URL)
  * @param isCustom - true if user manually set, false if auto-fetched
@@ -145,12 +145,12 @@ export const setIcon = (hostname: string, iconUrl: string, isCustom: boolean): v
   const cache = getLocalCache();
   cache[hostname] = iconUrl;
   saveLocalCache(cache);
-  
+
   // Update the custom hostnames list
   const customHostnames = getCustomHostnames();
   const isInCustomList = customHostnames.includes(hostname);
   const meta = getCustomIconMeta();
-  
+
   if (isCustom && !isInCustomList) {
     // Add to custom list
     customHostnames.push(hostname);
@@ -159,7 +159,7 @@ export const setIcon = (hostname: string, iconUrl: string, isCustom: boolean): v
     saveCustomIconMeta(meta);
   } else if (!isCustom && isInCustomList) {
     // Remove from custom list
-    const filtered = customHostnames.filter(h => h !== hostname);
+    const filtered = customHostnames.filter((h) => h !== hostname);
     saveCustomHostnames(filtered);
     if (hostname in meta) {
       delete meta[hostname];
@@ -174,28 +174,28 @@ export const setIcon = (hostname: string, iconUrl: string, isCustom: boolean): v
 
 /**
  * Merge cloud favicon cache into local cache
- * 
+ *
  * Requirements:
  * - 3.3: Prefer custom entries when merging
  * - 3.5: Preserve local auto-fetched icons not in synced data
- * 
+ *
  * @param cloudCache - The CustomFaviconCache from cloud sync
  */
 export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
   if (!cloudCache || !Array.isArray(cloudCache.entries)) {
     return;
   }
-  
+
   const localCache = getLocalCache();
   const localCustomHostnames = getCustomHostnames();
   const meta = getCustomIconMeta();
-  
+
   // Process cloud entries
   for (const entry of cloudCache.entries) {
     if (!entry.hostname || !entry.iconUrl) {
       continue;
     }
-    
+
     // If cloud entry is not custom, we don't sync it (Requirement 3.4)
     if (!entry.isCustom) {
       continue;
@@ -232,7 +232,7 @@ export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
     // If cloud entry is not custom, we don't sync it (Requirement 3.4)
     // Local auto-fetched icons are preserved (Requirement 3.5)
   }
-  
+
   // Save updated cache and custom list
   saveLocalCache(localCache);
   saveCustomHostnames(localCustomHostnames);
@@ -242,25 +242,25 @@ export const mergeFromCloud = (cloudCache: CustomFaviconCache): void => {
 /**
  * Build the CustomFaviconCache for syncing to cloud
  * Only includes user-customized icons
- * 
+ *
  * Requirements: 3.1, 3.4 - Only sync user-customized icons
- * 
+ *
  * @returns CustomFaviconCache - cache data ready for sync
  */
 export const buildSyncCache = (): CustomFaviconCache => {
   const customIcons = getCustomIcons();
-  
+
   const updatedAt = customIcons.reduce((max, entry) => Math.max(max, entry.updatedAt), 0);
 
   return {
     entries: customIcons,
-    updatedAt
+    updatedAt,
   };
 };
 
 /**
  * Check if a hostname has a custom icon
- * 
+ *
  * @param hostname - The hostname to check
  * @returns boolean - true if the hostname has a custom icon
  */
@@ -271,7 +271,7 @@ export const isCustomIcon = (hostname: string): boolean => {
 
 /**
  * Remove an icon from the cache
- * 
+ *
  * @param hostname - The hostname to remove
  */
 export const removeIcon = (hostname: string): void => {
@@ -279,10 +279,10 @@ export const removeIcon = (hostname: string): void => {
   const cache = getLocalCache();
   delete cache[hostname];
   saveLocalCache(cache);
-  
+
   // Remove from custom list if present
   const customHostnames = getCustomHostnames();
-  const filtered = customHostnames.filter(h => h !== hostname);
+  const filtered = customHostnames.filter((h) => h !== hostname);
   if (filtered.length !== customHostnames.length) {
     saveCustomHostnames(filtered);
   }
@@ -296,7 +296,7 @@ export const removeIcon = (hostname: string): void => {
 
 /**
  * Get icon URL for a hostname
- * 
+ *
  * @param hostname - The hostname to look up
  * @returns string | undefined - The icon URL or undefined if not cached
  */

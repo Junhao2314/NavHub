@@ -10,8 +10,13 @@ export const useAppearance = (siteSettings: SiteSettings) => {
 
   const toneClasses = useMemo(() => {
     const tone = siteSettings.grayScale;
-    if (tone === 'zinc') return { bg: 'bg-zinc-50 dark:bg-zinc-950', text: 'text-zinc-900 dark:text-zinc-50' };
-    if (tone === 'neutral') return { bg: 'bg-neutral-50 dark:bg-neutral-950', text: 'text-neutral-900 dark:text-neutral-50' };
+    if (tone === 'zinc')
+      return { bg: 'bg-zinc-50 dark:bg-zinc-950', text: 'text-zinc-900 dark:text-zinc-50' };
+    if (tone === 'neutral')
+      return {
+        bg: 'bg-neutral-50 dark:bg-neutral-950',
+        text: 'text-neutral-900 dark:text-neutral-50',
+      };
     return { bg: 'bg-slate-50 dark:bg-slate-950', text: 'text-slate-900 dark:text-slate-50' };
   }, [siteSettings.grayScale]);
 
@@ -25,7 +30,6 @@ export const useAppearance = (siteSettings: SiteSettings) => {
     closeOnBackdrop,
     backgroundImage,
     useCustomBackground,
-    backgroundMotion
+    backgroundMotion,
   };
 };
-

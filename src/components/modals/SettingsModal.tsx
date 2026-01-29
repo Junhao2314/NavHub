@@ -1,10 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, Bot, Globe, Palette, Database } from 'lucide-react';
-import { AIConfig, LinkItem, Category, SiteSettings, SiteSettingsChangeHandler, SyncRole, VerifySyncPasswordResult } from '../../types';
-import SiteTab from './settings/SiteTab';
+import { Bot, Database, Globe, Palette, Save, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  AIConfig,
+  Category,
+  LinkItem,
+  SiteSettings,
+  SiteSettingsChangeHandler,
+  SyncRole,
+  VerifySyncPasswordResult,
+} from '../../types';
 import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
 import DataTab from './settings/DataTab';
+import SiteTab from './settings/SiteTab';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -25,7 +33,11 @@ interface SettingsModalProps {
   syncRole: SyncRole;
   isSyncProtected: boolean;
   useSeparatePrivacyPassword: boolean;
-  onMigratePrivacyMode: (payload: { useSeparatePassword: boolean; oldPassword: string; newPassword: string }) => Promise<boolean>;
+  onMigratePrivacyMode: (payload: {
+    useSeparatePassword: boolean;
+    oldPassword: string;
+    newPassword: string;
+  }) => Promise<boolean>;
   privacyGroupEnabled: boolean;
   onTogglePrivacyGroup: (enabled: boolean) => void;
   privacyPasswordEnabled: boolean;
@@ -63,7 +75,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onTogglePrivacyPassword,
   privacyAutoUnlockEnabled,
   onTogglePrivacyAutoUnlock,
-  closeOnBackdrop = true
+  closeOnBackdrop = true,
 }) => {
   const [activeTab, setActiveTab] = useState<'site' | 'ai' | 'appearance' | 'data'>('site');
   const [localConfig, setLocalConfig] = useState<AIConfig>(config);
@@ -77,7 +89,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     closeOnBackdrop: siteSettings?.closeOnBackdrop ?? false,
     backgroundImage: siteSettings?.backgroundImage || '',
     backgroundImageEnabled: siteSettings?.backgroundImageEnabled ?? false,
-    backgroundMotion: siteSettings?.backgroundMotion ?? false
+    backgroundMotion: siteSettings?.backgroundMotion ?? false,
   }));
 
   useEffect(() => {
@@ -93,7 +105,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         closeOnBackdrop: siteSettings?.closeOnBackdrop ?? false,
         backgroundImage: siteSettings?.backgroundImage || '',
         backgroundImageEnabled: siteSettings?.backgroundImageEnabled ?? false,
-        backgroundMotion: siteSettings?.backgroundMotion ?? false
+        backgroundMotion: siteSettings?.backgroundMotion ?? false,
       });
     }
   }, [isOpen, config, siteSettings]);
@@ -114,11 +126,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [isOpen, canAccessAISettings, activeTab]);
 
   const handleChange = (key: keyof AIConfig, value: string) => {
-    setLocalConfig(prev => ({ ...prev, [key]: value }));
+    setLocalConfig((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSiteChange: SiteSettingsChangeHandler = (key, value) => {
-    setLocalSiteSettings(prev => ({ ...prev, [key]: value } as SiteSettings));
+    setLocalSiteSettings((prev) => ({ ...prev, [key]: value }) as SiteSettings);
   };
 
   const handleSave = () => {
@@ -145,6 +157,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            aria-label="关闭设置"
           >
             <X size={20} strokeWidth={2} />
           </button>
@@ -155,10 +168,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
             <button
               onClick={() => setActiveTab('site')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'site'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === 'site'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
             >
               <Globe size={16} />
               <span>网站设置</span>
@@ -166,10 +180,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             {canAccessAISettings && (
               <button
                 onClick={() => setActiveTab('ai')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'ai'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                  }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeTab === 'ai'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
               >
                 <Bot size={16} />
                 <span>AI 助手</span>
@@ -177,20 +192,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
             <button
               onClick={() => setActiveTab('appearance')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'appearance'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === 'appearance'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
             >
               <Palette size={16} />
               <span>外观</span>
             </button>
             <button
               onClick={() => setActiveTab('data')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'data'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === 'data'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
             >
               <Database size={16} />
               <span>数据</span>
@@ -249,10 +266,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <button
             onClick={handleSave}
             disabled={syncRole !== 'admin'}
-            className={`w-full text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-slate-200 dark:shadow-none text-sm flex items-center justify-center gap-2 ${syncRole === 'admin'
-              ? 'bg-slate-900 dark:bg-accent hover:bg-slate-800 dark:hover:bg-accent/90 active:scale-[0.99]'
-              : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-70'
-              }`}
+            className={`w-full text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-slate-200 dark:shadow-none text-sm flex items-center justify-center gap-2 ${
+              syncRole === 'admin'
+                ? 'bg-slate-900 dark:bg-accent hover:bg-slate-800 dark:hover:bg-accent/90 active:scale-[0.99]'
+                : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-70'
+            }`}
           >
             <Save size={16} />
             <span>{syncRole === 'admin' ? '保存设置' : '用户模式（仅管理员可保存）'}</span>

@@ -1,14 +1,21 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { buildSyncData, useSyncEngine } from './useSyncEngine';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SYNC_API_ENDPOINT, SYNC_DEBOUNCE_MS, SYNC_META_KEY } from '../utils/constants';
+import { buildSyncData, useSyncEngine } from './useSyncEngine';
 
 describe('buildSyncData', () => {
   it('includes privacyConfig in the returned sync payload', () => {
-    const links = [{ id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1 }];
+    const links = [
+      { id: '1', title: 't', url: 'https://example.com', categoryId: 'c', createdAt: 1 },
+    ];
     const categories = [{ id: 'c', name: 'C', icon: 'Star' }];
-    const privacyConfig = { groupEnabled: true, passwordEnabled: false, autoUnlockEnabled: true, useSeparatePassword: true };
+    const privacyConfig = {
+      groupEnabled: true,
+      passwordEnabled: false,
+      autoUnlockEnabled: true,
+      useSeparatePassword: true,
+    };
 
     const data = buildSyncData(
       links,
@@ -20,7 +27,7 @@ describe('buildSyncData', () => {
       privacyConfig,
       'light',
       'encrypted',
-      { entries: [], updatedAt: 1 }
+      { entries: [], updatedAt: 1 },
     );
 
     expect(data.privacyConfig).toEqual(privacyConfig);
@@ -81,8 +88,8 @@ describe('useSyncEngine', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: vi.fn().mockResolvedValue({
         success: true,
-        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } }
-      })
+        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -101,8 +108,8 @@ describe('useSyncEngine', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: vi.fn().mockResolvedValue({
         success: true,
-        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } }
-      })
+        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -131,8 +138,8 @@ describe('useSyncEngine', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: vi.fn().mockResolvedValue({
         success: true,
-        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } }
-      })
+        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -150,15 +157,17 @@ describe('useSyncEngine', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: vi.fn().mockResolvedValue({
         success: true,
-        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } }
-      })
+        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
     const { get } = await renderEngine();
 
     const largeTitle = 'a'.repeat(70 * 1024);
-    const links = [{ id: '1', title: largeTitle, url: 'https://example.com', categoryId: 'c', createdAt: 1 }];
+    const links = [
+      { id: '1', title: largeTitle, url: 'https://example.com', categoryId: 'c', createdAt: 1 },
+    ];
     const categories = [{ id: 'c', name: 'C', icon: 'Star' }];
 
     await act(async () => {
@@ -171,7 +180,7 @@ describe('useSyncEngine', () => {
 
   it('returns false when api returns success=false', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' })
+      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -187,7 +196,7 @@ describe('useSyncEngine', () => {
 
   it('logs when onError callback throws (does not swallow silently)', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' })
+      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -196,7 +205,7 @@ describe('useSyncEngine', () => {
     const { get } = await renderEngine({
       onError: () => {
         throw new Error('boom');
-      }
+      },
     });
 
     let ok = true;
@@ -205,7 +214,10 @@ describe('useSyncEngine', () => {
     });
 
     expect(ok).toBe(false);
-    expect(consoleErrorSpy).toHaveBeenCalledWith('[useSyncEngine] onError callback threw', expect.any(Error));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[useSyncEngine] onError callback threw',
+      expect.any(Error),
+    );
   });
 
   it('returns false when api indicates conflict', async () => {
@@ -217,9 +229,9 @@ describe('useSyncEngine', () => {
         data: {
           links: [],
           categories: [],
-          meta: { updatedAt: 123, deviceId: 'device-1', version: 1 }
-        }
-      })
+          meta: { updatedAt: 123, deviceId: 'device-1', version: 1 },
+        },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -242,9 +254,9 @@ describe('useSyncEngine', () => {
         data: {
           links: [],
           categories: [],
-          meta: { updatedAt: 123, deviceId: 'device-1', version: 1 }
-        }
-      })
+          meta: { updatedAt: 123, deviceId: 'device-1', version: 1 },
+        },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -253,7 +265,7 @@ describe('useSyncEngine', () => {
     const { get } = await renderEngine({
       onConflict: () => {
         throw new Error('boom');
-      }
+      },
     });
 
     let ok = true;
@@ -262,7 +274,10 @@ describe('useSyncEngine', () => {
     });
 
     expect(ok).toBe(false);
-    expect(consoleErrorSpy).toHaveBeenCalledWith('[useSyncEngine] onConflict callback threw', expect.any(Error));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[useSyncEngine] onConflict callback threw',
+      expect.any(Error),
+    );
   });
 
   it('returns false when fetch rejects', async () => {
@@ -299,7 +314,9 @@ describe('useSyncEngine', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(get().lastErrorKind).toBe('storage');
     expect(get().lastError).toBe('浏览器存储不可用（可能处于隐私模式或禁用了站点存储），无法同步');
-    expect(onError).toHaveBeenCalledWith('浏览器存储不可用（可能处于隐私模式或禁用了站点存储），无法同步');
+    expect(onError).toHaveBeenCalledWith(
+      '浏览器存储不可用（可能处于隐私模式或禁用了站点存储），无法同步',
+    );
     setItemSpy.mockRestore();
   });
 
@@ -336,8 +353,8 @@ describe('useSyncEngine', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: vi.fn().mockResolvedValue({
         success: true,
-        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } }
-      })
+        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -362,7 +379,7 @@ describe('useSyncEngine', () => {
 
   it('flushPendingSync returns false when pending push fails', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' })
+      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -384,8 +401,8 @@ describe('useSyncEngine', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: vi.fn().mockResolvedValue({
         success: true,
-        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } }
-      })
+        data: { meta: { updatedAt: 123, deviceId: 'device-1', version: 1 } },
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -448,7 +465,7 @@ describe('useSyncEngine', () => {
       json: vi.fn().mockResolvedValue({
         success: true,
         data: remoteData,
-      })
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -472,7 +489,7 @@ describe('useSyncEngine', () => {
       json: vi.fn().mockResolvedValue({
         success: true,
         data: null,
-      })
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -493,7 +510,7 @@ describe('useSyncEngine', () => {
       json: vi.fn().mockResolvedValue({
         success: false,
         error: 'nope',
-      })
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -523,7 +540,7 @@ describe('useSyncEngine', () => {
         error: 'conflict',
         conflict: true,
         data: remoteData,
-      })
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -556,10 +573,13 @@ describe('useSyncEngine', () => {
 
   it('createBackup posts sanitized payload and sets status to synced', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(111);
-    localStorage.setItem(SYNC_META_KEY, JSON.stringify({ updatedAt: 1, deviceId: 'local', version: 7 }));
+    localStorage.setItem(
+      SYNC_META_KEY,
+      JSON.stringify({ updatedAt: 1, deviceId: 'local', version: 7 }),
+    );
 
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: true })
+      json: vi.fn().mockResolvedValue({ success: true }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -594,7 +614,7 @@ describe('useSyncEngine', () => {
     };
 
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: true, data: remoteData })
+      json: vi.fn().mockResolvedValue({ success: true, data: remoteData }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -622,7 +642,7 @@ describe('useSyncEngine', () => {
 
   it('deleteBackup returns false and calls onError when deletion fails', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' })
+      json: vi.fn().mockResolvedValue({ success: false, error: 'nope' }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -646,7 +666,7 @@ describe('useSyncEngine', () => {
 
   it('checkAuth returns default user state when auth check fails', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: false })
+      json: vi.fn().mockResolvedValue({ success: false }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 
@@ -667,7 +687,7 @@ describe('useSyncEngine', () => {
         protected: false,
         role: 'admin',
         canWrite: true,
-      })
+      }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 

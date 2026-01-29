@@ -6,8 +6,8 @@ export const AI_CONFIG_KEY = 'ynav_ai_config';
 export const AI_API_KEY_SESSION_KEY = 'ynav_ai_api_key_session';
 export const SEARCH_CONFIG_KEY = 'ynav_search_config';
 export const FAVICON_CACHE_KEY = 'ynav_favicon_cache';
-export const FAVICON_CUSTOM_KEY = 'ynav_favicon_custom';  // List of hostnames with user-customized icons
-export const FAVICON_CUSTOM_META_KEY = 'ynav_favicon_custom_meta';  // Record<string, number> hostname -> updatedAt
+export const FAVICON_CUSTOM_KEY = 'ynav_favicon_custom'; // List of hostnames with user-customized icons
+export const FAVICON_CUSTOM_META_KEY = 'ynav_favicon_custom_meta'; // Record<string, number> hostname -> updatedAt
 export const SITE_SETTINGS_KEY = 'ynav_site_settings';
 export const THEME_KEY = 'theme';
 
@@ -46,83 +46,83 @@ export const GITHUB_REPO_URL = 'https://github.com/Junhao2314/NavHub';
 
 // 获取浏览器信息
 const getBrowserInfo = (): string => {
-    const ua = navigator.userAgent;
-    if (ua.includes('Edg/')) return 'Edge';
-    if (ua.includes('Chrome/')) return 'Chrome';
-    if (ua.includes('Firefox/')) return 'Firefox';
-    if (ua.includes('Safari/') && !ua.includes('Chrome')) return 'Safari';
-    if (ua.includes('OPR/') || ua.includes('Opera/')) return 'Opera';
-    return 'Unknown';
+  const ua = navigator.userAgent;
+  if (ua.includes('Edg/')) return 'Edge';
+  if (ua.includes('Chrome/')) return 'Chrome';
+  if (ua.includes('Firefox/')) return 'Firefox';
+  if (ua.includes('Safari/') && !ua.includes('Chrome')) return 'Safari';
+  if (ua.includes('OPR/') || ua.includes('Opera/')) return 'Opera';
+  return 'Unknown';
 };
 
 // 获取操作系统信息
 const getOSInfo = (): string => {
-    const ua = navigator.userAgent;
-    if (ua.includes('Win')) return 'Windows';
-    if (ua.includes('Mac')) return 'macOS';
-    if (ua.includes('Linux')) return 'Linux';
-    if (ua.includes('Android')) return 'Android';
-    if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
-    return 'Unknown';
+  const ua = navigator.userAgent;
+  if (ua.includes('Win')) return 'Windows';
+  if (ua.includes('Mac')) return 'macOS';
+  if (ua.includes('Linux')) return 'Linux';
+  if (ua.includes('Android')) return 'Android';
+  if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
+  return 'Unknown';
 };
 
 // 设备信息接口
 export interface DeviceInfo {
-    id: string;
-    browser: string;
-    os: string;
-    createdAt: number;
+  id: string;
+  browser: string;
+  os: string;
+  createdAt: number;
 }
 
 let cachedDeviceId: string | null = null;
 
 // 生成或获取设备唯一ID
 export const getDeviceId = (): string => {
-    if (cachedDeviceId) return cachedDeviceId;
+  if (cachedDeviceId) return cachedDeviceId;
 
-    const storedDeviceId = safeLocalStorageGetItem(DEVICE_ID_KEY);
-    if (storedDeviceId) {
-        cachedDeviceId = storedDeviceId;
+  const storedDeviceId = safeLocalStorageGetItem(DEVICE_ID_KEY);
+  if (storedDeviceId) {
+    cachedDeviceId = storedDeviceId;
 
-        // 如果是旧版本的设备ID,补充设备信息
-        const existingInfo = safeLocalStorageGetItem(DEVICE_INFO_KEY);
-        if (!existingInfo) {
-            const deviceInfo: DeviceInfo = {
-                id: storedDeviceId,
-                browser: getBrowserInfo(),
-                os: getOSInfo(),
-                createdAt: Date.now()
-            };
-            safeLocalStorageSetItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
-        }
-
-        return storedDeviceId;
-    }
-
-    const deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    cachedDeviceId = deviceId;
-
-    safeLocalStorageSetItem(DEVICE_ID_KEY, deviceId);
-
-    // 保存设备信息
-    const deviceInfo: DeviceInfo = {
-        id: deviceId,
+    // 如果是旧版本的设备ID,补充设备信息
+    const existingInfo = safeLocalStorageGetItem(DEVICE_INFO_KEY);
+    if (!existingInfo) {
+      const deviceInfo: DeviceInfo = {
+        id: storedDeviceId,
         browser: getBrowserInfo(),
         os: getOSInfo(),
-        createdAt: Date.now()
-    };
-    safeLocalStorageSetItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
+        createdAt: Date.now(),
+      };
+      safeLocalStorageSetItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
+    }
 
-    return deviceId;
+    return storedDeviceId;
+  }
+
+  const deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  cachedDeviceId = deviceId;
+
+  safeLocalStorageSetItem(DEVICE_ID_KEY, deviceId);
+
+  // 保存设备信息
+  const deviceInfo: DeviceInfo = {
+    id: deviceId,
+    browser: getBrowserInfo(),
+    os: getOSInfo(),
+    createdAt: Date.now(),
+  };
+  safeLocalStorageSetItem(DEVICE_INFO_KEY, JSON.stringify(deviceInfo));
+
+  return deviceId;
 };
 
 // 获取设备信息
 export const getDeviceInfo = (): DeviceInfo | null => {
-    const infoStr = safeLocalStorageGetItem(DEVICE_INFO_KEY);
-    if (!infoStr) return null;
-    try {
-        return JSON.parse(infoStr);
-    } catch {
-        return null;
-    }
+  const infoStr = safeLocalStorageGetItem(DEVICE_INFO_KEY);
+  if (!infoStr) return null;
+  try {
+    return JSON.parse(infoStr);
+  } catch {
+    return null;
+  }
 };

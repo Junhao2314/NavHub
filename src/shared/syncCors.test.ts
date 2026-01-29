@@ -5,7 +5,7 @@ describe('/api/sync CORS', () => {
   it('allows same-origin requests by default', () => {
     const request = new Request('http://localhost/api/sync', {
       method: 'OPTIONS',
-      headers: { Origin: 'http://localhost' }
+      headers: { Origin: 'http://localhost' },
     });
 
     const { headers, allowed } = resolveSyncCorsHeaders(request);
@@ -20,7 +20,7 @@ describe('/api/sync CORS', () => {
   it('rejects disallowed origins by default', () => {
     const request = new Request('http://localhost/api/sync', {
       method: 'OPTIONS',
-      headers: { Origin: 'https://evil.com' }
+      headers: { Origin: 'https://evil.com' },
     });
 
     const { headers, allowed } = resolveSyncCorsHeaders(request);
@@ -32,11 +32,11 @@ describe('/api/sync CORS', () => {
   it('allows configured origins', () => {
     const request = new Request('http://localhost/api/sync', {
       method: 'OPTIONS',
-      headers: { Origin: 'https://dev.example.com' }
+      headers: { Origin: 'https://dev.example.com' },
     });
 
     const { headers, allowed } = resolveSyncCorsHeaders(request, {
-      corsAllowedOrigins: ['https://dev.example.com']
+      corsAllowedOrigins: ['https://dev.example.com'],
     });
 
     expect(allowed).toBe(true);
@@ -47,11 +47,11 @@ describe('/api/sync CORS', () => {
   it('allows any origin when wildcard is configured', () => {
     const request = new Request('http://localhost/api/sync', {
       method: 'OPTIONS',
-      headers: { Origin: 'https://dev.example.com' }
+      headers: { Origin: 'https://dev.example.com' },
     });
 
     const { headers, allowed } = resolveSyncCorsHeaders(request, {
-      corsAllowedOrigins: ['*']
+      corsAllowedOrigins: ['*'],
     });
 
     expect(allowed).toBe(true);
@@ -59,4 +59,3 @@ describe('/api/sync CORS', () => {
     expect(headers.Vary).toBeUndefined();
   });
 });
-

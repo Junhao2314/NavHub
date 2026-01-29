@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildSyncBusinessSignature, buildSyncFullSignature, type SyncPayload } from './syncSignatures';
+import {
+  buildSyncBusinessSignature,
+  buildSyncFullSignature,
+  type SyncPayload,
+} from './syncSignatures';
 
 describe('syncSignatures', () => {
   const categories: SyncPayload['categories'] = [{ id: 'c1', name: 'Cat', icon: 'Star' }];
@@ -10,14 +14,14 @@ describe('syncSignatures', () => {
     categoryId: 'c1',
     createdAt: 1000,
     adminClicks: 1,
-    adminLastClickedAt: 2000
+    adminLastClickedAt: 2000,
   };
 
   it('business signature ignores click stats changes', () => {
     const payloadA: SyncPayload = { links: [baseLink], categories };
     const payloadB: SyncPayload = {
       ...payloadA,
-      links: [{ ...baseLink, adminClicks: 2, adminLastClickedAt: 3000 }]
+      links: [{ ...baseLink, adminClicks: 2, adminLastClickedAt: 3000 }],
     };
 
     expect(buildSyncBusinessSignature(payloadA)).toBe(buildSyncBusinessSignature(payloadB));
@@ -28,11 +32,11 @@ describe('syncSignatures', () => {
     const payloadA: SyncPayload = {
       links: [baseLink],
       categories,
-      encryptedSensitiveConfig: 'enc-a'
+      encryptedSensitiveConfig: 'enc-a',
     };
     const payloadB: SyncPayload = {
       ...payloadA,
-      encryptedSensitiveConfig: 'enc-b'
+      encryptedSensitiveConfig: 'enc-b',
     };
 
     expect(buildSyncBusinessSignature(payloadA)).toBe(buildSyncBusinessSignature(payloadB));
@@ -52,14 +56,14 @@ describe('syncSignatures', () => {
       title: 'Title',
       url: 'https://example.com',
       categoryId: 'c1',
-      createdAt: 1000
+      createdAt: 1000,
     };
     const linkB: SyncPayload['links'][number] = {
       title: 'Title',
       createdAt: 1000,
       categoryId: 'c1',
       url: 'https://example.com',
-      id: 'l1'
+      id: 'l1',
     };
 
     const catA: SyncPayload['categories'][number] = { id: 'c1', name: 'Cat', icon: 'Star' };
@@ -79,10 +83,10 @@ describe('syncSignatures', () => {
       customFaviconCache: {
         entries: [
           { hostname: 'b.example.com', iconUrl: 'b', isCustom: true, updatedAt: 2 },
-          { hostname: 'a.example.com', iconUrl: 'a', isCustom: true, updatedAt: 1 }
+          { hostname: 'a.example.com', iconUrl: 'a', isCustom: true, updatedAt: 1 },
         ],
-        updatedAt: 2
-      }
+        updatedAt: 2,
+      },
     };
     const payloadB: SyncPayload = {
       links: [baseLink],
@@ -90,10 +94,10 @@ describe('syncSignatures', () => {
       customFaviconCache: {
         entries: [
           { hostname: 'a.example.com', iconUrl: 'a', isCustom: true, updatedAt: 1 },
-          { hostname: 'b.example.com', iconUrl: 'b', isCustom: true, updatedAt: 2 }
+          { hostname: 'b.example.com', iconUrl: 'b', isCustom: true, updatedAt: 2 },
         ],
-        updatedAt: 2
-      }
+        updatedAt: 2,
+      },
     };
 
     expect(buildSyncBusinessSignature(payloadA)).toBe(buildSyncBusinessSignature(payloadB));

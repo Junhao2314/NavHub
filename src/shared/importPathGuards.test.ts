@@ -1,9 +1,10 @@
 // @vitest-environment node
-import { describe, it } from 'vitest';
+
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as ts from 'typescript';
+import { describe, it } from 'vitest';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -66,11 +67,17 @@ const findOffendingSyncApiDirectoryImports = (): OffendingImport[] => {
   const files = collectSourceFiles(repoRoot);
   const offenders: OffendingImport[] = [];
 
-  const record = (filePath: string, sourceFile: ts.SourceFile, specifierNode: ts.StringLiteralLike) => {
+  const record = (
+    filePath: string,
+    sourceFile: ts.SourceFile,
+    specifierNode: ts.StringLiteralLike,
+  ) => {
     const specifier = specifierNode.text;
     if (!/(^|\/)shared\/syncApi\/$/.test(specifier)) return;
 
-    const { line, character } = sourceFile.getLineAndCharacterOfPosition(specifierNode.getStart(sourceFile));
+    const { line, character } = sourceFile.getLineAndCharacterOfPosition(
+      specifierNode.getStart(sourceFile),
+    );
     offenders.push({
       file: path.relative(repoRoot, filePath).replaceAll('\\', '/'),
       specifier,
@@ -83,7 +90,11 @@ const findOffendingSyncApiDirectoryImports = (): OffendingImport[] => {
     const walk = (node: ts.Node) => {
       if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
         record(filePath, sourceFile, node.moduleSpecifier);
-      } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      } else if (
+        ts.isExportDeclaration(node) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteralLike(node.moduleSpecifier)
+      ) {
         record(filePath, sourceFile, node.moduleSpecifier);
       } else if (ts.isCallExpression(node)) {
         const [arg] = node.arguments;
@@ -110,7 +121,7 @@ const findOffendingSyncApiDirectoryImports = (): OffendingImport[] => {
       content,
       ts.ScriptTarget.ESNext,
       true,
-      getScriptKind(filePath)
+      getScriptKind(filePath),
     );
     visit(filePath, sourceFile);
   }
@@ -130,7 +141,7 @@ describe('import path guards', () => {
     throw new Error(
       `Disallowed directory-style import for syncApi detected.\n` +
         `Use "shared/syncApi" (file) without a trailing slash.\n\n` +
-        formatted
+        formatted,
     );
   });
 });

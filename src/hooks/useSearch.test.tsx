@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
-import { useSearch } from './useSearch';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SEARCH_CONFIG_KEY } from '../utils/constants';
+import { useSearch } from './useSearch';
 
 describe('useSearch', () => {
   let container: HTMLDivElement;
@@ -78,7 +78,11 @@ describe('useSearch', () => {
       get().handleExternalSearch();
     });
 
-    expect(openSpy).toHaveBeenCalledWith('https://www.bing.com/search?q=hello%20world', '_blank', 'noopener,noreferrer');
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.bing.com/search?q=hello%20world',
+      '_blank',
+      'noopener,noreferrer',
+    );
   });
 
   it('handleSearchSourceSelect saves config and closes popup', async () => {
@@ -101,7 +105,11 @@ describe('useSearch', () => {
       get().handleSearchSourceSelect(google);
     });
 
-    expect(openSpy).toHaveBeenCalledWith('https://www.google.com/search?q=k', '_blank', 'noopener,noreferrer');
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.google.com/search?q=k',
+      '_blank',
+      'noopener,noreferrer',
+    );
     expect(get().selectedSearchSource?.id).toBe('google');
     expect(get().showSearchSourcePopup).toBe(false);
     expect(get().hoveredSearchSource).toBeNull();

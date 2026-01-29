@@ -31,7 +31,7 @@ describe('secrets password storage', () => {
       key: () => null,
       get length() {
         return 0;
-      }
+      },
     } as unknown as Storage);
 
     localStorage.setItem(SYNC_PASSWORD_KEY, 'legacy');
@@ -64,7 +64,7 @@ describe('secrets password storage', () => {
       key: () => null,
       get length() {
         return 0;
-      }
+      },
     } as unknown as Storage);
 
     setPrivacyPassword('pw2');

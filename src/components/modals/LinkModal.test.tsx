@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import LinkModal from './LinkModal';
-import type { AIConfig, Category, LinkItem } from '../../types';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateLinkDescription, suggestCategory } from '../../services/geminiService';
+import type { AIConfig, Category, LinkItem } from '../../types';
+import LinkModal from './LinkModal';
 
 const dialog = vi.hoisted(() => ({
   notify: vi.fn(),
@@ -93,7 +93,7 @@ describe('LinkModal', () => {
     expect(beforeSelect).toBeTruthy();
     expect(beforeSelect!.value).toBe('design');
 
-    const aiButton = Array.from(container.querySelectorAll('button')).find(button =>
+    const aiButton = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('AI 填写'),
     ) as HTMLButtonElement | undefined;
     expect(aiButton).toBeTruthy();
@@ -102,7 +102,9 @@ describe('LinkModal', () => {
       aiButton!.click();
     });
 
-    const description = container.querySelector('textarea[placeholder="添加描述..."]') as HTMLTextAreaElement | null;
+    const description = container.querySelector(
+      'textarea[placeholder="添加描述..."]',
+    ) as HTMLTextAreaElement | null;
     expect(description).toBeTruthy();
     expect(description!.value).toBe('AI desc');
 

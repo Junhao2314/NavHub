@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  getLocalCache,
-  getCustomIcons,
-  setIcon,
-  mergeFromCloud,
-  buildSyncCache,
-  isCustomIcon,
-  removeIcon,
-  getIcon,
-} from './faviconCache';
-import { FAVICON_CACHE_KEY, FAVICON_CUSTOM_KEY } from './constants';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CustomFaviconCache } from '../types';
+import { FAVICON_CACHE_KEY, FAVICON_CUSTOM_KEY } from './constants';
+import {
+  buildSyncCache,
+  getCustomIcons,
+  getIcon,
+  getLocalCache,
+  isCustomIcon,
+  mergeFromCloud,
+  removeIcon,
+  setIcon,
+} from './faviconCache';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -52,21 +52,21 @@ describe('faviconCache', () => {
     it('should return cached data when it exists', () => {
       const mockCache = { 'github.com': 'https://github.com/favicon.ico' };
       localStorageMock.setItem(FAVICON_CACHE_KEY, JSON.stringify(mockCache));
-      
+
       const cache = getLocalCache();
       expect(cache).toEqual(mockCache);
     });
 
     it('should return empty object for invalid JSON', () => {
       localStorageMock.setItem(FAVICON_CACHE_KEY, 'invalid json');
-      
+
       const cache = getLocalCache();
       expect(cache).toEqual({});
     });
 
     it('should return empty object for non-object values', () => {
       localStorageMock.setItem(FAVICON_CACHE_KEY, JSON.stringify(['array']));
-      
+
       const cache = getLocalCache();
       expect(cache).toEqual({});
     });
@@ -75,20 +75,20 @@ describe('faviconCache', () => {
   describe('setIcon', () => {
     it('should set an icon in the cache', () => {
       setIcon('github.com', 'https://github.com/favicon.ico', false);
-      
+
       const cache = getLocalCache();
       expect(cache['github.com']).toBe('https://github.com/favicon.ico');
     });
 
     it('should mark icon as custom when isCustom is true', () => {
       setIcon('github.com', 'data:image/png;base64,...', true);
-      
+
       expect(isCustomIcon('github.com')).toBe(true);
     });
 
     it('should not mark icon as custom when isCustom is false', () => {
       setIcon('github.com', 'https://github.com/favicon.ico', false);
-      
+
       expect(isCustomIcon('github.com')).toBe(false);
     });
 
@@ -96,7 +96,7 @@ describe('faviconCache', () => {
       // First set as custom
       setIcon('github.com', 'data:image/png;base64,...', true);
       expect(isCustomIcon('github.com')).toBe(true);
-      
+
       // Then set as non-custom
       setIcon('github.com', 'https://github.com/favicon.ico', false);
       expect(isCustomIcon('github.com')).toBe(false);
@@ -113,20 +113,20 @@ describe('faviconCache', () => {
       setIcon('github.com', 'data:image/png;base64,custom1', true);
       setIcon('google.com', 'https://google.com/favicon.ico', false);
       setIcon('twitter.com', 'data:image/png;base64,custom2', true);
-      
+
       const customIcons = getCustomIcons();
-      
+
       expect(customIcons.length).toBe(2);
-      expect(customIcons.map(e => e.hostname)).toContain('github.com');
-      expect(customIcons.map(e => e.hostname)).toContain('twitter.com');
-      expect(customIcons.map(e => e.hostname)).not.toContain('google.com');
+      expect(customIcons.map((e) => e.hostname)).toContain('github.com');
+      expect(customIcons.map((e) => e.hostname)).toContain('twitter.com');
+      expect(customIcons.map((e) => e.hostname)).not.toContain('google.com');
     });
 
     it('should return entries with isCustom set to true', () => {
       setIcon('github.com', 'data:image/png;base64,custom', true);
-      
+
       const customIcons = getCustomIcons();
-      
+
       expect(customIcons[0].isCustom).toBe(true);
     });
 
@@ -145,7 +145,7 @@ describe('faviconCache', () => {
   describe('buildSyncCache', () => {
     it('should return empty entries when no custom icons exist', () => {
       const syncCache = buildSyncCache();
-      
+
       expect(syncCache.entries).toEqual([]);
       expect(syncCache.updatedAt).toBe(0);
     });
@@ -153,9 +153,9 @@ describe('faviconCache', () => {
     it('should only include custom icons in sync cache', () => {
       setIcon('github.com', 'data:image/png;base64,custom', true);
       setIcon('google.com', 'https://google.com/favicon.ico', false);
-      
+
       const syncCache = buildSyncCache();
-      
+
       expect(syncCache.entries.length).toBe(1);
       expect(syncCache.entries[0].hostname).toBe('github.com');
     });
@@ -177,10 +177,10 @@ describe('faviconCache', () => {
   describe('mergeFromCloud', () => {
     it('should handle null/undefined cloud cache', () => {
       setIcon('github.com', 'https://github.com/favicon.ico', false);
-      
+
       mergeFromCloud(null as unknown as CustomFaviconCache);
       mergeFromCloud(undefined as unknown as CustomFaviconCache);
-      
+
       // Local cache should be unchanged
       expect(getIcon('github.com')).toBe('https://github.com/favicon.ico');
     });
@@ -188,13 +188,18 @@ describe('faviconCache', () => {
     it('should merge custom icons from cloud', () => {
       const cloudCache: CustomFaviconCache = {
         entries: [
-          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: Date.now() }
+          {
+            hostname: 'github.com',
+            iconUrl: 'data:image/png;base64,cloud',
+            isCustom: true,
+            updatedAt: Date.now(),
+          },
         ],
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
-      
+
       mergeFromCloud(cloudCache);
-      
+
       expect(getIcon('github.com')).toBe('data:image/png;base64,cloud');
       expect(isCustomIcon('github.com')).toBe(true);
     });
@@ -202,9 +207,14 @@ describe('faviconCache', () => {
     it('should persist cloud updatedAt into local custom meta', () => {
       const cloudCache: CustomFaviconCache = {
         entries: [
-          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: 1234 }
+          {
+            hostname: 'github.com',
+            iconUrl: 'data:image/png;base64,cloud',
+            isCustom: true,
+            updatedAt: 1234,
+          },
         ],
-        updatedAt: 1234
+        updatedAt: 1234,
       };
 
       mergeFromCloud(cloudCache);
@@ -221,9 +231,14 @@ describe('faviconCache', () => {
 
       const cloudCache: CustomFaviconCache = {
         entries: [
-          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: 2000 }
+          {
+            hostname: 'github.com',
+            iconUrl: 'data:image/png;base64,cloud',
+            isCustom: true,
+            updatedAt: 2000,
+          },
         ],
-        updatedAt: 2000
+        updatedAt: 2000,
       };
 
       mergeFromCloud(cloudCache);
@@ -241,9 +256,14 @@ describe('faviconCache', () => {
 
       const cloudCache: CustomFaviconCache = {
         entries: [
-          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: 2000 }
+          {
+            hostname: 'github.com',
+            iconUrl: 'data:image/png;base64,cloud',
+            isCustom: true,
+            updatedAt: 2000,
+          },
         ],
-        updatedAt: 2000
+        updatedAt: 2000,
       };
 
       mergeFromCloud(cloudCache);
@@ -256,32 +276,42 @@ describe('faviconCache', () => {
 
     it('should preserve local auto-fetched icons not in cloud', () => {
       setIcon('local-only.com', 'https://local-only.com/favicon.ico', false);
-      
+
       const cloudCache: CustomFaviconCache = {
         entries: [
-          { hostname: 'github.com', iconUrl: 'data:image/png;base64,cloud', isCustom: true, updatedAt: Date.now() }
+          {
+            hostname: 'github.com',
+            iconUrl: 'data:image/png;base64,cloud',
+            isCustom: true,
+            updatedAt: Date.now(),
+          },
         ],
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
-      
+
       mergeFromCloud(cloudCache);
-      
+
       // Local auto-fetched icon should be preserved
       expect(getIcon('local-only.com')).toBe('https://local-only.com/favicon.ico');
     });
 
     it('should prefer cloud custom icons over local auto-fetched', () => {
       setIcon('github.com', 'https://github.com/favicon.ico', false);
-      
+
       const cloudCache: CustomFaviconCache = {
         entries: [
-          { hostname: 'github.com', iconUrl: 'data:image/png;base64,custom', isCustom: true, updatedAt: Date.now() }
+          {
+            hostname: 'github.com',
+            iconUrl: 'data:image/png;base64,custom',
+            isCustom: true,
+            updatedAt: Date.now(),
+          },
         ],
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
-      
+
       mergeFromCloud(cloudCache);
-      
+
       expect(getIcon('github.com')).toBe('data:image/png;base64,custom');
       expect(isCustomIcon('github.com')).toBe(true);
     });
@@ -289,15 +319,25 @@ describe('faviconCache', () => {
     it('should skip entries with missing hostname or iconUrl', () => {
       const cloudCache: CustomFaviconCache = {
         entries: [
-          { hostname: '', iconUrl: 'data:image/png;base64,test', isCustom: true, updatedAt: Date.now() },
+          {
+            hostname: '',
+            iconUrl: 'data:image/png;base64,test',
+            isCustom: true,
+            updatedAt: Date.now(),
+          },
           { hostname: 'valid.com', iconUrl: '', isCustom: true, updatedAt: Date.now() },
-          { hostname: 'github.com', iconUrl: 'data:image/png;base64,valid', isCustom: true, updatedAt: Date.now() }
+          {
+            hostname: 'github.com',
+            iconUrl: 'data:image/png;base64,valid',
+            isCustom: true,
+            updatedAt: Date.now(),
+          },
         ],
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
-      
+
       mergeFromCloud(cloudCache);
-      
+
       expect(getIcon('github.com')).toBe('data:image/png;base64,valid');
       expect(getIcon('')).toBeUndefined();
       expect(getIcon('valid.com')).toBeUndefined();
@@ -307,18 +347,18 @@ describe('faviconCache', () => {
   describe('removeIcon', () => {
     it('should remove icon from cache', () => {
       setIcon('github.com', 'https://github.com/favicon.ico', false);
-      
+
       removeIcon('github.com');
-      
+
       expect(getIcon('github.com')).toBeUndefined();
     });
 
     it('should remove from custom list if was custom', () => {
       setIcon('github.com', 'data:image/png;base64,custom', true);
       expect(isCustomIcon('github.com')).toBe(true);
-      
+
       removeIcon('github.com');
-      
+
       expect(isCustomIcon('github.com')).toBe(false);
     });
   });
@@ -330,7 +370,7 @@ describe('faviconCache', () => {
 
     it('should return icon URL for existing hostname', () => {
       setIcon('github.com', 'https://github.com/favicon.ico', false);
-      
+
       expect(getIcon('github.com')).toBe('https://github.com/favicon.ico');
     });
   });
@@ -342,13 +382,13 @@ describe('faviconCache', () => {
 
     it('should return true for custom icon', () => {
       setIcon('github.com', 'data:image/png;base64,custom', true);
-      
+
       expect(isCustomIcon('github.com')).toBe(true);
     });
 
     it('should return false for auto-fetched icon', () => {
       setIcon('github.com', 'https://github.com/favicon.ico', false);
-      
+
       expect(isCustomIcon('github.com')).toBe(false);
     });
   });

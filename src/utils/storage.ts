@@ -55,34 +55,24 @@ export const safeStorageClear = (kind: StorageKind): boolean => {
   }
 };
 
-export const safeLocalStorageGetItem = (itemKey: string): string | null => (
-  safeStorageGetItem('local', itemKey)
-);
+export const safeLocalStorageGetItem = (itemKey: string): string | null =>
+  safeStorageGetItem('local', itemKey);
 
-export const safeLocalStorageSetItem = (itemKey: string, value: string): boolean => (
-  safeStorageSetItem('local', itemKey, value)
-);
+export const safeLocalStorageSetItem = (itemKey: string, value: string): boolean =>
+  safeStorageSetItem('local', itemKey, value);
 
-export const safeLocalStorageRemoveItem = (itemKey: string): boolean => (
-  safeStorageRemoveItem('local', itemKey)
-);
+export const safeLocalStorageRemoveItem = (itemKey: string): boolean =>
+  safeStorageRemoveItem('local', itemKey);
 
-export const safeLocalStorageClear = (): boolean => (
-  safeStorageClear('local')
-);
+export const safeLocalStorageClear = (): boolean => safeStorageClear('local');
 
-export const safeSessionStorageGetItem = (itemKey: string): string | null => (
-  safeStorageGetItem('session', itemKey)
-);
+export const safeSessionStorageGetItem = (itemKey: string): string | null =>
+  safeStorageGetItem('session', itemKey);
 
-export const safeSessionStorageSetItem = (itemKey: string, value: string): boolean => (
-  safeStorageSetItem('session', itemKey, value)
-);
+export const safeSessionStorageSetItem = (itemKey: string, value: string): boolean =>
+  safeStorageSetItem('session', itemKey, value);
 
-export const safeSessionStorageRemoveItem = (itemKey: string): boolean => (
-  safeStorageRemoveItem('session', itemKey)
-);
+export const safeSessionStorageRemoveItem = (itemKey: string): boolean =>
+  safeStorageRemoveItem('session', itemKey);
 
-export const safeSessionStorageClear = (): boolean => (
-  safeStorageClear('session')
-);
+export const safeSessionStorageClear = (): boolean => safeStorageClear('session');
