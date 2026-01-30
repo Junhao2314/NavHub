@@ -1,14 +1,13 @@
 import { useEffect } from 'react';
 import type { Category, LinkItem } from '../../types';
+import type { NotifyFn } from '../../types/ui';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
-
-type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 
 export const useBookmarkletAddLink = (args: {
   selectedCategory: string;
   categories: Category[];
   isPrivateUnlocked: boolean;
-  notify: (message: string, variant?: ToastVariant) => void;
+  notify: NotifyFn;
   openAddLinkModal: () => void;
   setPrefillLink: (link: Partial<LinkItem> | undefined) => void;
   setEditingLink: (link: LinkItem | undefined) => void;
@@ -29,13 +28,13 @@ export const useBookmarkletAddLink = (args: {
         args.notify('请先解锁隐私分组', 'warning');
         return;
       }
+      args.openPrivateAddModal();
       args.setPrefillPrivateLink({
         title: addTitle,
         url: addUrl,
         categoryId: PRIVATE_CATEGORY_ID,
       });
       args.setEditingPrivateLink(null);
-      args.openPrivateAddModal();
       return;
     }
 
@@ -43,13 +42,13 @@ export const useBookmarkletAddLink = (args: {
       args.selectedCategory !== 'all'
         ? args.selectedCategory
         : args.categories.find((c) => c.id === 'common')?.id || args.categories[0]?.id || 'common';
+    args.openAddLinkModal();
     args.setPrefillLink({
       title: addTitle,
       url: addUrl,
       categoryId: fallbackCategoryId,
     });
     args.setEditingLink(undefined);
-    args.openAddLinkModal();
   }, [
     args.categories,
     args.isPrivateUnlocked,

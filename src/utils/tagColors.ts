@@ -45,7 +45,9 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   h /= 360;
   s /= 100;
   l /= 100;
-  let r, g, b;
+  let r = 0;
+  let g = 0;
+  let b = 0;
 
   if (s === 0) {
     r = g = b = l;
@@ -78,7 +80,7 @@ export function getTagColorStyle(tag: string, isDark: boolean): React.CSSPropert
     '99 102 241';
 
   const [r, g, b] = accentRgb.split(' ').map(Number);
-  const [h, s, l] = rgbToHsl(r, g, b);
+  const [h, s] = rgbToHsl(r, g, b);
 
   // 基于标签哈希选择色相偏移
   const index = hashString(tag) % HUE_OFFSETS.length;

@@ -1,11 +1,15 @@
 import { Loader2, Pin, Sparkles, Star, Tag, Trash2, Upload, Wand2, X } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS,
   LINK_MODAL_SUCCESS_MESSAGE_HIDE_MS,
   LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS,
 } from '../../config/ui';
-import { generateLinkDescription, suggestCategory, AIServiceError } from '../../services/geminiService';
+import {
+  AIServiceError,
+  generateLinkDescription,
+  suggestCategory,
+} from '../../services/geminiService';
 import { AIConfig, Category, LinkItem } from '../../types';
 import { getIcon as getFaviconIcon, setIcon as setFaviconIcon } from '../../utils/faviconCache';
 import { getIconToneStyle, normalizeHexColor } from '../../utils/iconTone';
@@ -18,7 +22,7 @@ interface LinkModalProps {
   onSave: (link: Omit<LinkItem, 'id' | 'createdAt'>) => void;
   onDelete?: (id: string) => void;
   categories: Category[];
-  initialData?: LinkItem;
+  initialData?: Partial<LinkItem>;
   aiConfig: AIConfig;
   defaultCategoryId?: string;
   closeOnBackdrop?: boolean;
@@ -57,6 +61,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const { notify } = useDialog();
+  const isEditMode = Boolean(onDelete);
 
   // 过滤出未使用且匹配输入的标签建议
   const filteredTagSuggestions = useMemo(() => {
@@ -88,30 +93,40 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const defaultCategory =
+        defaultCategoryId && categories.find((cat) => cat.id === defaultCategoryId);
+      const fallbackCategory = categories.find((cat) => cat.id !== 'common') || categories[0];
+      const resolvedFallbackCategoryId = (defaultCategory || fallbackCategory)?.id || 'common';
+
       if (initialData) {
-        setTitle(initialData.title);
-        setUrl(initialData.url);
-        setDescription(initialData.description || '');
-        setTags(initialData.tags || []);
+        setTitle(typeof initialData.title === 'string' ? initialData.title : '');
+        setUrl(typeof initialData.url === 'string' ? initialData.url : '');
+        setDescription(typeof initialData.description === 'string' ? initialData.description : '');
+        setTags(
+          Array.isArray(initialData.tags)
+            ? initialData.tags.filter((tag): tag is string => typeof tag === 'string')
+            : [],
+        );
         setTagInput('');
-        setCategoryId(initialData.categoryId);
-        setPinned(initialData.pinned || false);
-        setRecommended(initialData.recommended || false);
-        setIcon(initialData.icon || '');
-        setIconTone(initialData.iconTone || '');
-        setIconToneInput(initialData.iconTone || '');
+        const nextCategoryId =
+          typeof initialData.categoryId === 'string' &&
+          categories.some((cat) => cat.id === initialData.categoryId)
+            ? initialData.categoryId
+            : resolvedFallbackCategoryId;
+        setCategoryId(nextCategoryId);
+        setPinned(Boolean(initialData.pinned));
+        setRecommended(Boolean(initialData.recommended));
+        setIcon(typeof initialData.icon === 'string' ? initialData.icon : '');
+        const nextIconTone = typeof initialData.iconTone === 'string' ? initialData.iconTone : '';
+        setIconTone(nextIconTone);
+        setIconToneInput(nextIconTone);
       } else {
         setTitle('');
         setUrl('');
         setDescription('');
         setTags([]);
         setTagInput('');
-        // 如果有默认分类ID且该分类存在，则使用默认分类
-        // 否则选择第一个非"常用推荐"的分类，避免用户不知道链接保存到哪里
-        const defaultCategory =
-          defaultCategoryId && categories.find((cat) => cat.id === defaultCategoryId);
-        const fallbackCategory = categories.find((cat) => cat.id !== 'common') || categories[0];
-        setCategoryId(defaultCategory ? defaultCategoryId : fallbackCategory?.id || 'common');
+        setCategoryId(resolvedFallbackCategoryId);
         setPinned(false);
         setRecommended(false);
         setIcon('');
@@ -176,20 +191,63 @@ const LinkModal: React.FC<LinkModalProps> = ({
     }
   };
 
+  const handleFetchIcon = useCallback(async () => {
+    if (!url) return;
+
+    setIsFetchingIcon(true);
+    try {
+      // 提取域名
+      let domain = url;
+      // 如果URL没有协议前缀，添加https://作为默认协议
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        domain = 'https://' + url;
+      }
+
+      if (domain.startsWith('http://') || domain.startsWith('https://')) {
+        const urlObj = new URL(domain);
+        domain = urlObj.hostname;
+      }
+
+      // 先尝试从本地缓存获取图标
+      // Use faviconCache module to check cache
+      const cachedIcon = getFaviconIcon(domain);
+      if (cachedIcon) {
+        setIcon(cachedIcon);
+        setIsFetchingIcon(false);
+        return;
+      }
+
+      // 如果缓存中没有，则生成新图标
+      const iconUrl = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
+      setIcon(iconUrl);
+      // 将图标保存到本地缓存
+      // Use faviconCache module with isCustom: false for auto-fetched icons
+      // Requirements: 3.2 - Auto-fetched icons are NOT marked as custom
+      setFaviconIcon(domain, iconUrl, false);
+    } catch (e) {
+      console.error('Failed to fetch icon', e);
+      notify('无法获取图标，请检查URL是否正确', 'error');
+    } finally {
+      setIsFetchingIcon(false);
+    }
+  }, [notify, url]);
+
   // 当URL变化且启用自动获取图标时，自动获取图标
   useEffect(() => {
-    if (url && autoFetchIcon && !initialData) {
-      const timer = setTimeout(() => {
-        handleFetchIcon();
-      }, LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS); // 延迟执行，避免频繁请求
+    if (!url || !autoFetchIcon || isEditMode) return;
 
-      return () => clearTimeout(timer);
-    }
-  }, [url, autoFetchIcon, initialData]);
+    const timer = setTimeout(() => {
+      handleFetchIcon();
+    }, LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS); // 延迟执行，避免频繁请求
+
+    return () => clearTimeout(timer);
+  }, [url, autoFetchIcon, isEditMode, handleFetchIcon]);
 
   const handleDelete = () => {
-    if (!initialData) return;
-    onDelete && onDelete(initialData.id);
+    if (!onDelete) return;
+    const id = initialData?.id;
+    if (typeof id !== 'string' || !id) return;
+    onDelete(id);
     onClose();
   };
 
@@ -203,7 +261,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
       // Use faviconCache module with isCustom: true for user-set icons
       // Requirements: 3.2 - Mark icon as user-customized
       setFaviconIcon(domain, iconUrl, true);
-    } catch (error) {
+    } catch (_error) {
       // Failed to cache custom icon - silently ignore
     }
   };
@@ -294,47 +352,6 @@ const LinkModal: React.FC<LinkModalProps> = ({
     }
   };
 
-  const handleFetchIcon = async () => {
-    if (!url) return;
-
-    setIsFetchingIcon(true);
-    try {
-      // 提取域名
-      let domain = url;
-      // 如果URL没有协议前缀，添加https://作为默认协议
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        domain = 'https://' + url;
-      }
-
-      if (domain.startsWith('http://') || domain.startsWith('https://')) {
-        const urlObj = new URL(domain);
-        domain = urlObj.hostname;
-      }
-
-      // 先尝试从本地缓存获取图标
-      // Use faviconCache module to check cache
-      const cachedIcon = getFaviconIcon(domain);
-      if (cachedIcon) {
-        setIcon(cachedIcon);
-        setIsFetchingIcon(false);
-        return;
-      }
-
-      // 如果缓存中没有，则生成新图标
-      const iconUrl = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
-      setIcon(iconUrl);
-      // 将图标保存到本地缓存
-      // Use faviconCache module with isCustom: false for auto-fetched icons
-      // Requirements: 3.2 - Auto-fetched icons are NOT marked as custom
-      setFaviconIcon(domain, iconUrl, false);
-    } catch (e) {
-      console.error('Failed to fetch icon', e);
-      notify('无法获取图标，请检查URL是否正确', 'error');
-    } finally {
-      setIsFetchingIcon(false);
-    }
-  };
-
   // 处理本地图标上传
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -380,7 +397,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
           const urlObj = new URL(domain);
           domain = urlObj.hostname;
           setFaviconIcon(domain, base64String, true);
-        } catch (error) {
+        } catch (_error) {
           // Failed to parse URL for caching - silently ignore
         }
       }
@@ -435,10 +452,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800/50">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-            {initialData ? '编辑链接' : '添加新链接'}
+            {isEditMode ? '编辑链接' : '添加新链接'}
           </h3>
           <div className="flex items-center gap-2">
-            {!initialData && (
+            {!isEditMode && (
               <div
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 onClick={() => setBatchMode(!batchMode)}
@@ -502,7 +519,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 {categoryId === 'common' ? '已在此分类' : recommended ? '已推荐' : '推荐'}
               </button>
 
-              {initialData && onDelete && (
+              {isEditMode && typeof initialData?.id === 'string' && (
                 <button
                   type="button"
                   onClick={handleDelete}

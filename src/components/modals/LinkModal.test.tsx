@@ -36,7 +36,11 @@ describe('LinkModal', () => {
     model: 'gpt-test',
   };
 
-  const renderModal = async (options?: { defaultCategoryId?: string; initialData?: LinkItem }) => {
+  const renderModal = async (options?: {
+    defaultCategoryId?: string;
+    initialData?: Partial<LinkItem>;
+    onDelete?: (id: string) => void;
+  }) => {
     root = createRoot(container);
     await act(async () => {
       root?.render(
@@ -44,6 +48,7 @@ describe('LinkModal', () => {
           isOpen
           onClose={vi.fn()}
           onSave={vi.fn()}
+          onDelete={options?.onDelete}
           categories={categories}
           aiConfig={aiConfig}
           defaultCategoryId={options?.defaultCategoryId}
@@ -87,7 +92,7 @@ describe('LinkModal', () => {
       createdAt: 1,
     } satisfies LinkItem;
 
-    await renderModal({ initialData });
+    await renderModal({ initialData, onDelete: vi.fn() });
 
     const beforeSelect = container.querySelector('select') as HTMLSelectElement | null;
     expect(beforeSelect).toBeTruthy();

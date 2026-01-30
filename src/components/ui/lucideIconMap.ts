@@ -114,7 +114,7 @@ export type LucideIconName = keyof typeof LUCIDE_ICON_IMPORTERS;
 export const LUCIDE_ICON_NAMES = Object.keys(LUCIDE_ICON_IMPORTERS) as LucideIconName[];
 
 export function isLucideIconName(name: string): name is LucideIconName {
-  return Object.prototype.hasOwnProperty.call(LUCIDE_ICON_IMPORTERS, name);
+  return Object.hasOwn(LUCIDE_ICON_IMPORTERS, name);
 }
 
 const lazyIconCache = new Map<LucideIconName, React.LazyExoticComponent<LucideIcon>>();

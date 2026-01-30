@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CustomFaviconCache } from '../types';
-import { FAVICON_CACHE_KEY, FAVICON_CUSTOM_KEY } from './constants';
+import { FAVICON_CACHE_KEY } from './constants';
 import {
   buildSyncCache,
   getCustomIcons,

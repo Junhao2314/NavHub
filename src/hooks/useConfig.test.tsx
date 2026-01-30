@@ -1,6 +1,7 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetAppStore } from '../stores/useAppStore';
 import type { AIConfig, SiteSettings } from '../types';
 import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
 import { useConfig } from './useConfig';
@@ -34,11 +35,14 @@ describe('useConfig', () => {
   };
 
   const clearFavicons = () => {
-    document.querySelectorAll('link[rel="icon"]').forEach((node) => node.remove());
+    document.querySelectorAll('link[rel="icon"]').forEach((node) => {
+      node.remove();
+    });
   };
 
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    resetAppStore();
     localStorage.clear();
     sessionStorage.clear();
     clearFavicons();

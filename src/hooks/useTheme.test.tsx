@@ -1,6 +1,7 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetAppStore } from '../stores/useAppStore';
 import { THEME_KEY } from '../utils/constants';
 import { useTheme } from './useTheme';
 
@@ -25,7 +26,9 @@ const setupMatchMedia = (initialMatches: boolean) => {
     dispatch: (nextMatches: boolean) => {
       matches = nextMatches;
       (mql as any).matches = matches;
-      listeners.forEach((cb) => cb({ matches }));
+      listeners.forEach((cb) => {
+        cb({ matches });
+      });
     },
   } as any;
 
@@ -64,6 +67,7 @@ describe('useTheme', () => {
 
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    resetAppStore();
     localStorage.clear();
     document.documentElement.classList.remove('dark');
     container = document.createElement('div');

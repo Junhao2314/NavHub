@@ -1,6 +1,7 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetAppStore } from '../stores/useAppStore';
 import { SEARCH_CONFIG_KEY } from '../utils/constants';
 import { useSearch } from './useSearch';
 
@@ -35,6 +36,7 @@ describe('useSearch', () => {
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers();
+    resetAppStore();
     localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);

@@ -1,8 +1,8 @@
+import type { NotifyFn } from '../types/ui';
+
+export type { NotifyFn, ToastVariant } from '../types/ui';
+
 export const ADMIN_EDIT_DISABLED_HINT = '用户模式不可编辑，请先输入 API 访问密码进入管理员模式。';
-
-export type ToastVariant = 'info' | 'success' | 'warning' | 'error';
-
-export type NotifyFn = (message: string, variant?: ToastVariant) => void;
 
 type AdminAccessToastRecord = {
   message: string;

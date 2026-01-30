@@ -1,6 +1,7 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetAppStore } from '../stores/useAppStore';
 import type { LinkItem } from '../types';
 import { useModals } from './useModals';
 
@@ -34,6 +35,7 @@ describe('useModals', () => {
 
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    resetAppStore();
     container = document.createElement('div');
     document.body.appendChild(container);
   });

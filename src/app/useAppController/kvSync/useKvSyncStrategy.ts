@@ -99,6 +99,7 @@ export const useKvSyncStrategy = (args: {
   const pendingStatsSyncDataRef = useRef<SyncPayload | null>(null);
   const isAdminRef = useRef(isAdmin);
   const hasConflictRef = useRef(!!currentConflict);
+  const syncPasswordRefreshTickRef = useRef(syncPasswordRefreshTick);
 
   isAdminRef.current = isAdmin;
   hasConflictRef.current = !!currentConflict;
@@ -407,6 +408,7 @@ export const useKvSyncStrategy = (args: {
   ]);
 
   useEffect(() => {
+    syncPasswordRefreshTickRef.current = syncPasswordRefreshTick;
     if (!pendingSensitiveConfigSyncRef.current) return;
     if (!isLoaded || !hasInitialSyncRun.current || currentConflict) return;
     if (isSyncPasswordRefreshingRef.current) return;

@@ -12,8 +12,10 @@
  *   - 兼容旧版本的 API Key 迁移逻辑
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { AIConfig, SiteSettings } from '../types';
+import { useCallback, useEffect } from 'react';
+import { DEFAULT_AI_CONFIG, DEFAULT_SITE_SETTINGS } from '../config/defaults';
+import { useAppStore } from '../stores/useAppStore';
+import type { AIConfig, SiteSettings } from '../types';
 import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
 import {
   safeLocalStorageGetItem,
@@ -23,28 +25,6 @@ import {
   safeSessionStorageRemoveItem,
   safeSessionStorageSetItem,
 } from '../utils/storage';
-
-/** AI 配置默认值 */
-const DEFAULT_AI_CONFIG: AIConfig = {
-  provider: 'gemini',
-  apiKey: '',
-  baseUrl: '',
-  model: 'gemini-2.5-flash',
-};
-
-/** 站点设置默认值 */
-const DEFAULT_SITE_SETTINGS: SiteSettings = {
-  title: 'NavHub - AI 智能导航仪',
-  navTitle: 'NavHub',
-  favicon: '',
-  cardStyle: 'detailed',
-  accentColor: '99 102 241',
-  grayScale: 'slate',
-  closeOnBackdrop: false,
-  backgroundImage: '',
-  backgroundImageEnabled: false,
-  backgroundMotion: true,
-};
 
 /**
  * 持久化 AI 配置
@@ -73,95 +53,133 @@ const persistAIConfigToStorage = (config: AIConfig): void => {
   );
 };
 
-export function useConfig() {
-  /**
-   * AI 配置初始化
-   *
-   * 加载顺序：
-   * 1. 从 sessionStorage 读取 API Key
-   * 2. 从 localStorage 读取其他配置
-   * 3. 处理旧版本的 API Key 迁移（localStorage → sessionStorage）
-   */
-  const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
-    const sessionApiKey = safeSessionStorageGetItem(AI_API_KEY_SESSION_KEY) || '';
-    const saved = safeLocalStorageGetItem(AI_CONFIG_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Partial<AIConfig>;
-        const legacyApiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : '';
+/**
+ * 从存储加载 AI 配置，并处理旧版本 API Key 迁移
+ *
+ * 加载顺序：
+ * 1. 从 sessionStorage 读取 API Key
+ * 2. 从 localStorage 读取其他配置
+ * 3. 处理旧版本的 API Key 迁移（localStorage → sessionStorage）
+ */
+const loadAIConfigFromStorage = (): AIConfig => {
+  const sessionApiKey = safeSessionStorageGetItem(AI_API_KEY_SESSION_KEY) || '';
+  const saved = safeLocalStorageGetItem(AI_CONFIG_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved) as Partial<AIConfig>;
+      const legacyApiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : '';
 
-        if (legacyApiKey) {
-          if (sessionApiKey) {
+      if (legacyApiKey) {
+        if (sessionApiKey) {
+          safeLocalStorageSetItem(AI_CONFIG_KEY, JSON.stringify({ ...parsed, apiKey: '' }));
+        } else {
+          const written = safeSessionStorageSetItem(AI_API_KEY_SESSION_KEY, legacyApiKey);
+          if (written) {
             safeLocalStorageSetItem(AI_CONFIG_KEY, JSON.stringify({ ...parsed, apiKey: '' }));
-          } else {
-            const written = safeSessionStorageSetItem(AI_API_KEY_SESSION_KEY, legacyApiKey);
-            if (written) {
-              safeLocalStorageSetItem(AI_CONFIG_KEY, JSON.stringify({ ...parsed, apiKey: '' }));
-            }
           }
         }
-
-        return {
-          ...DEFAULT_AI_CONFIG,
-          ...parsed,
-          apiKey: sessionApiKey || legacyApiKey || '',
-        } satisfies AIConfig;
-      } catch (error) {
-        console.warn('[useConfig] Failed to parse AI config from localStorage; resetting.', error);
-        safeLocalStorageRemoveItem(AI_CONFIG_KEY);
       }
-    }
-    return { ...DEFAULT_AI_CONFIG, apiKey: sessionApiKey };
-  });
 
-  /** 站点设置初始化 */
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
-    const saved = safeLocalStorageGetItem(SITE_SETTINGS_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.warn(
-          '[useConfig] Failed to parse site settings from localStorage; resetting.',
-          error,
-        );
-        safeLocalStorageRemoveItem(SITE_SETTINGS_KEY);
-      }
+      return {
+        ...DEFAULT_AI_CONFIG,
+        ...parsed,
+        apiKey: sessionApiKey || legacyApiKey || '',
+      } satisfies AIConfig;
+    } catch (error) {
+      console.warn('[useConfig] Failed to parse AI config from localStorage; resetting.', error);
+      safeLocalStorageRemoveItem(AI_CONFIG_KEY);
     }
-    return DEFAULT_SITE_SETTINGS;
-  });
+  }
+  return { ...DEFAULT_AI_CONFIG, apiKey: sessionApiKey };
+};
+
+/** 从存储加载站点设置 */
+const loadSiteSettingsFromStorage = (): SiteSettings => {
+  const saved = safeLocalStorageGetItem(SITE_SETTINGS_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved) as Partial<SiteSettings>;
+      return {
+        ...DEFAULT_SITE_SETTINGS,
+        ...parsed,
+      } satisfies SiteSettings;
+    } catch (error) {
+      console.warn(
+        '[useConfig] Failed to parse site settings from localStorage; resetting.',
+        error,
+      );
+      safeLocalStorageRemoveItem(SITE_SETTINGS_KEY);
+    }
+  }
+  return DEFAULT_SITE_SETTINGS;
+};
+
+export function useConfig() {
+  const aiConfig = useAppStore((s) => s.aiConfig);
+  const setAIConfig = useAppStore((s) => s.setAIConfig);
+
+  const siteSettings = useAppStore((s) => s.siteSettings);
+  const setSiteSettings = useAppStore((s) => s.setSiteSettings);
+
+  const hydrated = useAppStore((s) => s.__hydratedConfig);
+  const setHydrated = useAppStore((s) => s.__setHydratedConfig);
+
+  /** 初始化：从 localStorage/sessionStorage 加载配置 */
+  useEffect(() => {
+    if (hydrated) return;
+    setAIConfig(loadAIConfigFromStorage());
+    setSiteSettings(loadSiteSettingsFromStorage());
+    setHydrated(true);
+  }, [hydrated, setAIConfig, setHydrated, setSiteSettings]);
 
   /** 保存 AI 配置（可同时更新站点设置） */
-  const saveAIConfig = useCallback((config: AIConfig, newSiteSettings?: SiteSettings) => {
-    setAiConfig(config);
-    persistAIConfigToStorage(config);
+  const saveAIConfig = useCallback(
+    (config: AIConfig, newSiteSettings?: SiteSettings) => {
+      setAIConfig(config);
+      persistAIConfigToStorage(config);
 
-    if (newSiteSettings) {
-      setSiteSettings(newSiteSettings);
-      safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(newSiteSettings));
-    }
-  }, []);
+      if (newSiteSettings) {
+        setSiteSettings(newSiteSettings);
+        safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(newSiteSettings));
+      }
+    },
+    [setAIConfig, setSiteSettings],
+  );
 
   /** 从云端同步恢复 AI 配置 */
-  const restoreAIConfig = useCallback((config: AIConfig) => {
-    setAiConfig(config);
-    persistAIConfigToStorage(config);
-  }, []);
+  const restoreAIConfig = useCallback(
+    (config: AIConfig) => {
+      setAIConfig(config);
+      persistAIConfigToStorage(config);
+    },
+    [setAIConfig],
+  );
 
   /** 从云端同步恢复站点设置 */
-  const restoreSiteSettings = useCallback((settings: SiteSettings) => {
-    setSiteSettings(settings);
-    safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(settings));
-  }, []);
+  const restoreSiteSettings = useCallback(
+    (settings: SiteSettings) => {
+      const normalized = { ...DEFAULT_SITE_SETTINGS, ...settings } satisfies SiteSettings;
+      setSiteSettings(normalized);
+      safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(normalized));
+    },
+    [setSiteSettings],
+  );
 
   /** 部分更新站点设置 */
-  const updateSiteSettings = useCallback((updates: Partial<SiteSettings>) => {
-    setSiteSettings((prev) => {
-      const newSettings = { ...prev, ...updates };
-      safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(newSettings));
-      return newSettings;
-    });
-  }, []);
+  const updateSiteSettings = useCallback(
+    (updates: Partial<SiteSettings>) => {
+      setSiteSettings((prev) => {
+        const newSettings = {
+          ...DEFAULT_SITE_SETTINGS,
+          ...prev,
+          ...updates,
+        } satisfies SiteSettings;
+        safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(newSettings));
+        return newSettings;
+      });
+    },
+    [setSiteSettings],
+  );
 
   /** 切换卡片显示样式（详细/简洁） */
   const handleViewModeChange = useCallback(
@@ -184,7 +202,9 @@ export function useConfig() {
 
     if (siteSettings.favicon) {
       const existingFavicons = document.querySelectorAll('link[rel="icon"]');
-      existingFavicons.forEach((favicon) => favicon.remove());
+      existingFavicons.forEach((favicon) => {
+        favicon.remove();
+      });
 
       const favicon = document.createElement('link');
       favicon.rel = 'icon';

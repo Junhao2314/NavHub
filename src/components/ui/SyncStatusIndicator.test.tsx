@@ -11,7 +11,7 @@ describe('SyncStatusIndicator', () => {
 
   const render = async (
     status: SyncStatus,
-    options?: { onManualSync?: () => void; onManualPull?: () => void },
+    options?: { onManualSync?: () => void; onManualPull?: () => void; onOpenConflict?: () => void },
   ) => {
     if (!root) root = createRoot(container);
     await act(async () => {
@@ -21,6 +21,7 @@ describe('SyncStatusIndicator', () => {
           lastSyncTime={null}
           onManualSync={options?.onManualSync}
           onManualPull={options?.onManualPull}
+          onOpenConflict={options?.onOpenConflict}
         />,
       );
     });
@@ -94,6 +95,46 @@ describe('SyncStatusIndicator', () => {
       syncedButton!.click();
     });
     expect(onManualPull).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes click: pending -> onManualSync', async () => {
+    vi.useFakeTimers();
+
+    const onManualSync = vi.fn();
+    const onManualPull = vi.fn();
+
+    await render('idle', { onManualSync, onManualPull });
+    await render('pending', { onManualSync, onManualPull });
+
+    const button = container.querySelector('button') as HTMLButtonElement | null;
+    expect(button).toBeTruthy();
+
+    await act(async () => {
+      button!.click();
+    });
+
+    expect(onManualSync).toHaveBeenCalledTimes(1);
+    expect(onManualPull).toHaveBeenCalledTimes(0);
+  });
+
+  it('routes click: conflict -> onOpenConflict', async () => {
+    vi.useFakeTimers();
+
+    const onManualPull = vi.fn();
+    const onOpenConflict = vi.fn();
+
+    await render('idle', { onManualPull, onOpenConflict });
+    await render('conflict', { onManualPull, onOpenConflict });
+
+    const button = container.querySelector('button') as HTMLButtonElement | null;
+    expect(button).toBeTruthy();
+
+    await act(async () => {
+      button!.click();
+    });
+
+    expect(onOpenConflict).toHaveBeenCalledTimes(1);
+    expect(onManualPull).toHaveBeenCalledTimes(0);
   });
 
   it('disables button while syncing', async () => {

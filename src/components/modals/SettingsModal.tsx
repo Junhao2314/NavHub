@@ -1,5 +1,6 @@
 import { Bot, Database, Globe, Palette, Save, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { DEFAULT_SITE_SETTINGS } from '../../config/defaults';
 import {
   AIConfig,
   Category,
@@ -80,33 +81,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [activeTab, setActiveTab] = useState<'site' | 'ai' | 'appearance' | 'data'>('site');
   const [localConfig, setLocalConfig] = useState<AIConfig>(config);
   const [localSiteSettings, setLocalSiteSettings] = useState<SiteSettings>(() => ({
-    title: siteSettings?.title || 'NavHub - AI 智能导航仪',
-    navTitle: siteSettings?.navTitle || 'NavHub',
-    favicon: siteSettings?.favicon || '',
-    cardStyle: siteSettings?.cardStyle || 'detailed',
-    accentColor: siteSettings?.accentColor || '99 102 241',
-    grayScale: siteSettings?.grayScale || 'slate',
-    closeOnBackdrop: siteSettings?.closeOnBackdrop ?? false,
-    backgroundImage: siteSettings?.backgroundImage || '',
-    backgroundImageEnabled: siteSettings?.backgroundImageEnabled ?? false,
-    backgroundMotion: siteSettings?.backgroundMotion ?? false,
+    ...DEFAULT_SITE_SETTINGS,
+    ...siteSettings,
   }));
 
   useEffect(() => {
     if (isOpen) {
       setLocalConfig(config);
-      setLocalSiteSettings({
-        title: siteSettings?.title || 'NavHub - AI 智能导航仪',
-        navTitle: siteSettings?.navTitle || 'NavHub',
-        favicon: siteSettings?.favicon || '',
-        cardStyle: siteSettings?.cardStyle || 'detailed',
-        accentColor: siteSettings?.accentColor || '99 102 241',
-        grayScale: siteSettings?.grayScale || 'slate',
-        closeOnBackdrop: siteSettings?.closeOnBackdrop ?? false,
-        backgroundImage: siteSettings?.backgroundImage || '',
-        backgroundImageEnabled: siteSettings?.backgroundImageEnabled ?? false,
-        backgroundMotion: siteSettings?.backgroundMotion ?? false,
-      });
+      setLocalSiteSettings({ ...DEFAULT_SITE_SETTINGS, ...siteSettings });
     }
   }, [isOpen, config, siteSettings]);
 

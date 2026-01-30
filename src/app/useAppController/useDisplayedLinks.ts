@@ -148,9 +148,7 @@ export const useDisplayedLinks = (args: {
   // 过滤掉隐藏分类的链接用于置顶（非管理员模式）
   const visibleLinks = useMemo(
     () =>
-      args.isAdmin
-        ? args.links
-        : args.links.filter((l) => !hiddenCategoryIds.has(l.categoryId)),
+      args.isAdmin ? args.links : args.links.filter((l) => !hiddenCategoryIds.has(l.categoryId)),
     [args.isAdmin, args.links, hiddenCategoryIds],
   );
 

@@ -1,22 +1,12 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { TOAST_AUTO_DISMISS_MS } from '../../config/ui';
-
-type ToastVariant = 'info' | 'success' | 'warning' | 'error';
-type ConfirmVariant = 'default' | 'danger';
+import type { ConfirmFn, ConfirmOptions, NotifyFn, ToastVariant } from '../../types/ui';
 
 interface ToastItem {
   id: string;
   message: string;
   variant: ToastVariant;
-}
-
-interface ConfirmOptions {
-  title?: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  variant?: ConfirmVariant;
 }
 
 interface ConfirmState {
@@ -25,8 +15,8 @@ interface ConfirmState {
 }
 
 interface DialogContextValue {
-  notify: (message: string, variant?: ToastVariant) => void;
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
+  notify: NotifyFn;
+  confirm: ConfirmFn;
 }
 
 const DialogContext = createContext<DialogContextValue | null>(null);

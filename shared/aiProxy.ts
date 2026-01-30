@@ -1,20 +1,39 @@
 /**
- * OpenAI Compatible Proxy handler shared by:
+ * OpenAI Compatible Proxy Handler
+ * OpenAI 兼容代理处理器
+ *
+ * Shared by / 共享于:
  * - Cloudflare Worker (/worker/index.ts)
  * - Cloudflare Pages Functions (/functions/api/ai.ts)
  *
- * Endpoints:
+ * Endpoints / 端点:
  * - POST /api/ai?action=chat    { baseUrl, apiKey, payload }  -> upstream /chat/completions
+ *   聊天补全请求代理
  * - POST /api/ai?action=models  { baseUrl, apiKey }           -> upstream /models
+ *   模型列表请求代理
+ *
+ * Security features / 安全特性:
+ * - CORS origin validation / CORS 来源验证
+ * - Upstream host allowlist / 上游主机白名单
+ * - Private network blocking / 私有网络阻止
+ * - Redirect validation / 重定向验证
  */
 
 const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
 
+/**
+ * Default CORS headers for AI proxy
+ * AI 代理的默认 CORS 头
+ */
 export const AI_CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+/**
+ * OpenAI compatible endpoint URLs
+ * OpenAI 兼容端点 URL
+ */
 type OpenAICompatibleUrls = {
   chatCompletionsUrl: string;
   modelsUrl: string;
@@ -22,40 +41,60 @@ type OpenAICompatibleUrls = {
 
 type ChatPayload = Record<string, unknown>;
 
+/**
+ * Proxy request body structure
+ * 代理请求体结构
+ */
 type ProxyRequestBody = {
   baseUrl?: string;
   apiKey?: string;
   payload?: ChatPayload;
 };
 
+/**
+ * API AI handler options
+ * API AI 处理器选项
+ */
 export type ApiAIHandlerOptions = {
   /**
    * If provided, these headers are used as-is for all responses (including OPTIONS).
    * Prefer `corsAllowedOrigins` for safer defaults.
+   * 如果提供，这些头将原样用于所有响应（包括 OPTIONS）。
+   * 建议使用 `corsAllowedOrigins` 以获得更安全的默认值。
    */
   corsHeaders?: Record<string, string>;
   /**
    * Allowed CORS origins. If omitted, only same-origin requests are allowed.
    * Use `["*"]` to allow any origin (not recommended).
+   * 允许的 CORS 来源。如果省略，只允许同源请求。
+   * 使用 `["*"]` 允许任何来源（不推荐）。
    */
   corsAllowedOrigins?: string[];
   /**
    * Allowed upstream hostnames (exact or wildcard like `*.example.com`).
    * If omitted, defaults to `api.openai.com` only.
+   * 允许的上游主机名（精确匹配或通配符如 `*.example.com`）。
+   * 如果省略，默认只允许 `api.openai.com`。
    */
   allowedBaseUrlHosts?: string[];
   /**
    * Allow upstream `http:` (insecure). Defaults to `false` (only `https:`).
+   * 允许上游 `http:`（不安全）。默认为 `false`（仅 `https:`）。
    */
   allowInsecureHttp?: boolean;
   /**
    * Optional diagnostic hook for suppressed parsing/validation errors.
    * Must not throw.
+   * 可选的诊断钩子，用于被抑制的解析/验证错误。不能抛出异常。
    */
   onError?: (error: unknown, context: ApiAIHandlerErrorContext) => void;
   fetchFn?: typeof fetch;
 };
 
+/**
+ * Error context for diagnostic hook
+ * 诊断钩子的错误上下文
+ */
 export type ApiAIHandlerErrorContext = {
   stage:
     | 'parseAllowedHostPattern'
@@ -64,6 +103,10 @@ export type ApiAIHandlerErrorContext = {
     | 'parseBaseUrl';
 };
 
+/**
+ * Parsed allowed host pattern
+ * 解析后的允许主机模式
+ */
 type AllowedHostPattern = {
   hostnamePattern: string;
   port?: string;
@@ -102,7 +145,11 @@ function ensureHttpScheme(value: string): string {
 }
 
 function normalizeHostname(value: string): string {
-  return value.trim().toLowerCase().replace(/\.$/, '');
+  const trimmed = value.trim().toLowerCase().replace(/\.$/, '');
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }
 
 function normalizeHostnamePattern(value: string): string {
@@ -135,31 +182,167 @@ function isValidIpv4(value: string): boolean {
   });
 }
 
+function parseIpv4Octets(value: string): [number, number, number, number] | null {
+  if (!isValidIpv4(value)) return null;
+  const parts = value.split('.').map((n) => Number(n));
+  if (parts.length !== 4) return null;
+  if (parts.some((n) => !Number.isFinite(n))) return null;
+  return parts as [number, number, number, number];
+}
+
+function isPrivateIpv4Octets([a, b]: [number, number, number, number]): boolean {
+  // 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8
+  if (a === 0 || a === 10 || a === 127) return true;
+  // 169.254.0.0/16
+  if (a === 169 && b === 254) return true;
+  // 172.16.0.0/12
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  // 192.168.0.0/16
+  if (a === 192 && b === 168) return true;
+  // 100.64.0.0/10 (CGNAT)
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  // 198.18.0.0/15 (benchmark)
+  if (a === 198 && (b === 18 || b === 19)) return true;
+
+  // Multicast/reserved (224.0.0.0/4, 240.0.0.0/4) and broadcast.
+  if (a >= 224) return true;
+
+  return false;
+}
+
+function parseIpv6Hextets(hostname: string): Uint16Array | null {
+  const input = normalizeHostname(hostname);
+  if (!input) return null;
+
+  const zoneIndex = input.indexOf('%');
+  const withoutZone = zoneIndex === -1 ? input : input.slice(0, zoneIndex);
+  if (!withoutZone) return null;
+
+  const parts = withoutZone.split('::');
+  if (parts.length > 2) return null;
+
+  const splitPart = (value: string): string[] => value.split(':').filter(Boolean);
+  const left = parts[0] ? splitPart(parts[0]) : [];
+  const right = parts.length === 2 && parts[1] ? splitPart(parts[1]) : [];
+
+  const replaceEmbeddedIpv4 = (segments: string[]): boolean => {
+    if (segments.length === 0) return false;
+    const last = segments[segments.length - 1] || '';
+    if (!last.includes('.')) return true;
+
+    const ipv4 = parseIpv4Octets(last);
+    if (!ipv4) return false;
+    const [a, b, c, d] = ipv4;
+    const hi = ((a << 8) | b).toString(16);
+    const lo = ((c << 8) | d).toString(16);
+    segments.splice(segments.length - 1, 1, hi, lo);
+    return true;
+  };
+
+  if (!replaceEmbeddedIpv4(right.length > 0 ? right : left)) return null;
+
+  const total = left.length + right.length;
+  const hasCompression = parts.length === 2;
+  if (!hasCompression) {
+    if (total !== 8) return null;
+  } else {
+    const missing = 8 - total;
+    if (missing < 1) return null;
+    for (let i = 0; i < missing; i += 1) {
+      right.unshift('0');
+    }
+  }
+
+  const all = [...left, ...right];
+  if (all.length !== 8) return null;
+
+  const out = new Uint16Array(8);
+  for (let i = 0; i < 8; i += 1) {
+    const part = all[i] || '';
+    if (!/^[0-9a-f]{1,4}$/i.test(part)) return null;
+    const parsed = Number.parseInt(part, 16);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 0xffff) return null;
+    out[i] = parsed;
+  }
+
+  return out;
+}
+
+function isAllZeroIpv6(hextets: Uint16Array): boolean {
+  for (let i = 0; i < hextets.length; i += 1) {
+    if (hextets[i] !== 0) return false;
+  }
+  return true;
+}
+
+function isLoopbackIpv6(hextets: Uint16Array): boolean {
+  for (let i = 0; i < 7; i += 1) {
+    if (hextets[i] !== 0) return false;
+  }
+  return hextets[7] === 1;
+}
+
+function extractMappedIpv4FromIpv6(hextets: Uint16Array): [number, number, number, number] | null {
+  const isIpv4Compatible =
+    hextets[0] === 0 &&
+    hextets[1] === 0 &&
+    hextets[2] === 0 &&
+    hextets[3] === 0 &&
+    hextets[4] === 0 &&
+    hextets[5] === 0;
+
+  const isIpv4Mapped =
+    hextets[0] === 0 &&
+    hextets[1] === 0 &&
+    hextets[2] === 0 &&
+    hextets[3] === 0 &&
+    hextets[4] === 0 &&
+    hextets[5] === 0xffff;
+
+  if (!isIpv4Compatible && !isIpv4Mapped) return null;
+
+  const a = (hextets[6] >> 8) & 0xff;
+  const b = hextets[6] & 0xff;
+  const c = (hextets[7] >> 8) & 0xff;
+  const d = hextets[7] & 0xff;
+  return [a, b, c, d];
+}
+
 function isPrivateNetworkHostname(hostname: string): boolean {
   const host = normalizeHostname(hostname);
   if (!host) return true;
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
 
-  if (isValidIpv4(host)) {
-    const [a, b] = host.split('.').map((n) => Number(n));
-    // 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8
-    if (a === 0 || a === 10 || a === 127) return true;
-    // 169.254.0.0/16
-    if (a === 169 && b === 254) return true;
-    // 172.16.0.0/12
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    // 192.168.0.0/16
-    if (a === 192 && b === 168) return true;
-    // 100.64.0.0/10 (CGNAT)
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    // 198.18.0.0/15 (benchmark)
-    if (a === 198 && (b === 18 || b === 19)) return true;
+  const ipv4 = parseIpv4Octets(host);
+  if (ipv4) {
+    return isPrivateIpv4Octets(ipv4);
   }
 
-  const lower = host.toLowerCase();
-  if (lower === '::' || lower === '::1') return true;
-  if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // fc00::/7
-  if (lower.startsWith('fe80:')) return true; // fe80::/10
+  // IPv6 literals (including v4-mapped/v4-compatible)
+  if (host.includes(':') || host.includes('%')) {
+    const ipv6 = parseIpv6Hextets(host);
+    if (!ipv6) {
+      // Fail closed: a hostname containing ':' should be an IPv6 literal; if parsing fails, treat as unsafe.
+      return true;
+    }
+
+    if (isAllZeroIpv6(ipv6)) return true; // ::
+    if (isLoopbackIpv6(ipv6)) return true; // ::1
+
+    // Unique local: fc00::/7
+    if ((ipv6[0] & 0xfe00) === 0xfc00) return true;
+    // Link-local: fe80::/10
+    if ((ipv6[0] & 0xffc0) === 0xfe80) return true;
+    // Deprecated site-local: fec0::/10
+    if ((ipv6[0] & 0xffc0) === 0xfec0) return true;
+    // Multicast: ff00::/8
+    if ((ipv6[0] & 0xff00) === 0xff00) return true;
+
+    const mappedIpv4 = extractMappedIpv4FromIpv6(ipv6);
+    if (mappedIpv4) {
+      return isPrivateIpv4Octets(mappedIpv4);
+    }
+  }
 
   return false;
 }
@@ -186,6 +369,27 @@ function parseAllowedHostPattern(
   }
 
   const hostPart = trimmed.split('/')[0];
+  if (hostPart.startsWith('[')) {
+    const endBracket = hostPart.indexOf(']');
+    if (endBracket === -1) return null;
+    const ipv6Literal = hostPart.slice(1, endBracket);
+    const rest = hostPart.slice(endBracket + 1);
+    if (rest && !rest.startsWith(':')) return null;
+    const port = rest.startsWith(':') ? rest.slice(1) : '';
+    if (port && !/^\d+$/.test(port)) return null;
+    const hostnamePattern = normalizeHostname(ipv6Literal);
+    if (!hostnamePattern) return null;
+    return { hostnamePattern, ...(port ? { port } : {}) };
+  }
+
+  const colonCount = (hostPart.match(/:/g) || []).length;
+  if (colonCount > 1) {
+    // Likely an IPv6 literal without brackets/port (e.g. "::1").
+    const hostnamePattern = normalizeHostname(hostPart);
+    if (!hostnamePattern || hostnamePattern.includes('*')) return null;
+    return { hostnamePattern };
+  }
+
   const match = hostPart.match(/^(.*):(\d+)$/);
   if (match) {
     const hostnamePattern = normalizeHostnamePattern(match[1]);

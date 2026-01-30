@@ -1,5 +1,5 @@
 import { Globe, RefreshCw, Upload } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SiteSettings, SiteSettingsChangeHandler } from '../../../types';
 import { useDialog } from '../../ui/DialogProvider';
 
@@ -53,23 +53,23 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
   const closeOnBackdrop = !!settings.closeOnBackdrop;
   const { notify } = useDialog();
 
-  const updateGeneratedIcons = (text: string) => {
+  const updateGeneratedIcons = useCallback((text: string) => {
     const newIcons: string[] = [];
     for (let i = 0; i < 6; i++) {
       const c1 = getRandomColor();
-      const h2 = (parseInt(c1.split(',')[0].split('(')[1]) + 30 + Math.random() * 30) % 360;
+      const h2 = (parseInt(c1.split(',')[0].split('(')[1], 10) + 30 + Math.random() * 30) % 360;
       const c2 = `hsl(${h2}, 70%, 50%)`;
       newIcons.push(generateSvgIcon(text, c1, c2));
     }
     setGeneratedIcons(newIcons);
-  };
+  }, []);
 
   // Initial generation
   useEffect(() => {
     if (generatedIcons.length === 0) {
       updateGeneratedIcons(settings.title || 'NavHub');
     }
-  }, []);
+  }, [generatedIcons.length, settings.title, updateGeneratedIcons]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -166,9 +166,9 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
                   </button>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                  {generatedIcons.map((icon, idx) => (
+                  {generatedIcons.map((icon) => (
                     <button
-                      key={idx}
+                      key={icon}
                       onClick={() => onChange('favicon', icon)}
                       className="shrink-0 w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:ring-2 hover:ring-blue-500 hover:scale-105 transition-all bg-white dark:bg-slate-800"
                     >

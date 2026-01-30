@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  ArrowRight,
   Check,
   Database,
   FileText,
@@ -56,7 +55,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
 }) => {
   const { notify } = useDialog();
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
-  const [file, setFile] = useState<File | null>(null);
+  const [_file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
   // Staging Data
@@ -316,7 +315,9 @@ const ImportModal: React.FC<ImportModalProps> = ({
       // we should remap the links to the existing category ID instead of creating a new duplicate-named category.
 
       const nameToIdMap = new Map<string, string>();
-      categories.forEach((c) => nameToIdMap.set(c.name, c.id));
+      categories.forEach((c) => {
+        nameToIdMap.set(c.name, c.id);
+      });
 
       // Valid new categories to add
       const categoriesToAdd: Category[] = [];

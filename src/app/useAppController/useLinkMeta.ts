@@ -53,12 +53,14 @@ export const useLinkMeta = (args: {
   categories: Category[];
   commonRecommendedLinksCount: number;
 }) => {
+  const { links, categories, commonRecommendedLinksCount } = args;
+
   const linkCounts = useMemo(
-    () => computeLinkCounts(args),
-    [args.links, args.categories, args.commonRecommendedLinksCount],
+    () => computeLinkCounts({ links, categories, commonRecommendedLinksCount }),
+    [links, categories, commonRecommendedLinksCount],
   );
 
-  const existingTags = useMemo(() => collectExistingTags(args.links), [args.links]);
+  const existingTags = useMemo(() => collectExistingTags(links), [links]);
 
   return { linkCounts, existingTags };
 };

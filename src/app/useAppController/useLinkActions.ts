@@ -1,10 +1,8 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import type { Category, LinkItem } from '../../types';
+import type { ConfirmFn, NotifyFn } from '../../types/ui';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
-import type { ConfirmOptions } from './useKvSync';
-
-type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 
 export const useLinkActions = (args: {
   isAdmin: boolean;
@@ -25,8 +23,8 @@ export const useLinkActions = (args: {
   deleteCategory: (id: string) => void;
   importData: (links: LinkItem[], categories: Category[]) => void;
   updateData: (links: LinkItem[], categories: Category[]) => void;
-  notify: (message: string, variant?: ToastVariant) => void;
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
+  notify: NotifyFn;
+  confirm: ConfirmFn;
   requireAdmin: (message?: string) => boolean;
   handleContextMenu: (event: React.MouseEvent, link: LinkItem) => void;
 }) => {

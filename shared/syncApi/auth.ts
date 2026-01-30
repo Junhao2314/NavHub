@@ -5,6 +5,8 @@ const AUTH_MAX_FAILED_ATTEMPTS = 5;
 const AUTH_LOCKOUT_SECONDS = 60 * 60; // 1 hour
 const KV_AUTH_ATTEMPT_PREFIX = 'ynav:auth_attempt:';
 const LEGACY_KV_AUTH_ATTEMPT_PREFIX = 'navhub:auth_attempt:';
+const AUTH_ATTEMPT_HASH_PREFIX = 'sha256:';
+const CLIENT_KEY_SEED_MAX_LENGTH = 256;
 
 // In-memory best-effort cache: avoid doing KV.delete on every successful admin request.
 // Most requests will never see a failed-attempt record, so deleting every time is wasteful.
@@ -32,6 +34,41 @@ const shouldClearAuthAttemptsOnSuccess = (attemptKey: string, now: number): bool
   return true;
 };
 
+const encoder = new TextEncoder();
+
+const bytesToHex = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+const hashKeySeedSha256Hex = async (seed: string): Promise<string> => {
+  const cryptoObj = (globalThis as unknown as { crypto?: Crypto }).crypto;
+  if (cryptoObj?.subtle?.digest) {
+    try {
+      const digest = await cryptoObj.subtle.digest('SHA-256', encoder.encode(seed));
+      return bytesToHex(digest);
+    } catch {
+      // fall through to non-crypto fallback
+    }
+  }
+
+  // Non-cryptographic fallback (FNV-1a 32-bit). Should only be used in test/edge runtimes.
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+};
+
+const normalizeClientKeySeed = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return 'unknown';
+  return trimmed.length > CLIENT_KEY_SEED_MAX_LENGTH
+    ? trimmed.slice(0, CLIENT_KEY_SEED_MAX_LENGTH)
+    : trimmed;
+};
+
 interface AuthAttemptRecord {
   failedCount: number;
   lockedUntil: number; // timestamp (ms)
@@ -45,22 +82,33 @@ export const isSyncProtected = (env: Env): boolean => {
 // 获取客户端 IP（用于按 IP 记录管理员密码错误次数，防止爆破）。
 // 注意：本地/非 Cloudflare 环境可能取不到 IP（无 `CF-Connecting-IP` / `X-Forwarded-For`）会回退为 `unknown`，
 // 从而导致所有请求共享同一个限速/锁定键（看起来像“全局锁”）。建议在反代/本地调试时补齐 `X-Forwarded-For`。
-const getClientIp = (request: Request): string => {
+const getClientKeySeed = (request: Request): string => {
   const cfIp = request.headers.get('CF-Connecting-IP');
-  if (cfIp) return cfIp;
+  if (cfIp) return normalizeClientKeySeed(cfIp);
 
   const forwardedFor = request.headers.get('X-Forwarded-For');
-  if (forwardedFor) return forwardedFor.split(',')[0]?.trim() || 'unknown';
+  if (forwardedFor) return normalizeClientKeySeed(forwardedFor.split(',')[0] || '');
 
   return 'unknown';
 };
 
-const getAuthAttemptKey = (request: Request): string => {
-  return `${KV_AUTH_ATTEMPT_PREFIX}${getClientIp(request)}`;
-};
-
-const getLegacyAuthAttemptKey = (request: Request): string => {
-  return `${LEGACY_KV_AUTH_ATTEMPT_PREFIX}${getClientIp(request)}`;
+const resolveAuthAttemptKeys = async (
+  request: Request,
+): Promise<{
+  attemptKey: string;
+  legacyAttemptKey: string;
+  rawAttemptKey: string;
+  rawLegacyAttemptKey: string;
+}> => {
+  const seed = getClientKeySeed(request);
+  const hash = await hashKeySeedSha256Hex(seed);
+  const hashedSuffix = `${AUTH_ATTEMPT_HASH_PREFIX}${hash}`;
+  return {
+    attemptKey: `${KV_AUTH_ATTEMPT_PREFIX}${hashedSuffix}`,
+    legacyAttemptKey: `${LEGACY_KV_AUTH_ATTEMPT_PREFIX}${hashedSuffix}`,
+    rawAttemptKey: `${KV_AUTH_ATTEMPT_PREFIX}${seed}`,
+    rawLegacyAttemptKey: `${LEGACY_KV_AUTH_ATTEMPT_PREFIX}${seed}`,
+  };
 };
 
 const getAuthAttemptExpirationTtlSeconds = (
@@ -115,6 +163,9 @@ export const requireAdminAccess = async (
     return null;
   }
 
+  const { attemptKey, legacyAttemptKey, rawAttemptKey, rawLegacyAttemptKey } =
+    await resolveAuthAttemptKeys(request);
+
   const providedPassword = (request.headers.get('X-Sync-Password') || '').trim();
   if (!providedPassword) {
     return new Response(
@@ -130,7 +181,6 @@ export const requireAdminAccess = async (
   // Important: avoid KV.delete on every successful request; only clear if we previously observed a failed/locked record.
   if (providedPassword === env.SYNC_PASSWORD) {
     const now = Date.now();
-    const attemptKey = getAuthAttemptKey(request);
     const forceClear = options?.clearAttemptsOnSuccess === true;
     const shouldClear = forceClear || shouldClearAuthAttemptsOnSuccess(attemptKey, now);
     if (forceClear) {
@@ -139,8 +189,12 @@ export const requireAdminAccess = async (
 
     if (shouldClear) {
       try {
-        const legacyAttemptKey = getLegacyAuthAttemptKey(request);
-        await Promise.all([env.YNAV_KV.delete(attemptKey), env.YNAV_KV.delete(legacyAttemptKey)]);
+        await Promise.all([
+          env.YNAV_KV.delete(attemptKey),
+          env.YNAV_KV.delete(legacyAttemptKey),
+          env.YNAV_KV.delete(rawAttemptKey),
+          env.YNAV_KV.delete(rawLegacyAttemptKey),
+        ]);
       } catch {
         // Ignore KV deletion failures and still allow admin access.
       }
@@ -148,14 +202,28 @@ export const requireAdminAccess = async (
     return null;
   }
 
-  const attemptKey = getAuthAttemptKey(request);
-  const legacyAttemptKey = getLegacyAuthAttemptKey(request);
   const now = Date.now();
+  let recordKey: string | null = null;
   let record = (await env.YNAV_KV.get(attemptKey, 'json')) as AuthAttemptRecord | null;
+  if (record) recordKey = attemptKey;
+  if (!record) {
+    record = (await env.YNAV_KV.get(rawAttemptKey, 'json')) as AuthAttemptRecord | null;
+    if (record) recordKey = rawAttemptKey;
+  }
   if (!record) {
     record = (await env.YNAV_KV.get(legacyAttemptKey, 'json')) as AuthAttemptRecord | null;
-    if (record?.lockedUntil && now < record.lockedUntil) {
-      // Write-through migration for legacy lockout records so we don't repeatedly read legacy keys while locked.
+    if (record) recordKey = legacyAttemptKey;
+  }
+  if (!record) {
+    record = (await env.YNAV_KV.get(rawLegacyAttemptKey, 'json')) as AuthAttemptRecord | null;
+    if (record) recordKey = rawLegacyAttemptKey;
+  }
+
+  if (record) {
+    noteRecentAuthAttemptKey(attemptKey, now);
+
+    // Write-through migration for legacy/raw lockout records so we don't repeatedly read old keys while locked.
+    if (recordKey !== attemptKey && record.lockedUntil && now < record.lockedUntil) {
       try {
         await env.YNAV_KV.put(attemptKey, JSON.stringify(record), {
           expirationTtl: getAuthAttemptExpirationTtlSeconds(record, now),
@@ -164,10 +232,6 @@ export const requireAdminAccess = async (
         // ignore migration failures
       }
     }
-  }
-
-  if (record) {
-    noteRecentAuthAttemptKey(attemptKey, now);
   }
 
   if (record?.lockedUntil && now < record.lockedUntil) {

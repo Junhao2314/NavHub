@@ -43,8 +43,8 @@
 
 当配置了 `SYNC_PASSWORD` 且密码错误时，会按客户端 IP 写入失败次数/锁定信息：
 
-- 新 key 前缀：`ynav:auth_attempt:<ip>`
-- 兼容旧 key 前缀：`navhub:auth_attempt:<ip>`
+- 新 key 前缀：`ynav:auth_attempt:sha256:<hash>`
+- 兼容旧 key 前缀：`ynav:auth_attempt:<ip>`、`navhub:auth_attempt:<ip>`
 - TTL：默认 1 小时（锁定窗口）
 
 ---

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIConfig, NavHubSyncData, SyncRole } from '../../../types';
 
 // Mock the dependencies
@@ -27,9 +27,9 @@ vi.mock('../../../utils/privateVault', () => ({
   parsePlainPrivateVault: vi.fn(() => null),
 }));
 
-import { applyCloudDataToLocalState } from './applyCloudData';
-import { decryptSensitiveConfigWithFallback } from '../../../utils/sensitiveConfig';
 import { getSyncPassword } from '../../../utils/secrets';
+import { decryptSensitiveConfigWithFallback } from '../../../utils/sensitiveConfig';
+import { applyCloudDataToLocalState } from './applyCloudData';
 
 describe('applyCloudDataToLocalState - encryptedSensitiveConfig', () => {
   const createMockArgs = () => {
@@ -89,16 +89,13 @@ describe('applyCloudDataToLocalState - encryptedSensitiveConfig', () => {
 
     // Wait for async decryption
     await vi.waitFor(() => {
-      expect(mockDecrypt).toHaveBeenCalledWith(
-        ['test-sync-password', '', ''],
-        'v1.encrypted.data'
-      );
+      expect(mockDecrypt).toHaveBeenCalledWith(['test-sync-password', '', ''], 'v1.encrypted.data');
     });
 
     // Wait for restoreAIConfig to be called with decrypted key
     await vi.waitFor(() => {
       expect(args.restoreAIConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ apiKey: 'decrypted-api-key' })
+        expect.objectContaining({ apiKey: 'decrypted-api-key' }),
       );
     });
   });
@@ -119,7 +116,7 @@ describe('applyCloudDataToLocalState - encryptedSensitiveConfig', () => {
   it('should handle decryption failure gracefully', async () => {
     // Reset the mock to return password again
     vi.mocked(getSyncPassword).mockReturnValue('test-sync-password');
-    
+
     const mockDecrypt = vi.mocked(decryptSensitiveConfigWithFallback);
     mockDecrypt.mockRejectedValue(new Error('Decryption failed'));
 
@@ -138,8 +135,6 @@ describe('applyCloudDataToLocalState - encryptedSensitiveConfig', () => {
     // restoreAIConfig should be called once for aiConfig (with empty apiKey)
     // but NOT called again with decrypted key since decryption failed
     expect(args.restoreAIConfig).toHaveBeenCalledTimes(1);
-    expect(args.restoreAIConfig).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: '' })
-    );
+    expect(args.restoreAIConfig).toHaveBeenCalledWith(expect.objectContaining({ apiKey: '' }));
   });
 });

@@ -43,6 +43,14 @@ describe('syncSignatures', () => {
     expect(buildSyncFullSignature(payloadA)).toBe(buildSyncFullSignature(payloadB));
   });
 
+  it('signatures ignore schemaVersion changes', () => {
+    const payloadA: SyncPayload = { links: [baseLink], categories, schemaVersion: 1 };
+    const payloadB: SyncPayload = { ...payloadA, schemaVersion: 999 };
+
+    expect(buildSyncBusinessSignature(payloadA)).toBe(buildSyncBusinessSignature(payloadB));
+    expect(buildSyncFullSignature(payloadA)).toBe(buildSyncFullSignature(payloadB));
+  });
+
   it('business signature changes when business fields change', () => {
     const payloadA: SyncPayload = { links: [baseLink], categories };
     const payloadB: SyncPayload = { ...payloadA, links: [{ ...baseLink, title: 'Title B' }] };

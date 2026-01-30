@@ -11,7 +11,8 @@ import {
   MOVE_MENU_PADDING_PX,
   MOVE_MENU_WIDTH_PX,
 } from '../../config/ui';
-import { Category, LinkItem, SearchMode } from '../../types';
+import { useAppStore } from '../../stores/useAppStore';
+import { Category, LinkItem } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
 import { useDialog } from '../ui/DialogProvider';
@@ -35,12 +36,7 @@ interface LinkSectionsProps {
   linksCount: number;
   pinnedLinks: LinkItem[];
   displayedLinks: LinkItem[];
-  selectedCategory: string;
-  searchQuery: string;
-  searchMode: 'internal' | 'external'; // 搜索模式
   categories: Category[];
-  siteTitle: string;
-  siteCardStyle: 'detailed' | 'simple';
   isSortingPinned: boolean;
   isSortingMode: string | null;
   isBatchEditMode: boolean;
@@ -95,12 +91,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   linksCount,
   pinnedLinks,
   displayedLinks,
-  selectedCategory,
-  searchQuery,
-  searchMode,
   categories,
-  siteTitle,
-  siteCardStyle,
   isSortingPinned,
   isSortingMode,
   isBatchEditMode,
@@ -124,6 +115,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   privateUnlockHint,
   privateUnlockSubHint,
 }) => {
+  const selectedCategory = useAppStore((s) => s.selectedCategory);
+  const searchQuery = useAppStore((s) => s.searchQuery);
+  const searchMode = useAppStore((s) => s.searchMode);
+  const siteTitle = useAppStore((s) => s.siteSettings.title);
+  const siteCardStyle = useAppStore((s) => s.siteSettings.cardStyle);
+  const isDarkMode = useAppStore((s) => s.isDarkMode);
+
   const isPrivateCategory = selectedCategory === PRIVATE_CATEGORY_ID;
   const showPinnedSection = pinnedLinks.length > 0 && !searchQuery && selectedCategory === 'all';
   const showMainSection = selectedCategory !== 'all' || searchQuery;
@@ -193,7 +191,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     return '晚上好';
   };
 
-  const readHitokotoCache = () => {
+  const readHitokotoCache = React.useCallback(() => {
     try {
       const raw = safeLocalStorageGetItem(HITOKOTO_CACHE_KEY);
       if (!raw) return null;
@@ -203,12 +201,12 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     } catch {
       return null;
     }
-  };
+  }, []);
 
-  const writeHitokotoCache = (payload: HitokotoPayload) => {
+  const writeHitokotoCache = React.useCallback((payload: HitokotoPayload) => {
     const cache = { date: getTodayKey(), data: payload };
     safeLocalStorageSetItem(HITOKOTO_CACHE_KEY, JSON.stringify(cache));
-  };
+  }, []);
 
   const fetchHitokoto = React.useCallback(
     async (notifyOnError = false) => {
@@ -231,7 +229,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
         };
         setHitokoto(normalized);
         writeHitokotoCache(normalized);
-      } catch (error) {
+      } catch (_error) {
         if (notifyOnError) {
           notify('获取一言失败，请稍后再试。', 'warning');
         }
@@ -240,7 +238,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
         setIsHitokotoLoading(false);
       }
     },
-    [notify],
+    [notify, writeHitokotoCache],
   );
 
   React.useEffect(() => {
@@ -252,7 +250,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     if (!cache || cache.date !== todayKey) {
       fetchHitokoto(false);
     }
-  }, [fetchHitokoto]);
+  }, [fetchHitokoto, readHitokotoCache]);
 
   const hitokotoAuthor = React.useMemo(() => {
     if (!hitokoto) return '';
@@ -278,7 +276,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     try {
       await navigator.clipboard.writeText(textToCopy);
       notify('已复制到剪贴板', 'success');
-    } catch (error) {
+    } catch (_error) {
       notify('复制失败，请手动复制。', 'warning');
     }
   };
@@ -414,6 +412,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         key={link.id}
                         link={link}
                         siteCardStyle={siteCardStyle}
+                        isDarkMode={isDarkMode}
                         isSortingMode={false}
                         isSortingPinned={isSortingPinned}
                       />
@@ -428,6 +427,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     key={link.id}
                     link={link}
                     siteCardStyle={siteCardStyle}
+                    isDarkMode={isDarkMode}
                     isBatchEditMode={isBatchEditMode}
                     isSelected={selectedLinks.has(link.id)}
                     onSelect={onLinkSelect}
@@ -613,6 +613,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         key={link.id}
                         link={link}
                         siteCardStyle={siteCardStyle}
+                        isDarkMode={isDarkMode}
                         isSortingMode={true}
                         isSortingPinned={false}
                       />
@@ -632,6 +633,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   <LinkCard
                     link={link}
                     siteCardStyle={siteCardStyle}
+                    isDarkMode={isDarkMode}
                     isBatchEditMode={isBatchEditMode}
                     isSelected={selectedLinks.has(link.id)}
                     categoryName={
@@ -646,9 +648,12 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               />
             ) : (
               <div className={`grid ${gridGap} ${gridClassName}`}>
-                {Array.from({ length: Math.min(displayedLinks.length, 12) }, (_, index) => (
+                {Array.from(
+                  { length: Math.min(displayedLinks.length, 12) },
+                  (_, index) => `skeleton-${index}`,
+                ).map((key) => (
                   <div
-                    key={index}
+                    key={key}
                     className="h-20 rounded-xl bg-slate-100/80 dark:bg-slate-800/40 animate-pulse"
                   />
                 ))}
@@ -716,4 +721,4 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   );
 };
 
-export default LinkSections;
+export default React.memo(LinkSections);

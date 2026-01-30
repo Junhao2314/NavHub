@@ -22,11 +22,7 @@ import { DEFAULT_CATEGORIES, INITIAL_LINKS } from '../types';
 import { COMMON_CATEGORY_ID, FAVICON_CACHE_KEY, LOCAL_STORAGE_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
 import { getCommonRecommendedLinks } from '../utils/recommendation';
-import {
-  formatInvalidIconNotice,
-  sanitizeCategories,
-  sanitizeLinks,
-} from '../utils/sanitize';
+import { formatInvalidIconNotice, sanitizeCategories, sanitizeLinks } from '../utils/sanitize';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../utils/storage';
 import { normalizeHttpUrl } from '../utils/url';
 
@@ -270,15 +266,12 @@ export const useDataStore = () => {
       const existing = links.find((l) => l.id === data.id);
       if (!existing) return;
 
-      const recommendedProvided = Object.prototype.hasOwnProperty.call(data, 'recommended');
+      const recommendedProvided = Object.hasOwn(data, 'recommended');
       const nextRecommended = recommendedProvided
         ? Boolean(data.recommended)
         : Boolean(existing.recommended);
 
-      const recommendedOrderProvided = Object.prototype.hasOwnProperty.call(
-        data,
-        'recommendedOrder',
-      );
+      const recommendedOrderProvided = Object.hasOwn(data, 'recommendedOrder');
       const nextRecommendedOrderInput = recommendedOrderProvided
         ? data.recommendedOrder
         : existing.recommendedOrder;

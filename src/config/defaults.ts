@@ -1,6 +1,24 @@
-import type { ExternalSearchSource, SearchConfig, SearchMode } from '../../types';
-import { SEARCH_CONFIG_KEY } from '../../utils/constants';
-import { safeLocalStorageGetItem, safeLocalStorageRemoveItem } from '../../utils/storage';
+import type { AIConfig, ExternalSearchSource, SiteSettings } from '../types';
+
+export const DEFAULT_AI_CONFIG: AIConfig = {
+  provider: 'gemini',
+  apiKey: '',
+  baseUrl: '',
+  model: 'gemini-2.5-flash',
+};
+
+export const DEFAULT_SITE_SETTINGS: SiteSettings = {
+  title: 'NavHub - AI 智能导航仪',
+  navTitle: 'NavHub',
+  favicon: '',
+  cardStyle: 'detailed',
+  accentColor: '99 102 241',
+  grayScale: 'slate',
+  closeOnBackdrop: false,
+  backgroundImage: '',
+  backgroundImageEnabled: false,
+  backgroundMotion: true,
+};
 
 export const buildDefaultSearchSources = (): ExternalSearchSource[] => {
   const now = Date.now();
@@ -86,54 +104,4 @@ export const buildDefaultSearchSources = (): ExternalSearchSource[] => {
       createdAt: now,
     },
   ];
-};
-
-export const resolveSelectedSource = (
-  sources: ExternalSearchSource[],
-  selectedId?: string | null,
-  selectedSource?: ExternalSearchSource | null,
-): ExternalSearchSource | null => {
-  if (sources.length === 0) {
-    return selectedSource ?? null;
-  }
-  if (selectedId) {
-    const matched = sources.find((source) => source.id === selectedId);
-    if (matched) return matched;
-  }
-  if (selectedSource) {
-    const matched = sources.find((source) => source.id === selectedSource.id);
-    return matched ?? selectedSource;
-  }
-  return sources.find((source) => source.enabled) || sources[0] || null;
-};
-
-export const loadSearchConfigFromStorage = (): {
-  mode: SearchMode;
-  sources: ExternalSearchSource[];
-  selected: ExternalSearchSource | null;
-} => {
-  const savedSearchConfig = safeLocalStorageGetItem(SEARCH_CONFIG_KEY);
-  if (savedSearchConfig) {
-    try {
-      const parsed = JSON.parse(savedSearchConfig) as SearchConfig;
-      if (parsed?.mode) {
-        const sources = parsed.externalSources || [];
-        const selected = resolveSelectedSource(
-          sources,
-          parsed.selectedSourceId,
-          parsed.selectedSource ?? null,
-        );
-        return { mode: parsed.mode, sources, selected };
-      }
-    } catch (error) {
-      console.warn(
-        '[useAppStore] Failed to parse search config from localStorage; resetting.',
-        error,
-      );
-      safeLocalStorageRemoveItem(SEARCH_CONFIG_KEY);
-    }
-  }
-
-  const sources = buildDefaultSearchSources();
-  return { mode: 'external', sources, selected: sources[0] || null };
 };

@@ -14,6 +14,7 @@ import type {
   ThemeMode,
   VerifySyncPasswordResult,
 } from '../../types';
+import type { ConfirmFn, NotifyFn } from '../../types/ui';
 
 import { requireAdminAccess } from '../../utils/adminAccess';
 import { getDeviceId, SYNC_API_ENDPOINT, SYNC_META_KEY } from '../../utils/constants';
@@ -32,17 +33,6 @@ import {
   USER_INITIATED_SYNC_WINDOW_MS,
 } from './syncErrorToast';
 import { buildSyncBusinessSignature, buildSyncFullSignature } from './syncSignatures';
-
-type ToastVariant = 'info' | 'success' | 'warning' | 'error';
-type ConfirmVariant = 'default' | 'danger';
-
-export interface ConfirmOptions {
-  title?: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  variant?: ConfirmVariant;
-}
 
 export interface UseKvSyncOptions {
   isLoaded: boolean;
@@ -94,8 +84,8 @@ export interface UseKvSyncOptions {
   setPrefillPrivateLink: (link: Partial<LinkItem> | null) => void;
 
   // UI
-  notify: (message: string, variant?: ToastVariant) => void;
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
+  notify: NotifyFn;
+  confirm: ConfirmFn;
 }
 
 export const useKvSync = (options: UseKvSyncOptions) => {
@@ -245,7 +235,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     [applyCloudData, syncRole],
   );
 
-  const handleSyncError = useCallback(
+  const toastSyncError = useCallback(
     (error: string) => {
       console.error('[Sync Error]', error);
       if (suppressSyncErrorToastRef.current) return;
@@ -286,7 +276,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
   } = useSyncEngine({
     onConflict: handleSyncConflict,
     onSyncComplete: handleSyncComplete,
-    onError: handleSyncError,
+    onError: toastSyncError,
   });
 
   const refreshSyncAuth = useCallback(async () => {
@@ -395,7 +385,9 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       privacyPasswordEnabled,
       privacyAutoUnlockEnabled,
       useSeparatePrivacyPassword,
-      buildSyncData,
+      encryptedSensitiveConfigCacheRef,
+      prevBusinessSignatureRef,
+      prevFullSignatureRef,
       cancelPendingSync,
       cancelPendingStatsSync,
       pushToCloud,
@@ -425,7 +417,14 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       setSyncConflictOpen(false);
       setCurrentConflict(null);
     },
-    [currentConflict, cancelPendingSync, cancelPendingStatsSync, resolveSyncConflict],
+    [
+      currentConflict,
+      cancelPendingSync,
+      cancelPendingStatsSync,
+      resolveSyncConflict,
+      prevBusinessSignatureRef,
+      prevFullSignatureRef,
+    ],
   );
 
   // 手动触发同步
@@ -484,11 +483,12 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     privacyAutoUnlockEnabled,
     useSeparatePrivacyPassword,
     themeMode,
-    buildSyncData,
+    encryptedSensitiveConfigCacheRef,
+    prevBusinessSignatureRef,
+    prevFullSignatureRef,
     cancelPendingSync,
     cancelPendingStatsSync,
     pushToCloud,
-    isAdmin,
   ]);
 
   const performPull = useCallback(
@@ -572,7 +572,9 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       aiConfig,
       siteSettings,
       privateVaultCipher,
-      buildSyncData,
+      encryptedSensitiveConfigCacheRef,
+      prevBusinessSignatureRef,
+      prevFullSignatureRef,
       handleSyncConflict,
       themeMode,
       privacyGroupEnabled,
@@ -725,7 +727,8 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       restoreBackup,
       handleSyncComplete,
       notify,
-      buildSyncData,
+      prevBusinessSignatureRef,
+      prevFullSignatureRef,
       cancelPendingSync,
       cancelPendingStatsSync,
     ],

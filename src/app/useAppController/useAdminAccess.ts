@@ -1,12 +1,8 @@
 import { useCallback } from 'react';
+import type { NotifyFn } from '../../types/ui';
 import { requireAdminAccess } from '../../utils/adminAccess';
 
-type ToastVariant = 'info' | 'success' | 'warning' | 'error';
-
-export const useAdminAccess = (args: {
-  isAdmin: boolean;
-  notify: (message: string, variant?: ToastVariant) => void;
-}) => {
+export const useAdminAccess = (args: { isAdmin: boolean; notify: NotifyFn }) => {
   const handleEditDisabled = useCallback(() => {
     requireAdminAccess(args.isAdmin, args.notify);
   }, [args.isAdmin, args.notify]);

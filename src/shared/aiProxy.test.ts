@@ -372,7 +372,7 @@ describe('/api/ai proxy', () => {
       expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
       expect(init?.body).toBe(JSON.stringify(payload));
 
-      return new Response('{\"id\":\"1\"}', {
+      return new Response('{"id":"1"}', {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -394,7 +394,7 @@ describe('/api/ai proxy', () => {
     });
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe('{\"id\":\"1\"}');
+    expect(await response.text()).toBe('{"id":"1"}');
   });
 
   it('blocks upstream redirects to disallowed hosts', async () => {
@@ -429,5 +429,90 @@ describe('/api/ai proxy', () => {
       success: false,
       error: 'Upstream redirect not allowed',
     });
+  });
+
+  it('allows bracketed IPv6 literals in allowlist patterns', async () => {
+    const payload = { model: 'gpt-test', messages: [] };
+
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('https://[2001:db8::1]/v1/chat/completions');
+      expect(init?.method).toBe('POST');
+      expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
+      expect(init?.body).toBe(JSON.stringify(payload));
+      return new Response('{"id":"1"}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+
+    const request = new Request('http://localhost/api/ai?action=chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost' },
+      body: JSON.stringify({
+        baseUrl: 'https://[2001:db8::1]/v1',
+        apiKey: 'test-key',
+        payload,
+      }),
+    });
+
+    const response = await handleApiAIRequest(request, {
+      fetchFn,
+      allowedBaseUrlHosts: ['[2001:db8::1]'],
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('{"id":"1"}');
+  });
+
+  it('blocks IPv6 loopback even when allowlisted', async () => {
+    const payload = { model: 'gpt-test', messages: [] };
+
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
+
+    const request = new Request('http://localhost/api/ai?action=chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseUrl: 'https://[::1]/v1',
+        apiKey: 'test-key',
+        payload,
+      }),
+    });
+
+    const response = await handleApiAIRequest(request, {
+      fetchFn,
+      allowedBaseUrlHosts: ['[::1]'],
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ success: false, error: 'baseUrl host not allowed' });
+  });
+
+  it('blocks IPv4-mapped loopback in IPv6 literals', async () => {
+    const payload = { model: 'gpt-test', messages: [] };
+
+    const fetchFn = vi.fn(
+      async () => new Response('should not be called'),
+    ) as unknown as typeof fetch;
+
+    const request = new Request('http://localhost/api/ai?action=chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseUrl: 'https://[::ffff:127.0.0.1]/v1',
+        apiKey: 'test-key',
+        payload,
+      }),
+    });
+
+    const response = await handleApiAIRequest(request, {
+      fetchFn,
+      allowedBaseUrlHosts: ['https://[::ffff:7f00:1]'],
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ success: false, error: 'baseUrl host not allowed' });
   });
 });

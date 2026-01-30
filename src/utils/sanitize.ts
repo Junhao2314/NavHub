@@ -55,7 +55,6 @@ export const formatInvalidIconNotice = (invalidIcons: InvalidCategoryIcon[]): st
   return `检测到 ${invalidIcons.length} 个分类图标不在 Lucide 子集内，已自动替换为 ${CATEGORY_ICON_FALLBACK}：${preview}${suffix}`;
 };
 
-
 export interface SanitizeCategoriesResult {
   categories: Category[];
   didChange: boolean;

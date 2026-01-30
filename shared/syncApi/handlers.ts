@@ -17,6 +17,7 @@ import {
   SYNC_HISTORY_INDEX_VERSION,
   saveSyncHistory,
 } from './kv';
+import { normalizeNavHubSyncData } from './navHubSyncData';
 import { sanitizePublicData, sanitizeSensitiveData } from './sanitize';
 import type { Env, NavHubSyncData, SyncHistoryIndex, SyncHistoryKind } from './types';
 
@@ -130,26 +131,41 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
   const authError = await requireAdminAccess(request, env);
   if (authError) return authError;
 
+  let body: {
+    data?: unknown;
+    /**
+     * 用于乐观锁校验（客户端期望的“当前云端 version”）。
+     *
+     * - 当 expectedVersion 与云端当前 version 不一致时，说明期间有其他设备写入过：返回 409 + 最新云端数据，交由客户端处理冲突。
+     * - 注意：在 KV 模式下这里只能做“读后校验”的 best-effort（KV 不支持原子 compare-and-set 且存在最终一致性）。
+     * - 在 R2 模式下会结合 ETag 做条件写（onlyIf），从而把“读-校验-写”变成更可靠的原子语义。
+     */
+    expectedVersion?: unknown;
+    syncKind?: unknown;
+    skipHistory?: unknown; // 纯统计同步：仍写入主数据/版本号，但不写入 ynav:backup:history-* 同步记录（避免刷屏）
+  };
   try {
-    const body = (await request.json()) as {
-      data: NavHubSyncData;
-      /**
-       * 用于乐观锁校验（客户端期望的“当前云端 version”）。
-       *
-       * - 当 expectedVersion 与云端当前 version 不一致时，说明期间有其他设备写入过：返回 409 + 最新云端数据，交由客户端处理冲突。
-       * - 注意：在 KV 模式下这里只能做“读后校验”的 best-effort（KV 不支持原子 compare-and-set 且存在最终一致性）。
-       * - 在 R2 模式下会结合 ETag 做条件写（onlyIf），从而把“读-校验-写”变成更可靠的原子语义。
-       */
-      expectedVersion?: number;
-      syncKind?: SyncHistoryKind;
-      skipHistory?: boolean; // 纯统计同步：仍写入主数据/版本号，但不写入 ynav:backup:history-* 同步记录（避免刷屏）
-    };
+    body = (await request.json()) as typeof body;
+  } catch {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: '无效的 JSON 请求体',
+      }),
+      {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }
 
-    if (!body.data) {
+  try {
+    const incomingData = normalizeNavHubSyncData(body.data);
+    if (!incomingData) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: '缺少 data 字段',
+          error: '无效的 data 字段',
         }),
         {
           status: 400,
@@ -164,9 +180,14 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
     let existingData = existing.data;
     let existingEtag = existing.etag;
 
+    const expectedVersion =
+      typeof body.expectedVersion === 'number' && Number.isFinite(body.expectedVersion)
+        ? body.expectedVersion
+        : undefined;
+
     // 如果云端有数据且客户端提供了期望版本号，进行冲突检测
-    if (existingData && body.expectedVersion !== undefined) {
-      if (existingData.meta.version !== body.expectedVersion) {
+    if (existingData && expectedVersion !== undefined) {
+      if (existingData.meta.version !== expectedVersion) {
         // 版本冲突，返回云端数据让客户端处理
         return new Response(
           JSON.stringify({
@@ -184,7 +205,7 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
     }
 
     // R2 + expectedVersion: 必须要有 etag 才能做条件写（否则会退化成 last-write-wins）。
-    if (env.YNAV_R2 && body.expectedVersion !== undefined && existingData && !existingEtag) {
+    if (env.YNAV_R2 && expectedVersion !== undefined && existingData && !existingEtag) {
       // 理论上 r2.get 应该会返回 etag；这里做一次兜底刷新，避免极端情况下“误以为没法条件写”。
       existing = await getMainDataWithEtag(env);
       existingData = existing.data;
@@ -206,10 +227,10 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
     // 服务端是 meta 的权威来源：统一生成 updatedAt/version/syncKind，避免客户端时间漂移/篡改导致排序与冲突判断异常。
     const newVersion = existingData ? existingData.meta.version + 1 : 1;
     const now = Date.now();
-    const kind = normalizeSyncKind(body.syncKind);
-    const incomingMeta = normalizeSyncMeta(body.data.meta);
+    const kind = normalizeSyncKind(body.syncKind as SyncHistoryKind);
+    const incomingMeta = incomingData.meta;
     const dataToSave: NavHubSyncData = sanitizeSensitiveData({
-      ...body.data,
+      ...incomingData,
       meta: {
         ...incomingMeta,
         updatedAt: now,
@@ -239,7 +260,7 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
     // - expectedVersion 存在 => 需要“带锁写入”。
     // - R2：使用 etagMatches / etagDoesNotMatch('*') 实现原子条件写。
     // - KV：无法原子条件写，这里的 options 仅用于对齐接口语义（最终效果仍是 last-write-wins）。
-    const needsLock = body.expectedVersion !== undefined;
+    const needsLock = expectedVersion !== undefined;
     const lockedWriteOk = await putMainData(
       env,
       dataToSave,
@@ -312,13 +333,28 @@ export async function handleBackup(request: Request, env: Env): Promise<Response
   if (authError) return authError;
 
   try {
-    const body = (await request.json()) as { data: NavHubSyncData };
-
-    if (!body.data) {
+    let body: { data?: unknown };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
       return new Response(
         JSON.stringify({
           success: false,
-          error: '缺少 data 字段',
+          error: '无效的 JSON 请求体',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    const incomingData = normalizeNavHubSyncData(body.data);
+    if (!incomingData) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: '无效的 data 字段',
         }),
         {
           status: 400,
@@ -331,8 +367,8 @@ export async function handleBackup(request: Request, env: Env): Promise<Response
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-');
     const backupKey = `${KV_BACKUP_PREFIX}${timestamp}`;
-    const backupMeta = normalizeSyncMeta(body.data.meta);
-    const dataToSave = sanitizeSensitiveData({ ...body.data, meta: backupMeta });
+    const backupMeta = normalizeSyncMeta(incomingData.meta);
+    const dataToSave = sanitizeSensitiveData({ ...incomingData, meta: backupMeta });
 
     const encodedBytes = getUtf8ByteLength(JSON.stringify(dataToSave));
     if (encodedBytes > KV_VALUE_MAX_BYTES) {
@@ -385,7 +421,21 @@ export async function handleRestoreBackup(request: Request, env: Env): Promise<R
   if (authError) return authError;
 
   try {
-    const body = (await request.json()) as { backupKey?: string; deviceId?: string };
+    let body: { backupKey?: string; deviceId?: string };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: '无效的 JSON 请求体',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
     const backupKey = body.backupKey;
 
     if (!backupKey || !isBackupKey(backupKey)) {
@@ -401,7 +451,8 @@ export async function handleRestoreBackup(request: Request, env: Env): Promise<R
       );
     }
 
-    const backupData = (await env.YNAV_KV.get(backupKey, 'json')) as NavHubSyncData | null;
+    const backupRaw = (await env.YNAV_KV.get(backupKey, 'json')) as unknown;
+    const backupData = normalizeNavHubSyncData(backupRaw);
     if (!backupData) {
       return new Response(
         JSON.stringify({
@@ -529,7 +580,8 @@ export async function handleGetBackup(request: Request, env: Env): Promise<Respo
   }
 
   try {
-    const backupData = (await env.YNAV_KV.get(backupKey, 'json')) as NavHubSyncData | null;
+    const backupRaw = (await env.YNAV_KV.get(backupKey, 'json')) as unknown;
+    const backupData = normalizeNavHubSyncData(backupRaw);
     if (!backupData) {
       return new Response(
         JSON.stringify({
@@ -634,7 +686,21 @@ export async function handleDeleteBackup(request: Request, env: Env): Promise<Re
   if (authError) return authError;
 
   try {
-    const body = (await request.json()) as { backupKey?: string };
+    let body: { backupKey?: string };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: '无效的 JSON 请求体',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
     const backupKey = body.backupKey;
 
     if (!backupKey || !isBackupKey(backupKey)) {
@@ -696,7 +762,8 @@ export async function handleDeleteBackup(request: Request, env: Env): Promise<Re
       // index 缺失/未命中时，回退读取备份本体做版本校验（保持历史行为，尤其是 index 未建立/损坏时）。
       if (typeof indexedVersion !== 'number') {
         try {
-          const backupData = (await env.YNAV_KV.get(backupKey, 'json')) as NavHubSyncData | null;
+          const backupRaw = (await env.YNAV_KV.get(backupKey, 'json')) as unknown;
+          const backupData = normalizeNavHubSyncData(backupRaw);
           const backupVersion = backupData?.meta?.version;
           if (typeof backupVersion === 'number' && backupVersion === currentVersion) {
             return new Response(

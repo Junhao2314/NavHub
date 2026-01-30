@@ -104,8 +104,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
         top: adjustedPosition.y,
       }}
     >
-      {menuItems.map((item, index) => (
-        <div key={index} className="relative group">
+      {menuItems.map((item) => (
+        <div key={item.label} className="relative group">
           <button
             onClick={(e) => {
               if (item.hasSubmenu) return; // Prevent closing for submenu trigger

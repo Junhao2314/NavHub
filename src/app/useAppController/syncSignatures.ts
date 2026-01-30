@@ -110,9 +110,7 @@ const normalizeCustomFaviconCacheForSignature = (
   };
 };
 
-const sanitizeAiConfigForSignature = (
-  config: SyncPayload['aiConfig'],
-): SyncPayload['aiConfig'] => {
+const sanitizeAiConfigForSignature = (config: SyncPayload['aiConfig']): SyncPayload['aiConfig'] => {
   // aiConfig.apiKey 不会被同步到云端（安全考虑），因此签名计算中也应排除它。
   // 否则会导致：本地签名（含 apiKey）与云端数据（不含 apiKey）不匹配，触发不必要的同步或冲突。
   if (!config) return config;
@@ -123,7 +121,13 @@ const sanitizeAiConfigForSignature = (
 export const buildSyncFullSignature = (payload: SyncPayload): string => {
   // Full signature：用于检测任何可同步字段的变化（除了 encryptedSensitiveConfig）。
   // encryptedSensitiveConfig 的生成依赖 sync password；如果把它纳入签名，可能导致"仅密码变化"也触发重复同步。
-  const { encryptedSensitiveConfig, customFaviconCache, aiConfig, ...rest } = payload;
+  const {
+    schemaVersion: _schemaVersion,
+    encryptedSensitiveConfig,
+    customFaviconCache,
+    aiConfig,
+    ...rest
+  } = payload;
   return stableJsonStringify({
     ...rest,
     aiConfig: sanitizeAiConfigForSignature(aiConfig),
@@ -132,7 +136,14 @@ export const buildSyncFullSignature = (payload: SyncPayload): string => {
 };
 
 export const buildSyncBusinessSignature = (payload: SyncPayload): string => {
-  const { encryptedSensitiveConfig, links, customFaviconCache, aiConfig, ...rest } = payload;
+  const {
+    schemaVersion: _schemaVersion,
+    encryptedSensitiveConfig,
+    links,
+    customFaviconCache,
+    aiConfig,
+    ...rest
+  } = payload;
   // Business signature：排除点击统计等"高频字段"，避免每次点击都触发"内容同步"。
   // 对应 useAppController 的策略：
   // - businessSignature 变化 => 走较短的 debounce 自动同步（合并多次编辑）。

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Category, LinkItem } from '../../types';
+import type { ConfirmFn, NotifyFn } from '../../types/ui';
 import {
   PRIVACY_AUTO_UNLOCK_KEY,
   PRIVACY_GROUP_ENABLED_KEY,
@@ -30,20 +31,9 @@ import {
   safeSessionStorageSetItem,
 } from '../../utils/storage';
 
-type ToastVariant = 'info' | 'success' | 'warning' | 'error';
-type ConfirmVariant = 'default' | 'danger';
-
-export interface ConfirmOptions {
-  title?: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  variant?: ConfirmVariant;
-}
-
 export interface UsePrivacyVaultOptions {
-  notify: (message: string, variant?: ToastVariant) => void;
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
+  notify: NotifyFn;
+  confirm: ConfirmFn;
   selectedCategory: string;
   setSelectedCategory: (categoryId: string) => void;
   setSidebarOpen: (open: boolean) => void;
@@ -636,6 +626,7 @@ export const usePrivacyVault = ({
 
   useEffect(() => {
     autoUnlockAttemptedRef.current = false;
+    if (!privacyGroupEnabled || !privacyAutoUnlockEnabled) return;
   }, [privacyGroupEnabled, privacyAutoUnlockEnabled]);
 
   // 收集隐私分组的已有标签

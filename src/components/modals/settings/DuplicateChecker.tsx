@@ -89,7 +89,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
   // 创建分类 ID 到名称的映射
   const categoryMap = useMemo(() => {
     const map = new Map<string, string>();
-    categories.forEach((cat) => map.set(cat.id, cat.name));
+    categories.forEach((cat) => {
+      map.set(cat.id, cat.name);
+    });
     return map;
   }, [categories]);
 
@@ -126,7 +128,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
     urlMap.forEach((items, key) => {
       if (items.length > 1) {
         groups.push({ key: `exact-${key}`, type: 'exact-url', links: items });
-        items.forEach((item) => processed.add(item.id));
+        items.forEach((item) => {
+          processed.add(item.id);
+        });
       }
     });
 

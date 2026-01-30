@@ -37,7 +37,7 @@ describe('useSorting', () => {
     ];
     const categories: Category[] = [{ id: 'dev', name: 'Dev', icon: 'Code' }];
 
-    let api: ReturnType<typeof useSorting> | null = null;
+    let api = {} as ReturnType<typeof useSorting>;
     function Harness() {
       const value = useSorting({
         links,
@@ -57,31 +57,30 @@ describe('useSorting', () => {
     await act(async () => {
       root?.render(<Harness />);
     });
-    if (!api) throw new Error('useSorting not initialized');
 
     expect(api.isSortingMode).toBeNull();
     expect(api.isSortingPinned).toBe(false);
     expect(api.isSortingCategory).toBe(false);
 
     act(() => {
-      api?.startSorting('dev');
+      api.startSorting('dev');
     });
     expect(api.isSortingMode).toBe('dev');
     expect(api.isSortingCategory).toBe(true);
 
     act(() => {
-      api?.saveSorting();
+      api.saveSorting();
     });
     expect(updateData).toHaveBeenCalledWith(links, categories);
     expect(api.isSortingMode).toBeNull();
 
     act(() => {
-      api?.startPinnedSorting();
+      api.startPinnedSorting();
     });
     expect(api.isSortingPinned).toBe(true);
 
     act(() => {
-      api?.savePinnedSorting();
+      api.savePinnedSorting();
     });
     expect(updateData).toHaveBeenCalledWith(links, categories);
     expect(api.isSortingPinned).toBe(false);
@@ -92,7 +91,7 @@ describe('useSorting', () => {
     const reorderLinks = vi.fn();
     const reorderPinnedLinks = vi.fn();
 
-    let api: ReturnType<typeof useSorting> | null = null;
+    let api = {} as ReturnType<typeof useSorting>;
     function Harness() {
       const value = useSorting({
         links: [],
@@ -112,10 +111,9 @@ describe('useSorting', () => {
     await act(async () => {
       root?.render(<Harness />);
     });
-    if (!api) throw new Error('useSorting not initialized');
 
     act(() => {
-      api?.handleDragEnd({ active: { id: 'a' }, over: { id: 'b' } } as any);
+      api.handleDragEnd({ active: { id: 'a' }, over: { id: 'b' } } as any);
     });
     expect(reorderLinks).toHaveBeenCalledWith('a', 'b', 'dev');
 

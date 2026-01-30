@@ -4,10 +4,11 @@
  * 仅在状态变化时显示，同步成功后自动消失
  */
 
-import { AlertCircle, Check, Cloud, CloudOff, CloudUpload, RefreshCw } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import { AlertCircle, Check, Cloud, CloudUpload, GitMerge, RefreshCw } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SYNC_STATUS_AUTO_HIDE_DELAY_MS, SYNC_STATUS_EXIT_ANIMATION_MS } from '../../config/ui';
 import { SyncErrorKind, SyncStatus } from '../../types';
+import { SYNC_DEBOUNCE_MS } from '../../utils/constants';
 
 interface SyncStatusIndicatorProps {
   status: SyncStatus;
@@ -16,8 +17,32 @@ interface SyncStatusIndicatorProps {
   errorKind?: SyncErrorKind | null;
   onManualSync?: () => void;
   onManualPull?: () => void;
+  onOpenConflict?: () => void;
   className?: string;
 }
+
+const formatLastSyncTime = (timestamp: number | null): string | null => {
+  if (!timestamp) return null;
+
+  const date = new Date(timestamp);
+  const now = new Date();
+  const isSameDay = now.toDateString() === date.toDateString();
+
+  const time = date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  if (isSameDay) return time;
+
+  const datePart = date.toLocaleDateString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return `${datePart} ${time}`;
+};
 
 const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   status,
@@ -26,6 +51,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   errorKind,
   onManualSync,
   onManualPull,
+  onOpenConflict,
   className = '',
 }) => {
   const [visible, setVisible] = useState(false);
@@ -34,27 +60,27 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   const prevStatus = useRef<SyncStatus>(status);
 
   // 清除定时器
-  const clearHideTimer = () => {
+  const clearHideTimer = useCallback(() => {
     if (hideTimer.current) {
       clearTimeout(hideTimer.current);
       hideTimer.current = null;
     }
-  };
+  }, []);
 
   // 开始隐藏动画
-  const startHide = () => {
+  const startHide = useCallback(() => {
     setIsExiting(true);
     setTimeout(() => {
       setVisible(false);
       setIsExiting(false);
     }, SYNC_STATUS_EXIT_ANIMATION_MS); // 动画持续时间
-  };
+  }, []);
 
   // 安排自动隐藏
-  const scheduleHide = () => {
+  const scheduleHide = useCallback(() => {
     clearHideTimer();
     hideTimer.current = setTimeout(startHide, SYNC_STATUS_AUTO_HIDE_DELAY_MS);
-  };
+  }, [clearHideTimer, startHide]);
 
   // 监听状态变化
   useEffect(() => {
@@ -76,14 +102,17 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         scheduleHide();
       }
     }
-  }, [status]);
+  }, [status, visible, startHide, clearHideTimer, scheduleHide]);
 
   // 清理
   useEffect(() => {
     return () => clearHideTimer();
-  }, []);
+  }, [clearHideTimer]);
 
   const getStatusConfig = () => {
+    const lastSyncedText = formatLastSyncTime(lastSyncTime);
+    const autoSyncSeconds = Math.max(1, Math.round(SYNC_DEBOUNCE_MS / 1000));
+
     switch (status) {
       case 'synced':
         return {
@@ -92,7 +121,11 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           bgColor: 'bg-green-500/10 dark:bg-green-500/20',
           borderColor: 'border-green-500/30',
           label: '已同步',
-          animate: false,
+          description: lastSyncedText ? `上次：${lastSyncedText}` : '已与云端一致',
+          animate: false as const,
+          title: lastSyncedText
+            ? `已同步（上次：${lastSyncedText}），点击从云端刷新`
+            : '已同步，点击从云端刷新',
         };
       case 'syncing':
         return {
@@ -101,7 +134,9 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           bgColor: 'bg-blue-500/10 dark:bg-blue-500/20',
           borderColor: 'border-blue-500/30',
           label: '同步中',
-          animate: true,
+          description: '正在与云端同步…',
+          animate: 'spin' as const,
+          title: '同步中，请稍候…',
         };
       case 'pending':
         return {
@@ -110,7 +145,9 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           bgColor: 'bg-orange-500/10 dark:bg-orange-500/20',
           borderColor: 'border-orange-500/30',
           label: '待同步',
-          animate: false,
+          description: `约 ${autoSyncSeconds} 秒内自动同步（可点击立即同步）`,
+          animate: false as const,
+          title: `检测到本地变更，约 ${autoSyncSeconds} 秒内自动同步（点击立即同步）`,
         };
       case 'error': {
         const label =
@@ -119,23 +156,28 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
             : errorKind === 'network'
               ? '网络错误'
               : '同步失败';
+        const message = (errorMessage || '').trim();
         return {
           icon: AlertCircle,
           color: 'text-red-500',
           bgColor: 'bg-red-500/10 dark:bg-red-500/20',
           borderColor: 'border-red-500/30',
           label,
-          animate: false,
+          description: message || '发生未知错误',
+          animate: false as const,
+          title: message ? `${label}：${message}（点击重试）` : `${label}（点击重试）`,
         };
       }
       case 'conflict':
         return {
-          icon: CloudOff,
+          icon: GitMerge,
           color: 'text-amber-500',
           bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
           borderColor: 'border-amber-500/30',
           label: '有冲突',
-          animate: false,
+          description: '本地与云端数据不一致（点击处理）',
+          animate: 'pulse',
+          title: '检测到同步冲突，点击处理',
         };
       default:
         return {
@@ -144,7 +186,9 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           bgColor: 'bg-slate-400/10',
           borderColor: 'border-slate-400/30',
           label: '待连接',
-          animate: false,
+          description: lastSyncedText ? `上次：${lastSyncedText}` : undefined,
+          animate: false as const,
+          title: '待连接，点击刷新',
         };
     }
   };
@@ -157,7 +201,12 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 
   // 点击处理
   const handleClick = () => {
-    if (status === 'error') {
+    if (status === 'conflict') {
+      onOpenConflict?.();
+      return;
+    }
+
+    if (status === 'error' || status === 'pending') {
       onManualSync?.();
     } else {
       onManualPull?.();
@@ -168,7 +217,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
     <button
       onClick={handleClick}
       className={`
-        flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+        flex items-start gap-2 px-4 py-2 rounded-xl text-sm font-medium text-left
         ${config.bgColor} ${config.borderColor} border
         backdrop-blur-sm shadow-lg
         transition-all duration-300 ease-out
@@ -177,18 +226,21 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         ${className}
       `}
       disabled={status === 'syncing'}
-      title={
-        status === 'error'
-          ? errorMessage
-            ? `同步失败：${errorMessage}（点击重试）`
-            : '点击重试'
-          : '点击刷新'
-      }
+      title={config.title}
     >
-      <Icon className={`w-4 h-4 ${config.color} ${config.animate ? 'animate-spin' : ''}`} />
-      <span className={config.color}>{config.label}</span>
+      <Icon
+        className={`w-4 h-4 ${config.color} ${config.animate === 'spin' ? 'animate-spin' : ''} ${config.animate === 'pulse' ? 'animate-pulse' : ''}`}
+      />
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className={`truncate ${config.color}`}>{config.label}</div>
+        {config.description && (
+          <div className="mt-0.5 text-[11px] text-slate-600/80 dark:text-slate-300/80 truncate">
+            {config.description}
+          </div>
+        )}
+      </div>
     </button>
   );
 };
 
-export default SyncStatusIndicator;
+export default React.memo(SyncStatusIndicator);

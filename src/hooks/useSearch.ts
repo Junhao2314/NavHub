@@ -13,7 +13,9 @@
  *   - 搜索源弹窗使用延迟隐藏，提升交互体验
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { buildDefaultSearchSources } from '../config/defaults';
+import { useAppStore } from '../stores/useAppStore';
 import { ExternalSearchSource, SearchConfig, SearchMode } from '../types';
 import { SEARCH_CONFIG_KEY } from '../utils/constants';
 import {
@@ -22,98 +24,6 @@ import {
   safeLocalStorageSetItem,
 } from '../utils/storage';
 import { normalizeHttpUrl } from '../utils/url';
-
-/**
- * 构建默认搜索源列表
- *
- * 包含常用的搜索引擎和垂直搜索站点，
- * 用户可在设置中自定义添加或禁用。
- */
-const buildDefaultSearchSources = (): ExternalSearchSource[] => {
-  const now = Date.now();
-  return [
-    {
-      id: 'bing',
-      name: '必应',
-      url: 'https://www.bing.com/search?q={query}',
-      icon: 'Search',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'google',
-      name: 'Google',
-      url: 'https://www.google.com/search?q={query}',
-      icon: 'Search',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'baidu',
-      name: '百度',
-      url: 'https://www.baidu.com/s?wd={query}',
-      icon: 'Globe',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'sogou',
-      name: '搜狗',
-      url: 'https://www.sogou.com/web?query={query}',
-      icon: 'Globe',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'yandex',
-      name: 'Yandex',
-      url: 'https://yandex.com/search/?text={query}',
-      icon: 'Globe',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'github',
-      name: 'GitHub',
-      url: 'https://github.com/search?q={query}',
-      icon: 'Github',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'linuxdo',
-      name: 'Linux.do',
-      url: 'https://linux.do/search?q={query}',
-      icon: 'Terminal',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'bilibili',
-      name: 'B站',
-      url: 'https://search.bilibili.com/all?keyword={query}',
-      icon: 'Play',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'youtube',
-      name: 'YouTube',
-      url: 'https://www.youtube.com/results?search_query={query}',
-      icon: 'Video',
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: 'wikipedia',
-      name: '维基',
-      url: 'https://zh.wikipedia.org/wiki/Special:Search?search={query}',
-      icon: 'BookOpen',
-      enabled: true,
-      createdAt: now,
-    },
-  ];
-};
 
 /**
  * 解析当前选中的搜索源
@@ -142,21 +52,30 @@ const resolveSelectedSource = (
 
 export function useSearch() {
   // ========== 状态定义 ==========
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchMode, setSearchMode] = useState<SearchMode>('external');
-  const [externalSearchSources, setExternalSearchSources] = useState<ExternalSearchSource[]>([]);
-  const [selectedSearchSource, setSelectedSearchSource] = useState<ExternalSearchSource | null>(
-    null,
-  );
+  const searchQuery = useAppStore((s) => s.searchQuery);
+  const setSearchQuery = useAppStore((s) => s.setSearchQuery);
+  const searchMode = useAppStore((s) => s.searchMode);
+  const setSearchMode = useAppStore((s) => s.setSearchMode);
+  const externalSearchSources = useAppStore((s) => s.externalSearchSources);
+  const setExternalSearchSources = useAppStore((s) => s.setExternalSearchSources);
+  const selectedSearchSource = useAppStore((s) => s.selectedSearchSource);
+  const setSelectedSearchSource = useAppStore((s) => s.setSelectedSearchSource);
+  const hydrated = useAppStore((s) => s.__hydratedSearch);
+  const setHydrated = useAppStore((s) => s.__setHydratedSearch);
 
   // 搜索源弹窗相关状态
-  const [showSearchSourcePopup, setShowSearchSourcePopup] = useState(false);
-  const [hoveredSearchSource, setHoveredSearchSource] = useState<ExternalSearchSource | null>(null);
-  const [isIconHovered, setIsIconHovered] = useState(false);
-  const [isPopupHovered, setIsPopupHovered] = useState(false);
+  const showSearchSourcePopup = useAppStore((s) => s.showSearchSourcePopup);
+  const setShowSearchSourcePopup = useAppStore((s) => s.setShowSearchSourcePopup);
+  const hoveredSearchSource = useAppStore((s) => s.hoveredSearchSource);
+  const setHoveredSearchSource = useAppStore((s) => s.setHoveredSearchSource);
+  const isIconHovered = useAppStore((s) => s.isIconHovered);
+  const setIsIconHovered = useAppStore((s) => s.setIsIconHovered);
+  const isPopupHovered = useAppStore((s) => s.isPopupHovered);
+  const setIsPopupHovered = useAppStore((s) => s.setIsPopupHovered);
 
   // 移动端搜索状态
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const isMobileSearchOpen = useAppStore((s) => s.isMobileSearchOpen);
+  const setIsMobileSearchOpen = useAppStore((s) => s.setIsMobileSearchOpen);
 
   // 弹窗延迟隐藏定时器
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -177,7 +96,7 @@ export function useSearch() {
       setSelectedSearchSource(resolvedSelected);
       safeLocalStorageSetItem(SEARCH_CONFIG_KEY, JSON.stringify(searchConfig));
     },
-    [selectedSearchSource],
+    [selectedSearchSource, setExternalSearchSources, setSearchMode, setSelectedSearchSource],
   );
 
   /** 切换搜索模式（外部/本地） */
@@ -191,7 +110,7 @@ export function useSearch() {
         saveSearchConfig(externalSearchSources, mode);
       }
     },
-    [externalSearchSources, saveSearchConfig],
+    [externalSearchSources, saveSearchConfig, setSearchMode],
   );
 
   /**
@@ -213,7 +132,15 @@ export function useSearch() {
       setShowSearchSourcePopup(false);
       setHoveredSearchSource(null);
     },
-    [externalSearchSources, searchMode, searchQuery, saveSearchConfig],
+    [
+      externalSearchSources,
+      searchMode,
+      searchQuery,
+      saveSearchConfig,
+      setHoveredSearchSource,
+      setSelectedSearchSource,
+      setShowSearchSourcePopup,
+    ],
   );
 
   /**
@@ -273,7 +200,7 @@ export function useSearch() {
     if (searchMode !== 'external') {
       handleSearchModeChange('external');
     }
-  }, [searchMode, handleSearchModeChange]);
+  }, [handleSearchModeChange, searchMode, setIsMobileSearchOpen]);
 
   /**
    * 初始化：从 localStorage 加载搜索配置
@@ -281,6 +208,7 @@ export function useSearch() {
    * 如果没有保存的配置，使用默认搜索源列表。
    */
   useEffect(() => {
+    if (hydrated) return;
     const savedSearchConfig = safeLocalStorageGetItem(SEARCH_CONFIG_KEY);
     if (savedSearchConfig) {
       try {
@@ -314,7 +242,8 @@ export function useSearch() {
       setExternalSearchSources(defaultSources);
       setSelectedSearchSource(defaultSources[0] || null);
     }
-  }, []);
+    setHydrated(true);
+  }, [hydrated, setExternalSearchSources, setHydrated, setSearchMode, setSelectedSearchSource]);
 
   /**
    * 搜索源弹窗显示/隐藏逻辑
@@ -344,7 +273,7 @@ export function useSearch() {
         clearTimeout(hideTimeoutRef.current);
       }
     };
-  }, [isIconHovered, isPopupHovered]);
+  }, [isIconHovered, isPopupHovered, setHoveredSearchSource, setShowSearchSourcePopup]);
 
   return {
     searchQuery,

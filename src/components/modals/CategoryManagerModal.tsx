@@ -179,7 +179,9 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
 
     if (!shouldDelete) return;
 
-    selectedCategories.forEach((id) => onDeleteCategory(id));
+    selectedCategories.forEach((id) => {
+      onDeleteCategory(id);
+    });
     setSelectedCategories(new Set());
     setIsBatchMode(false);
   };
@@ -269,9 +271,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   };
 
   const toggleCategoryHidden = (catId: string) => {
-    const newCats = categories.map((c) =>
-      c.id === catId ? { ...c, hidden: !c.hidden } : c,
-    );
+    const newCats = categories.map((c) => (c.id === catId ? { ...c, hidden: !c.hidden } : c));
     onUpdateCategories(newCats);
   };
 
@@ -291,11 +291,6 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   const cancelIconSelector = () => {
     setIsIconSelectorOpen(false);
     setIconSelectorTarget(null);
-  };
-
-  const cancelAdd = () => {
-    setNewCatName('');
-    setNewCatIcon('Folder');
   };
 
   return (
@@ -496,7 +491,11 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                         ? 'text-amber-500 hover:text-amber-600'
                                         : 'text-slate-400 hover:text-slate-500'
                                     }`}
-                                    title={cat.hidden ? '取消隐藏（用户模式可见）' : '隐藏分类（仅管理员可见）'}
+                                    title={
+                                      cat.hidden
+                                        ? '取消隐藏（用户模式可见）'
+                                        : '隐藏分类（仅管理员可见）'
+                                    }
                                   >
                                     {cat.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
                                   </button>

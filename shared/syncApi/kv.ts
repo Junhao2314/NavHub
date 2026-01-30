@@ -1,3 +1,5 @@
+import { normalizeNavHubSyncData } from './navHubSyncData';
+import { normalizeSyncMeta } from './normalize';
 import { sanitizeSensitiveData } from './sanitize';
 import type {
   Env,
@@ -7,6 +9,8 @@ import type {
   SyncHistoryKind,
   SyncMetadata,
 } from './types';
+
+export { normalizeSyncMeta } from './normalize';
 
 /**
  * 同步存储策略（兼容历史部署）
@@ -78,15 +82,6 @@ const safeKvGetJson = async (env: Env, key: string): Promise<unknown> => {
   } catch {
     return null;
   }
-};
-
-const normalizeNavHubSyncData = (value: unknown): NavHubSyncData | null => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const data = value as Partial<NavHubSyncData>;
-  return {
-    ...(data as NavHubSyncData),
-    meta: normalizeSyncMeta(data.meta),
-  };
 };
 
 const getMainDataFromKv = async (env: Env): Promise<NavHubSyncData | null> => {
@@ -281,18 +276,6 @@ const buildHistoryKey = (now: number): string => {
   const timestamp = new Date(now).toISOString().replace(/[:.]/g, '-');
   return `${KV_SYNC_HISTORY_PREFIX}${timestamp}_${randomHex(4)}`;
 };
-
-export function normalizeSyncMeta(value: unknown): SyncMetadata {
-  const meta = value && typeof value === 'object' ? (value as Partial<SyncMetadata>) : {};
-  return {
-    updatedAt: typeof meta.updatedAt === 'number' ? meta.updatedAt : 0,
-    deviceId: typeof meta.deviceId === 'string' && meta.deviceId ? meta.deviceId : 'unknown',
-    version: typeof meta.version === 'number' ? meta.version : 0,
-    browser: typeof meta.browser === 'string' ? meta.browser : undefined,
-    os: typeof meta.os === 'string' ? meta.os : undefined,
-    syncKind: meta.syncKind === 'manual' ? 'manual' : 'auto',
-  };
-}
 
 const isSyncMetaComplete = (meta: SyncMetadata | undefined): boolean => {
   if (!meta) return false;

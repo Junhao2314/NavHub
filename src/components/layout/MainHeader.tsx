@@ -6,47 +6,29 @@ import {
   Menu,
   Monitor,
   Moon,
-  MoreHorizontal,
-  Save,
   Search,
   Settings,
   Sun,
   X,
 } from 'lucide-react';
 import React, { useState } from 'react';
-import { ExternalSearchSource, SearchMode } from '../../types';
+import { useAppStore } from '../../stores/useAppStore';
+import type { ExternalSearchSource, SearchMode } from '../../types';
 import { ADMIN_EDIT_DISABLED_HINT } from '../../utils/adminAccess';
 
 interface MainHeaderProps {
-  navTitleText: string;
-  siteCardStyle: 'detailed' | 'simple';
-  themeMode: 'light' | 'dark' | 'system';
-  darkMode: boolean;
   canEdit: boolean;
-  isMobileSearchOpen: boolean;
-  searchMode: SearchMode;
-  searchQuery: string;
-  externalSearchSources: ExternalSearchSource[];
-  hoveredSearchSource: ExternalSearchSource | null;
-  selectedSearchSource: ExternalSearchSource | null;
-  showSearchSourcePopup: boolean;
   canSortPinned: boolean;
   canSortCategory: boolean;
   isSortingPinned: boolean;
   isSortingCategory: boolean;
-  onOpenSidebar: () => void;
   onSetTheme: (mode: 'light' | 'dark' | 'system') => void;
   onViewModeChange: (mode: 'simple' | 'detailed') => void;
   onSearchModeChange: (mode: SearchMode) => void;
   onOpenSearchConfig: () => void;
-  onSearchQueryChange: (value: string) => void;
   onExternalSearch: () => void;
   onSearchSourceSelect: (source: ExternalSearchSource) => void;
-  onHoverSearchSource: (source: ExternalSearchSource | null) => void;
-  onIconHoverChange: (value: boolean) => void;
-  onPopupHoverChange: (value: boolean) => void;
   onToggleMobileSearch: () => void;
-  onToggleSearchSourcePopup: () => void;
   onStartPinnedSorting: () => void;
   onStartCategorySorting: () => void;
   onSavePinnedSorting: () => void;
@@ -59,35 +41,18 @@ interface MainHeaderProps {
 }
 
 const MainHeader: React.FC<MainHeaderProps> = ({
-  navTitleText,
-  siteCardStyle,
-  themeMode,
-  darkMode,
   canEdit,
-  isMobileSearchOpen,
-  searchMode,
-  searchQuery,
-  externalSearchSources,
-  hoveredSearchSource,
-  selectedSearchSource,
-  showSearchSourcePopup,
   canSortPinned,
   canSortCategory,
   isSortingPinned,
   isSortingCategory,
-  onOpenSidebar,
   onSetTheme,
   onViewModeChange,
   onSearchModeChange,
   onOpenSearchConfig,
-  onSearchQueryChange,
   onExternalSearch,
   onSearchSourceSelect,
-  onHoverSearchSource,
-  onIconHoverChange,
-  onPopupHoverChange,
   onToggleMobileSearch,
-  onToggleSearchSourcePopup,
   onStartPinnedSorting,
   onStartCategorySorting,
   onSavePinnedSorting,
@@ -98,13 +63,30 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   onOpenSettings,
   onEditDisabled,
 }) => {
+  const themeMode = useAppStore((s) => s.themeMode);
+  const siteCardStyle = useAppStore((s) => s.siteSettings.cardStyle);
+  const openSidebar = useAppStore((s) => s.openSidebar);
+
+  const isMobileSearchOpen = useAppStore((s) => s.isMobileSearchOpen);
+  const searchMode = useAppStore((s) => s.searchMode);
+  const searchQuery = useAppStore((s) => s.searchQuery);
+  const externalSearchSources = useAppStore((s) => s.externalSearchSources);
+  const hoveredSearchSource = useAppStore((s) => s.hoveredSearchSource);
+  const selectedSearchSource = useAppStore((s) => s.selectedSearchSource);
+  const showSearchSourcePopup = useAppStore((s) => s.showSearchSourcePopup);
+
+  const setShowSearchSourcePopup = useAppStore((s) => s.setShowSearchSourcePopup);
+  const setSearchQuery = useAppStore((s) => s.setSearchQuery);
+  const setHoveredSearchSource = useAppStore((s) => s.setHoveredSearchSource);
+  const setIsIconHovered = useAppStore((s) => s.setIsIconHovered);
+  const setIsPopupHovered = useAppStore((s) => s.setIsPopupHovered);
+
   const editDisabledHint = ADMIN_EDIT_DISABLED_HINT;
   const showSortControls = canSortPinned || canSortCategory || isSortingPinned || isSortingCategory;
   const sortLabel = canSortPinned ? '排序置顶' : '排序分类';
   const isSorting = isSortingPinned || isSortingCategory;
+  const activeSearchSource = hoveredSearchSource ?? selectedSearchSource;
 
-  // More menu dropdown state
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -125,18 +107,18 @@ const MainHeader: React.FC<MainHeaderProps> = ({
       {searchMode === 'external' && showSearchSourcePopup && (
         <div
           className="absolute left-0 top-full mt-2 w-full bg-white/95 dark:bg-slate-900/95 rounded-xl shadow-xl border border-slate-200/50 dark:border-white/10 p-3 z-50 backdrop-blur-xl"
-          onMouseEnter={() => onPopupHoverChange(true)}
-          onMouseLeave={() => onPopupHoverChange(false)}
+          onMouseEnter={() => setIsPopupHovered(true)}
+          onMouseLeave={() => setIsPopupHovered(false)}
         >
           <div className="grid grid-cols-5 sm:grid-cols-5 gap-1.5">
             {externalSearchSources
               .filter((source) => source.enabled)
-              .map((source, index) => (
+              .map((source) => (
                 <button
-                  key={index}
+                  key={source.id}
                   onClick={() => onSearchSourceSelect(source)}
-                  onMouseEnter={() => onHoverSearchSource(source)}
-                  onMouseLeave={() => onHoverSearchSource(null)}
+                  onMouseEnter={() => setHoveredSearchSource(source)}
+                  onMouseLeave={() => setHoveredSearchSource(null)}
                   className={`px-2 py-2.5 text-sm rounded-lg transition-all flex flex-col items-center gap-1.5 ${
                     selectedSearchSource?.id === source.id
                       ? 'bg-accent/15 text-accent'
@@ -195,21 +177,21 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           <button
             type="button"
             className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-accent transition-colors"
-            onMouseEnter={() => searchMode === 'external' && onIconHoverChange(true)}
-            onMouseLeave={() => onIconHoverChange(false)}
+            onMouseEnter={() => searchMode === 'external' && setIsIconHovered(true)}
+            onMouseLeave={() => setIsIconHovered(false)}
             onClick={() => {
               if (searchMode === 'external') {
-                onToggleSearchSourcePopup();
+                setShowSearchSourcePopup((prev) => !prev);
               }
             }}
             title={searchMode === 'external' ? '选择搜索源' : '站内搜索'}
           >
             {searchMode === 'internal' ? (
               <Search size={15} />
-            ) : hoveredSearchSource || selectedSearchSource ? (
+            ) : activeSearchSource ? (
               <img
-                src={`https://www.faviconextractor.com/favicon/${new URL((hoveredSearchSource || selectedSearchSource).url).hostname}?larger=true`}
-                alt={(hoveredSearchSource || selectedSearchSource).name}
+                src={`https://www.faviconextractor.com/favicon/${new URL(activeSearchSource.url).hostname}?larger=true`}
+                alt={activeSearchSource.name}
                 className="w-4 h-4"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
@@ -233,7 +215,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                   : '搜索全网内容...'
             }
             value={searchQuery}
-            onChange={(e) => onSearchQueryChange(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && searchMode === 'external') {
                 onExternalSearch();
@@ -275,7 +257,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
       <div className="h-14 px-4 lg:px-8 flex items-center gap-4">
         <div className="flex items-center gap-2">
           <button
-            onClick={onOpenSidebar}
+            onClick={openSidebar}
             className="lg:hidden p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
             <Menu size={20} />
@@ -402,7 +384,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
               >
                 {themeMode === 'system' ? (
                   <Monitor size={16} />
-                ) : darkMode ? (
+                ) : themeMode === 'dark' ? (
                   <Moon size={16} />
                 ) : (
                   <Sun size={16} />
@@ -497,4 +479,4 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   );
 };
 
-export default MainHeader;
+export default React.memo(MainHeader);

@@ -160,11 +160,10 @@ const callOpenAICompatible = async (
 
   if (!response.ok) {
     const errText = await response.text().catch(() => 'Unknown error');
-    throw new AIServiceError(
-      'API_ERROR',
-      `API returned ${response.status}: ${errText}`,
-      { status: response.status, body: errText },
-    );
+    throw new AIServiceError('API_ERROR', `API returned ${response.status}: ${errText}`, {
+      status: response.status,
+      body: errText,
+    });
   }
 
   const data = await response.json();
@@ -338,19 +337,15 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
     }
 
     if (!response.ok) {
-      throw new AIServiceError(
-        'API_ERROR',
-        `Failed to fetch models: ${response.status}`,
-        { status: response.status },
-      );
+      throw new AIServiceError('API_ERROR', `Failed to fetch models: ${response.status}`, {
+        status: response.status,
+      });
     }
 
     const data = (await response.json()) as GeminiModelsListResponse;
     if (data.models && Array.isArray(data.models)) {
       return data.models
-        .map((model) =>
-          typeof model?.name === 'string' ? model.name.replace('models/', '') : '',
-        )
+        .map((model) => (typeof model?.name === 'string' ? model.name.replace('models/', '') : ''))
         .filter((name) => name.includes('gemini'));
     }
     return [];
@@ -393,11 +388,9 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
     }
 
     if (!response.ok) {
-      throw new AIServiceError(
-        'API_ERROR',
-        `Failed to fetch models: ${response.status}`,
-        { status: response.status },
-      );
+      throw new AIServiceError('API_ERROR', `Failed to fetch models: ${response.status}`, {
+        status: response.status,
+      });
     }
 
     const data = (await response.json()) as OpenAIModelsListResponse;

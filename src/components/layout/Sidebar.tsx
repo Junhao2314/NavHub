@@ -1,18 +1,13 @@
 import { ChevronLeft, Settings } from 'lucide-react';
 import React from 'react';
 import { SIDEBAR_SHOW_DATE_PROBABILITY, SIDEBAR_TYPEWRITER_MS } from '../../config/ui';
+import { useAppStore } from '../../stores/useAppStore';
 import { Category } from '../../types';
 import { cn } from '../../utils/cn';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import Icon from '../ui/Icon';
 
 interface SidebarProps {
-  sidebarOpen: boolean;
-  sidebarWidthClass: string;
-  isSidebarCollapsed: boolean;
-  navTitleText: string;
-  navTitleShort: string;
-  selectedCategory: string;
   categories: Category[];
   linkCounts: Record<string, number>;
   privacyGroupEnabled: boolean;
@@ -20,22 +15,10 @@ interface SidebarProps {
   privateCount: number;
   repoUrl: string;
   isAdmin: boolean;
-  onSelectAll: () => void;
-  onSelectCategory: (category: Category) => void;
-  onSelectPrivate: () => void;
-  onToggleCollapsed: () => void;
   onOpenCategoryManager: () => void;
-  onOpenImport?: () => void;
-  onOpenSettings: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
-  sidebarOpen,
-  sidebarWidthClass,
-  isSidebarCollapsed,
-  navTitleText,
-  navTitleShort,
-  selectedCategory,
   categories,
   linkCounts,
   privacyGroupEnabled,
@@ -43,13 +26,24 @@ const Sidebar: React.FC<SidebarProps> = ({
   privateCount,
   repoUrl,
   isAdmin,
-  onSelectAll,
-  onSelectCategory,
-  onSelectPrivate,
-  onToggleCollapsed,
   onOpenCategoryManager,
-  onOpenSettings,
 }) => {
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const isSidebarCollapsed = useAppStore((s) => s.isSidebarCollapsed);
+  const selectedCategory = useAppStore((s) => s.selectedCategory);
+  const sidebarWidthClass = isSidebarCollapsed ? 'w-64 lg:w-20' : 'w-64 lg:w-56';
+  const navTitle = useAppStore((s) => s.siteSettings.navTitle);
+  const navTitleText = navTitle || 'NavHub';
+
+  const onSelectAll = useAppStore((s) => s.selectAll);
+  const onSelectCategory = useAppStore((s) => s.handleCategoryClick);
+  const selectCategory = useAppStore((s) => s.selectCategory);
+  const onSelectPrivate = React.useCallback(
+    () => selectCategory(PRIVATE_CATEGORY_ID),
+    [selectCategory],
+  );
+  const onToggleCollapsed = useAppStore((s) => s.toggleSidebarCollapsed);
+
   // 状态机：'typing' | 'pausing' | 'deleting'
   const [phase, setPhase] = React.useState<'typing' | 'pausing' | 'deleting'>('typing');
   const [targetText, setTargetText] = React.useState('NavHub'); // 当前要显示的目标文本
@@ -247,55 +241,55 @@ const Sidebar: React.FC<SidebarProps> = ({
           {categories
             .filter((cat) => isAdmin || !cat.hidden)
             .map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            const count = linkCounts[cat.id] || 0;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => onSelectCategory(cat)}
-                title={isSidebarCollapsed ? cat.name : undefined}
-                className={`relative w-full rounded-xl transition-all duration-200 group ${
-                  isSidebarCollapsed
-                    ? 'flex items-center justify-center p-2.5'
-                    : 'flex items-center gap-3 px-3 py-2'
-                } ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
-                }`}
-              >
-                {!isSidebarCollapsed && isSelected && (
-                  <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-accent shadow-[0_0_8px_rgb(var(--accent-color)/0.4)]"></span>
-                )}
-                <div
-                  className={`flex items-center justify-center transition-colors ${
-                    isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1.5 rounded-md'
-                  } ${isSelected ? 'text-accent' : 'text-slate-500 dark:text-slate-500'}`}
+              const isSelected = selectedCategory === cat.id;
+              const count = linkCounts[cat.id] || 0;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => onSelectCategory(cat)}
+                  title={isSidebarCollapsed ? cat.name : undefined}
+                  className={`relative w-full rounded-xl transition-all duration-200 group ${
+                    isSidebarCollapsed
+                      ? 'flex items-center justify-center p-2.5'
+                      : 'flex items-center gap-3 px-3 py-2'
+                  } ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+                  }`}
                 >
-                  <Icon name={cat.icon} size={16} />
-                </div>
-                {!isSidebarCollapsed && (
-                  <>
-                    <span
-                      className={`truncate flex-1 text-left text-sm ${isSelected ? 'font-medium' : ''}`}
-                    >
-                      {cat.name}
-                      {isAdmin && cat.hidden && (
-                        <span className="ml-1.5 text-[10px] text-amber-500">(隐藏)</span>
-                      )}
-                    </span>
-                    {count > 0 && (
+                  {!isSidebarCollapsed && isSelected && (
+                    <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-accent shadow-[0_0_8px_rgb(var(--accent-color)/0.4)]"></span>
+                  )}
+                  <div
+                    className={`flex items-center justify-center transition-colors ${
+                      isSidebarCollapsed ? 'p-2 rounded-lg' : 'p-1.5 rounded-md'
+                    } ${isSelected ? 'text-accent' : 'text-slate-500 dark:text-slate-500'}`}
+                  >
+                    <Icon name={cat.icon} size={16} />
+                  </div>
+                  {!isSidebarCollapsed && (
+                    <>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${isSelected ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 group-hover:border-transparent'}`}
+                        className={`truncate flex-1 text-left text-sm ${isSelected ? 'font-medium' : ''}`}
                       >
-                        {count}
+                        {cat.name}
+                        {isAdmin && cat.hidden && (
+                          <span className="ml-1.5 text-[10px] text-amber-500">(隐藏)</span>
+                        )}
                       </span>
-                    )}
-                  </>
-                )}
-              </button>
-            );
-          })}
+                      {count > 0 && (
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${isSelected ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 group-hover:border-transparent'}`}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
         </div>
       </div>
 
@@ -355,4 +349,4 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 };
 
-export default Sidebar;
+export default React.memo(Sidebar);

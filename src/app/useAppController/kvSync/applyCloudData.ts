@@ -10,6 +10,7 @@ import type {
   SyncRole,
   ThemeMode,
 } from '../../../types';
+import type { NotifyFn } from '../../../types/ui';
 import {
   PRIVACY_AUTO_UNLOCK_KEY,
   PRIVACY_GROUP_ENABLED_KEY,
@@ -29,8 +30,6 @@ import {
   safeSessionStorageRemoveItem,
   safeSessionStorageSetItem,
 } from '../../../utils/storage';
-
-type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 
 export const applyCloudDataToLocalState = (args: {
   data: NavHubSyncData;
@@ -67,7 +66,7 @@ export const applyCloudDataToLocalState = (args: {
   setEditingPrivateLink: (link: LinkItem | null) => void;
   setPrefillPrivateLink: (link: Partial<LinkItem> | null) => void;
 
-  notify: (message: string, variant?: ToastVariant) => void;
+  notify: NotifyFn;
 }) => {
   const { data, role } = args;
 
@@ -195,8 +194,9 @@ export const applyCloudDataToLocalState = (args: {
 
   // 同步 privateVault：管理员模式下云端数据会包含 privateVault
   if (typeof data.privateVault === 'string') {
-    args.setPrivateVaultCipher(data.privateVault);
-    safeLocalStorageSetItem(PRIVATE_VAULT_KEY, data.privateVault);
+    const privateVaultCipher = data.privateVault;
+    args.setPrivateVaultCipher(privateVaultCipher);
+    safeLocalStorageSetItem(PRIVATE_VAULT_KEY, privateVaultCipher);
     const nextGroupEnabled =
       typeof data.privacyConfig?.groupEnabled === 'boolean'
         ? data.privacyConfig.groupEnabled
@@ -205,11 +205,13 @@ export const applyCloudDataToLocalState = (args: {
       typeof data.privacyConfig?.passwordEnabled === 'boolean'
         ? data.privacyConfig.passwordEnabled
         : args.privacyPasswordEnabled;
-    const plainVault = data.privateVault.trim() ? parsePlainPrivateVault(data.privateVault) : null;
+    const plainVault = privateVaultCipher.trim()
+      ? parsePlainPrivateVault(privateVaultCipher)
+      : null;
 
     if (nextGroupEnabled && !nextPasswordEnabled) {
       args.setPrivateVaultPassword(null);
-      if (!data.privateVault.trim()) {
+      if (!privateVaultCipher.trim()) {
         args.setPrivateLinks([]);
         args.setIsPrivateUnlocked(true);
         if (args.privacyAutoUnlockEnabled) {
@@ -227,11 +229,14 @@ export const applyCloudDataToLocalState = (args: {
         args.setPrivateLinks([]);
         args.setIsPrivateUnlocked(false);
         safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
-        const candidates = [getSyncPassword().trim(), getPrivacyPassword().trim()].filter(Boolean);
+        const candidates = [getSyncPassword().trim(), getPrivacyPassword().trim()].filter(
+          (candidate): candidate is string => Boolean(candidate),
+        );
 
-        const tryDecrypt = (index: number) => {
-          if (index >= candidates.length) return Promise.reject(new Error('No valid password'));
-          return decryptPrivateVault(candidates[index], data.privateVault).catch(() =>
+        const tryDecrypt = (index: number): ReturnType<typeof decryptPrivateVault> => {
+          const password = candidates[index];
+          if (password === undefined) return Promise.reject(new Error('No valid password'));
+          return decryptPrivateVault(password, privateVaultCipher).catch(() =>
             tryDecrypt(index + 1),
           );
         };
@@ -256,7 +261,7 @@ export const applyCloudDataToLocalState = (args: {
     } else if (plainVault && args.isPrivateUnlocked) {
       args.setPrivateLinks(plainVault.links || []);
     } else if (args.isPrivateUnlocked && args.privateVaultPassword) {
-      decryptPrivateVault(args.privateVaultPassword, data.privateVault)
+      decryptPrivateVault(args.privateVaultPassword, privateVaultCipher)
         .then((payload) => args.setPrivateLinks(payload.links || []))
         .catch(() => {
           args.setIsPrivateUnlocked(false);

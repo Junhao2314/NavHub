@@ -6,6 +6,10 @@ import {
   type SyncApiEnv,
 } from '../../shared/syncApi';
 import { getMainData, KV_MAIN_DATA_KEY } from '../../shared/syncApi/kv';
+import {
+  NAVHUB_SYNC_DATA_SCHEMA_VERSION,
+  normalizeNavHubSyncData,
+} from '../../shared/syncApi/navHubSyncData';
 
 class MemoryKV implements KVNamespaceInterface {
   private readonly store = new Map<string, string>();
@@ -156,6 +160,29 @@ class MemoryR2 implements R2BucketInterface {
     return this.forcePut(key, value);
   }
 }
+
+describe('navHubSyncData schema migration', () => {
+  it('adds schemaVersion when missing', () => {
+    const input = {
+      links: [],
+      categories: [],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.schemaVersion).toBe(NAVHUB_SYNC_DATA_SCHEMA_VERSION);
+  });
+
+  it('preserves higher schemaVersion values', () => {
+    const input = {
+      schemaVersion: 99,
+      links: [],
+      categories: [],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.schemaVersion).toBe(99);
+  });
+});
 
 describe('syncApi history keys', () => {
   it('generates unique history keys even when Date.now is identical', async () => {
@@ -502,8 +529,9 @@ describe('syncApi legacy main-data migration', () => {
 
     const env = { YNAV_KV: kv } as any;
 
-    expect(await getMainData(env)).toEqual(legacy);
-    expect(await getMainData(env)).toEqual(legacy);
+    const expected = { ...legacy, schemaVersion: NAVHUB_SYNC_DATA_SCHEMA_VERSION };
+    expect(await getMainData(env)).toEqual(expected);
+    expect(await getMainData(env)).toEqual(expected);
 
     expect(kv.getCalls.filter((key) => key === 'navhub:data')).toHaveLength(1);
     expect(kv.putCalls.filter((key) => key === KV_MAIN_DATA_KEY)).toHaveLength(1);
@@ -650,12 +678,30 @@ describe('syncApi auth + public sanitization', () => {
 });
 
 describe('syncApi auth attempts', () => {
+  const sha256Hex = async (value: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const cryptoObj = (globalThis as unknown as { crypto?: Crypto }).crypto;
+    if (cryptoObj?.subtle?.digest) {
+      const digest = await cryptoObj.subtle.digest('SHA-256', encoder.encode(value));
+      const bytes = new Uint8Array(digest);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Fallback: FNV-1a 32-bit (should rarely happen in this test runtime)
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i += 1) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  };
+
   it('clears failed attempt counter after a successful login', async () => {
     const kv = new MemoryKV();
     const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const clientIp = '1.2.3.4';
-    const attemptKey = `ynav:auth_attempt:${clientIp}`;
+    const attemptKey = `ynav:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
 
     const wrongLoginRequest = new Request('http://localhost/api/sync?action=login', {
       method: 'POST',
@@ -709,7 +755,7 @@ describe('syncApi auth attempts', () => {
     const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const clientIp = '3.4.5.6';
-    const attemptKey = `ynav:auth_attempt:${clientIp}`;
+    const attemptKey = `ynav:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
 
     const wrongAuthRequest = new Request('http://localhost/api/sync?action=auth', {
       method: 'GET',
@@ -757,13 +803,13 @@ describe('syncApi auth attempts', () => {
     const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const clientIp = '2.3.4.5';
-    const attemptKey = `ynav:auth_attempt:${clientIp}`;
-    const legacyAttemptKey = `navhub:auth_attempt:${clientIp}`;
+    const rawAttemptKey = `ynav:auth_attempt:${clientIp}`;
+    const rawLegacyAttemptKey = `navhub:auth_attempt:${clientIp}`;
 
     const now = Date.now();
-    await kv.put(attemptKey, JSON.stringify({ failedCount: 3, lockedUntil: 0, updatedAt: now }));
+    await kv.put(rawAttemptKey, JSON.stringify({ failedCount: 3, lockedUntil: 0, updatedAt: now }));
     await kv.put(
-      legacyAttemptKey,
+      rawLegacyAttemptKey,
       JSON.stringify({ failedCount: 2, lockedUntil: 0, updatedAt: now }),
     );
 
@@ -780,8 +826,8 @@ describe('syncApi auth attempts', () => {
     const successfulLoginJson = (await successfulLoginResponse.json()) as any;
 
     expect(successfulLoginJson.success).toBe(true);
-    expect(kv.has(attemptKey)).toBe(false);
-    expect(kv.has(legacyAttemptKey)).toBe(false);
+    expect(kv.has(rawAttemptKey)).toBe(false);
+    expect(kv.has(rawLegacyAttemptKey)).toBe(false);
   });
 
   it('migrates legacy lockout records to the new attempt key (avoids repeated legacy reads)', async () => {
@@ -789,12 +835,12 @@ describe('syncApi auth attempts', () => {
     const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const clientIp = '9.9.9.9';
-    const attemptKey = `ynav:auth_attempt:${clientIp}`;
-    const legacyAttemptKey = `navhub:auth_attempt:${clientIp}`;
+    const attemptKey = `ynav:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
+    const rawLegacyAttemptKey = `navhub:auth_attempt:${clientIp}`;
 
     const now = Date.now();
     await kv.put(
-      legacyAttemptKey,
+      rawLegacyAttemptKey,
       JSON.stringify({
         failedCount: 5,
         lockedUntil: now + 60 * 1000,
@@ -820,6 +866,44 @@ describe('syncApi auth attempts', () => {
     const secondResponse = await handleApiSyncRequest(makeWrongLogin(), env);
     expect(secondResponse.status).toBe(429);
 
-    expect(kv.getCalls.filter((key) => key === legacyAttemptKey)).toHaveLength(1);
+    expect(kv.getCalls.filter((key) => key === rawLegacyAttemptKey)).toHaveLength(1);
+  });
+});
+
+describe('syncApi invalid JSON bodies', () => {
+  it('returns 400 for invalid JSON in POST /api/sync', async () => {
+    const kv = new MemoryKV();
+    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+
+    const request = new Request('http://localhost/api/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Sync-Password': 'secret',
+      },
+      body: '{',
+    });
+
+    const response = await handleApiSyncRequest(request, env);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ success: false, error: '无效的 JSON 请求体' });
+  });
+
+  it('returns 400 for invalid JSON in POST /api/sync?action=backup', async () => {
+    const kv = new MemoryKV();
+    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+
+    const request = new Request('http://localhost/api/sync?action=backup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Sync-Password': 'secret',
+      },
+      body: '{',
+    });
+
+    const response = await handleApiSyncRequest(request, env);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ success: false, error: '无效的 JSON 请求体' });
   });
 });

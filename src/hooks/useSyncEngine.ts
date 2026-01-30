@@ -16,6 +16,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ensureNavHubSyncDataSchemaVersion,
+  NAVHUB_SYNC_DATA_SCHEMA_VERSION,
+  normalizeNavHubSyncData,
+} from '../../shared/syncApi/navHubSyncData';
+import {
   AIConfig,
   Category,
   CustomFaviconCache,
@@ -189,7 +194,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
   const pendingData = useRef<Omit<NavHubSyncData, 'meta'> | null>(null);
   const pushChainRef = useRef<Promise<void>>(Promise.resolve());
 
-  const reportError = useCallback(
+  const emitSyncError = useCallback(
     (message: string, kind: SyncErrorKind = 'unknown'): void => {
       setSyncStatus('error');
       setLastError(message);
@@ -210,7 +215,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
       const result = (await response.json()) as SyncGetResponse;
 
       if (result.success === false) {
-        reportError(result.error || '拉取失败', 'server');
+        emitSyncError(result.error || '拉取失败', 'server');
         return null;
       }
 
@@ -220,18 +225,24 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         return null;
       }
 
+      const normalized = normalizeNavHubSyncData(result.data);
+      if (!normalized) {
+        emitSyncError('云端数据格式异常', 'server');
+        return null;
+      }
+
       setSyncStatus('synced');
-      setLastSyncTime(result.data.meta.updatedAt);
+      setLastSyncTime(normalized.meta.updatedAt);
 
       // 保存云端的 meta 到本地
-      saveLocalSyncMeta(result.data.meta);
+      saveLocalSyncMeta(normalized.meta);
 
-      return result.data;
+      return normalized;
     } catch (error: unknown) {
-      reportError(getSyncNetworkErrorMessage(error), 'network');
+      emitSyncError(getSyncNetworkErrorMessage(error), 'network');
       return null;
     }
-  }, [onError, reportError]);
+  }, [emitSyncError]);
 
   const checkAuth = useCallback(async (): Promise<SyncAuthState> => {
     try {
@@ -270,7 +281,10 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         // 同步逻辑依赖本地保存的 meta/version，因此这里提前探测可写性，避免出现“看起来同步成功但 version 丢失”。
         const storageProbeKey = '__ynav_storage_probe__';
         if (!safeLocalStorageSetItem(storageProbeKey, '1')) {
-          reportError('浏览器存储不可用（可能处于隐私模式或禁用了站点存储），无法同步', 'storage');
+          emitSyncError(
+            '浏览器存储不可用（可能处于隐私模式或禁用了站点存储），无法同步',
+            'storage',
+          );
           return false;
         }
         safeLocalStorageRemoveItem(storageProbeKey);
@@ -282,6 +296,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         // Never send plaintext apiKey to the cloud; use encryptedSensitiveConfig instead.
         const sanitizedPayload = {
           ...data,
+          schemaVersion: ensureNavHubSyncDataSchemaVersion(
+            (data as { schemaVersion?: unknown }).schemaVersion,
+          ),
           aiConfig: sanitizeAiConfigForCloud(data.aiConfig),
         };
 
@@ -332,19 +349,24 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         if (result.success !== true) {
           // 处理冲突
           if (result.conflict && result.data) {
+            const remoteData = normalizeNavHubSyncData(result.data);
+            if (!remoteData) {
+              emitSyncError('云端返回的数据格式异常', 'server');
+              return false;
+            }
             // 服务端检测到 expectedVersion 与云端 version 不一致（或条件写失败），返回 409 + 最新云端数据。
             // 这里将“本地待推送数据”与“云端最新数据”打包，交给上层 UI 决策如何合并/覆盖。
             setSyncStatus('conflict');
             const conflict: SyncConflict = {
               localData: syncData,
-              remoteData: result.data,
+              remoteData,
             };
             setCurrentConflict(conflict);
             callSyncEngineCallback('onConflict', onConflict, conflict);
             return false;
           }
 
-          reportError(result.error || '推送失败', 'server');
+          emitSyncError(result.error || '推送失败', 'server');
           return false;
         }
 
@@ -361,11 +383,11 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         setSyncStatus('synced');
         return true;
       } catch (error: unknown) {
-        reportError(getSyncNetworkErrorMessage(error), 'network');
+        emitSyncError(getSyncNetworkErrorMessage(error), 'network');
         return false;
       }
     },
-    [onConflict, reportError],
+    [onConflict, emitSyncError],
   );
 
   // 推送数据到云端（串行化，避免并发推送导致 expectedVersion 冲突/交错）
@@ -453,6 +475,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
       const deviceInfo = getDeviceInfo();
       const sanitizedPayload = {
         ...data,
+        schemaVersion: ensureNavHubSyncDataSchemaVersion(
+          (data as { schemaVersion?: unknown }).schemaVersion,
+        ),
         aiConfig: sanitizeAiConfigForCloud(data.aiConfig),
       };
       const syncData: NavHubSyncData = {
@@ -476,18 +501,18 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         const result = (await response.json()) as SyncCreateBackupResponse;
 
         if (result.success === false) {
-          reportError(result.error || '备份失败', 'server');
+          emitSyncError(result.error || '备份失败', 'server');
           return false;
         }
 
         setSyncStatus('synced');
         return true;
       } catch (error: unknown) {
-        reportError(getSyncNetworkErrorMessage(error), 'network');
+        emitSyncError(getSyncNetworkErrorMessage(error), 'network');
         return false;
       }
     },
-    [reportError],
+    [emitSyncError],
   );
 
   // 从备份恢复（服务端会创建回滚点）
@@ -504,26 +529,32 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         const result = (await response.json()) as SyncRestoreBackupResponse;
 
         if (result.success === false) {
-          reportError(result.error || '恢复失败', 'server');
+          emitSyncError(result.error || '恢复失败', 'server');
           return null;
         }
 
         if (!result.data) {
-          reportError('恢复失败', 'server');
+          emitSyncError('恢复失败', 'server');
           return null;
         }
 
-        saveLocalSyncMeta(result.data.meta);
-        setLastSyncTime(result.data.meta.updatedAt);
+        const normalized = normalizeNavHubSyncData(result.data);
+        if (!normalized) {
+          emitSyncError('恢复失败（数据格式异常）', 'server');
+          return null;
+        }
+
+        saveLocalSyncMeta(normalized.meta);
+        setLastSyncTime(normalized.meta.updatedAt);
         setSyncStatus('synced');
 
-        return result.data;
+        return normalized;
       } catch (error: unknown) {
-        reportError(getSyncNetworkErrorMessage(error), 'network');
+        emitSyncError(getSyncNetworkErrorMessage(error), 'network');
         return null;
       }
     },
-    [reportError],
+    [emitSyncError],
   );
 
   // 删除备份
@@ -616,6 +647,7 @@ export function buildSyncData(
   customFaviconCache?: CustomFaviconCache,
 ): Omit<NavHubSyncData, 'meta'> {
   return {
+    schemaVersion: NAVHUB_SYNC_DATA_SCHEMA_VERSION,
     links,
     categories,
     searchConfig,
