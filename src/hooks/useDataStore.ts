@@ -1,132 +1,34 @@
+/**
+ * useDataStore - 链接和分类数据管理
+ *
+ * 功能:
+ *   - 管理链接（links）和分类（categories）的 CRUD 操作
+ *   - 从 localStorage 加载/持久化数据
+ *   - 支持链接置顶、排序、拖拽重排
+ *   - 数据导入/导出
+ *
+ * 设计要点:
+ *   - 数据校验：加载时对链接 URL 和分类图标进行校验，移除无效数据并提示用户。
+ *   - 分类兜底：当链接所属分类被删除时，自动迁移到"常用推荐"或第一个分类。
+ *   - 排序逻辑：置顶链接优先显示，普通链接按 order 字段排序（支持拖拽调整）。
+ *   - 图标缓存：从 localStorage 加载已缓存的 favicon，避免重复请求。
+ */
+
 import { arrayMove } from '@dnd-kit/sortable';
 import { useCallback, useEffect, useState } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
-import { isLucideIconName, LEGACY_ICON_ALIASES } from '../components/ui/lucideIconMap';
-import { Category, DEFAULT_CATEGORIES, INITIAL_LINKS, LinkItem } from '../types';
+import type { Category, LinkItem } from '../types';
+import { DEFAULT_CATEGORIES, INITIAL_LINKS } from '../types';
 import { COMMON_CATEGORY_ID, FAVICON_CACHE_KEY, LOCAL_STORAGE_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
 import { getCommonRecommendedLinks } from '../utils/recommendation';
+import {
+  formatInvalidIconNotice,
+  sanitizeCategories,
+  sanitizeLinks,
+} from '../utils/sanitize';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../utils/storage';
 import { normalizeHttpUrl } from '../utils/url';
-
-const CATEGORY_ICON_FALLBACK = 'Folder';
-
-const isTextIconName = (rawName: string): boolean => {
-  const trimmed = rawName.trim();
-  if (!trimmed) return false;
-  return !/^[a-z0-9-]+$/i.test(trimmed);
-};
-
-const hasLucideIcon = (name: string): boolean => isLucideIconName(name);
-
-const normalizeLegacyAliasKey = (value: string): string => value.trim().toLowerCase();
-
-const resolveLegacyIconAlias = (value: string): string | null => {
-  const alias = LEGACY_ICON_ALIASES[normalizeLegacyAliasKey(value)];
-  return alias ?? null;
-};
-
-const kebabToPascal = (kebabName: string): string =>
-  kebabName
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
-
-const normalizeCategoryIcon = (rawIcon: unknown): string => {
-  if (typeof rawIcon !== 'string') return CATEGORY_ICON_FALLBACK;
-
-  const trimmed = rawIcon.trim();
-  if (!trimmed) return CATEGORY_ICON_FALLBACK;
-
-  if (isTextIconName(trimmed)) return trimmed;
-
-  const legacyAlias = resolveLegacyIconAlias(trimmed);
-  if (legacyAlias) return legacyAlias;
-
-  if (trimmed.includes('-')) {
-    return kebabToPascal(trimmed);
-  }
-
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-};
-
-type InvalidCategoryIcon = { name: string; icon: string };
-
-const formatInvalidIconNotice = (invalidIcons: InvalidCategoryIcon[]): string => {
-  const preview = invalidIcons
-    .slice(0, 3)
-    .map(({ name, icon }) => `${name}(${icon})`)
-    .join('、');
-  const suffix = invalidIcons.length > 3 ? ' 等' : '';
-  return `检测到 ${invalidIcons.length} 个分类图标不在 Lucide 子集内，已自动替换为 ${CATEGORY_ICON_FALLBACK}：${preview}${suffix}`;
-};
-
-const sanitizeCategories = (
-  input: Category[],
-): { categories: Category[]; didChange: boolean; invalidIcons: InvalidCategoryIcon[] } => {
-  let didChange = false;
-  const invalidIcons: InvalidCategoryIcon[] = [];
-
-  const sanitized = input.map((category) => {
-    const normalizedIcon = normalizeCategoryIcon(category.icon);
-    let nextIcon = normalizedIcon;
-
-    if (!isTextIconName(normalizedIcon) && !hasLucideIcon(normalizedIcon)) {
-      invalidIcons.push({ name: category.name, icon: normalizedIcon });
-      nextIcon = CATEGORY_ICON_FALLBACK;
-    }
-
-    if (nextIcon === category.icon) return category;
-    didChange = true;
-    return { ...category, icon: nextIcon };
-  });
-
-  return didChange
-    ? { categories: sanitized, didChange, invalidIcons }
-    : { categories: input, didChange, invalidIcons };
-};
-
-const sanitizeLinks = (
-  input: unknown,
-): { links: LinkItem[]; didChange: boolean; dropped: number; normalized: number } => {
-  if (!Array.isArray(input)) {
-    return { links: INITIAL_LINKS, didChange: true, dropped: 0, normalized: 0 };
-  }
-
-  let didChange = false;
-  let dropped = 0;
-  let normalized = 0;
-  const sanitized: LinkItem[] = [];
-
-  for (const raw of input) {
-    if (!raw || typeof raw !== 'object') {
-      didChange = true;
-      dropped += 1;
-      continue;
-    }
-
-    const candidate = raw as LinkItem;
-    const safeUrl = normalizeHttpUrl(candidate.url);
-    if (!safeUrl) {
-      didChange = true;
-      dropped += 1;
-      continue;
-    }
-
-    if (safeUrl !== candidate.url) {
-      didChange = true;
-      normalized += 1;
-      sanitized.push({ ...candidate, url: safeUrl });
-      continue;
-    }
-
-    sanitized.push(candidate);
-  }
-
-  return didChange
-    ? { links: sanitized, didChange, dropped, normalized }
-    : { links: input as LinkItem[], didChange, dropped, normalized };
-};
 
 export const useDataStore = () => {
   const [links, setLinks] = useState<LinkItem[]>([]);
@@ -134,13 +36,18 @@ export const useDataStore = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const { notify } = useDialog();
 
-  // 加载本地图标缓存
+  /**
+   * 加载本地图标缓存
+   *
+   * 从 localStorage 读取已缓存的 favicon URL，并更新到对应链接。
+   * 优先使用缓存的高质量图标，避免每次都请求 faviconextractor.com。
+   */
   const loadLinkIcons = useCallback((linksToLoad: LinkItem[]) => {
     let cache: Record<string, string> = {};
     try {
       const stored = localStorage.getItem(FAVICON_CACHE_KEY);
       cache = stored ? JSON.parse(stored) : {};
-    } catch (e) {
+    } catch {
       cache = {};
     }
 
@@ -161,7 +68,7 @@ export const useDataStore = () => {
         ) {
           return { ...link, icon: cachedIcon };
         }
-      } catch (e) {
+      } catch {
         return link;
       }
       return link;
@@ -170,6 +77,17 @@ export const useDataStore = () => {
     setLinks(updatedLinks);
   }, []);
 
+  /**
+   * 初始化：从 localStorage 加载数据
+   *
+   * 处理流程：
+   * 1. 解析存储的 JSON 数据
+   * 2. 确保"常用推荐"分类始终在第一位
+   * 3. 校验分类图标和链接 URL 的合法性
+   * 4. 将孤儿链接（分类已删除）迁移到兜底分类
+   * 5. 加载 favicon 缓存
+   * 6. 如有数据修正，重新持久化
+   */
   useEffect(() => {
     const stored = safeLocalStorageGetItem(LOCAL_STORAGE_KEY);
     if (stored) {
@@ -238,7 +156,7 @@ export const useDataStore = () => {
             JSON.stringify({ links: loadedLinks, categories: loadedCategories }),
           );
         }
-      } catch (e) {
+      } catch {
         setLinks(INITIAL_LINKS);
         setCategories(DEFAULT_CATEGORIES);
         loadLinkIcons(INITIAL_LINKS);
@@ -251,20 +169,33 @@ export const useDataStore = () => {
     setIsLoaded(true);
   }, [loadLinkIcons, notify]);
 
+  /**
+   * 更新数据并持久化
+   *
+   * 统一的数据更新入口，确保：
+   * - 数据经过校验（sanitize）
+   * - 同步写入 localStorage
+   */
   const updateData = useCallback((newLinks: LinkItem[], newCategories: Category[]) => {
     const { categories: sanitizedCategories } = sanitizeCategories(newCategories);
     const { links: sanitizedLinks } = sanitizeLinks(newLinks);
-    // 1. Optimistic UI Update
     setLinks(sanitizedLinks);
     setCategories(sanitizedCategories);
-
-    // 2. Save to Local Cache
     safeLocalStorageSetItem(
       LOCAL_STORAGE_KEY,
       JSON.stringify({ links: sanitizedLinks, categories: sanitizedCategories }),
     );
   }, []);
 
+  /**
+   * 添加新链接
+   *
+   * 处理逻辑：
+   * - URL 校验和标准化（仅支持 http/https）
+   * - 自动分配 order（追加到分类末尾）
+   * - 置顶链接插入到置顶区域末尾
+   * - 推荐链接自动分配 recommendedOrder
+   */
   const addLink = useCallback(
     (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
       const processedUrl = normalizeHttpUrl(data.url);
@@ -323,6 +254,12 @@ export const useDataStore = () => {
     [links, categories, updateData, notify],
   );
 
+  /**
+   * 更新链接
+   *
+   * 保留原有的 createdAt，更新其他字段。
+   * 特殊处理 recommended 和 recommendedOrder 的联动逻辑。
+   */
   const updateLink = useCallback(
     (data: Omit<LinkItem, 'createdAt'>) => {
       const processedUrl = normalizeHttpUrl(data.url);
@@ -374,6 +311,7 @@ export const useDataStore = () => {
     [links, categories, updateData, notify],
   );
 
+  /** 删除链接 */
   const deleteLink = useCallback(
     (id: string) => {
       updateData(
@@ -384,6 +322,12 @@ export const useDataStore = () => {
     [links, categories, updateData],
   );
 
+  /**
+   * 记录管理员点击统计
+   *
+   * 用于"常用推荐"的智能排序：记录管理员的点击次数和最后点击时间，
+   * 便于后续根据使用频率自动调整推荐顺序。
+   */
   const recordAdminLinkClick = useCallback(
     (id: string) => {
       const updatedLinks = links.map((link) => {
@@ -399,6 +343,7 @@ export const useDataStore = () => {
     [links, categories, updateData],
   );
 
+  /** 切换链接置顶状态 */
   const togglePin = useCallback(
     (id: string) => {
       const linkToToggle = links.find((l) => l.id === id);
@@ -420,6 +365,15 @@ export const useDataStore = () => {
     [links, categories, updateData],
   );
 
+  /**
+   * 重排链接顺序（拖拽排序）
+   *
+   * 根据当前选中的分类，在该分类内重新排序：
+   * - "常用推荐"分类：更新 recommendedOrder
+   * - 其他分类：更新 order
+   *
+   * 使用 @dnd-kit 的 arrayMove 实现数组元素移动。
+   */
   const reorderLinks = useCallback(
     (activeId: string, overId: string, selectedCategory: string) => {
       if (activeId === overId) return;
@@ -484,6 +438,11 @@ export const useDataStore = () => {
     [links, categories, updateData],
   );
 
+  /**
+   * 重排置顶链接顺序
+   *
+   * 置顶链接独立于分类排序，使用 pinnedOrder 字段控制显示顺序。
+   */
   const reorderPinnedLinks = useCallback(
     (activeId: string, overId: string) => {
       if (activeId === overId) return;
@@ -536,6 +495,12 @@ export const useDataStore = () => {
     [links, categories, updateData],
   );
 
+  /**
+   * 删除分类
+   *
+   * 删除后将该分类下的所有链接迁移到"常用推荐"或第一个分类。
+   * 至少保留一个分类，防止数据孤立。
+   */
   const deleteCategory = useCallback(
     (catId: string) => {
       if (categories.length <= 1) {
@@ -550,9 +515,16 @@ export const useDataStore = () => {
       );
       updateData(newLinks, newCats);
     },
-    [links, categories, updateData],
+    [links, categories, updateData, notify],
   );
 
+  /**
+   * 导入数据（合并模式）
+   *
+   * 将导入的链接和分类与现有数据合并：
+   * - 分类：按 id 或 name 去重
+   * - 链接：直接追加（不去重）
+   */
   const importData = useCallback(
     (newLinks: LinkItem[], newCategories: Category[]) => {
       const mergedCategories = [...categories];

@@ -1,3 +1,18 @@
+/**
+ * useSearch - 搜索功能管理
+ *
+ * 功能:
+ *   - 支持两种搜索模式：外部搜索引擎（external）和本地链接过滤（local）
+ *   - 管理多个外部搜索源（必应、Google、百度等）
+ *   - 搜索源选择和切换
+ *   - 移动端搜索适配
+ *
+ * 设计要点:
+ *   - 搜索配置持久化到 localStorage
+ *   - 搜索源支持自定义添加/编辑/删除
+ *   - 搜索源弹窗使用延迟隐藏，提升交互体验
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalSearchSource, SearchConfig, SearchMode } from '../types';
 import { SEARCH_CONFIG_KEY } from '../utils/constants';
@@ -8,7 +23,12 @@ import {
 } from '../utils/storage';
 import { normalizeHttpUrl } from '../utils/url';
 
-// Default search sources
+/**
+ * 构建默认搜索源列表
+ *
+ * 包含常用的搜索引擎和垂直搜索站点，
+ * 用户可在设置中自定义添加或禁用。
+ */
 const buildDefaultSearchSources = (): ExternalSearchSource[] => {
   const now = Date.now();
   return [
@@ -95,6 +115,12 @@ const buildDefaultSearchSources = (): ExternalSearchSource[] => {
   ];
 };
 
+/**
+ * 解析当前选中的搜索源
+ *
+ * 优先级：selectedId > selectedSource > 第一个启用的源 > 第一个源
+ * 确保始终有一个有效的选中项。
+ */
 const resolveSelectedSource = (
   sources: ExternalSearchSource[],
   selectedId?: string | null,
@@ -115,21 +141,27 @@ const resolveSelectedSource = (
 };
 
 export function useSearch() {
+  // ========== 状态定义 ==========
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('external');
   const [externalSearchSources, setExternalSearchSources] = useState<ExternalSearchSource[]>([]);
   const [selectedSearchSource, setSelectedSearchSource] = useState<ExternalSearchSource | null>(
     null,
   );
+
+  // 搜索源弹窗相关状态
   const [showSearchSourcePopup, setShowSearchSourcePopup] = useState(false);
   const [hoveredSearchSource, setHoveredSearchSource] = useState<ExternalSearchSource | null>(null);
   const [isIconHovered, setIsIconHovered] = useState(false);
   const [isPopupHovered, setIsPopupHovered] = useState(false);
+
+  // 移动端搜索状态
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
+  // 弹窗延迟隐藏定时器
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Save search config to localStorage
+  /** 保存搜索配置到 localStorage */
   const saveSearchConfig = useCallback(
     (sources: ExternalSearchSource[], mode: SearchMode, selected?: ExternalSearchSource | null) => {
       const candidate = selected !== undefined ? selected : selectedSearchSource;
@@ -148,7 +180,7 @@ export function useSearch() {
     [selectedSearchSource],
   );
 
-  // Handle search mode change
+  /** 切换搜索模式（外部/本地） */
   const handleSearchModeChange = useCallback(
     (mode: SearchMode) => {
       setSearchMode(mode);
@@ -162,7 +194,11 @@ export function useSearch() {
     [externalSearchSources, saveSearchConfig],
   );
 
-  // Handle search source selection
+  /**
+   * 选择搜索源并执行搜索
+   *
+   * 如果搜索框有内容，选择后立即打开新标签页执行搜索。
+   */
   const handleSearchSourceSelect = useCallback(
     (source: ExternalSearchSource) => {
       setSelectedSearchSource(source);
@@ -180,7 +216,12 @@ export function useSearch() {
     [externalSearchSources, searchMode, searchQuery, saveSearchConfig],
   );
 
-  // Handle external search
+  /**
+   * 执行外部搜索
+   *
+   * 使用当前选中的搜索源，将 {query} 占位符替换为搜索词，
+   * 在新标签页打开搜索结果。
+   */
   const handleExternalSearch = useCallback(() => {
     if (searchQuery.trim() && searchMode === 'external') {
       if (externalSearchSources.length === 0) {
@@ -212,7 +253,7 @@ export function useSearch() {
     }
   }, [searchQuery, searchMode, externalSearchSources, selectedSearchSource, saveSearchConfig]);
 
-  // Restore search config
+  /** 从云端同步恢复搜索配置 */
   const restoreSearchConfig = useCallback(
     (config: SearchConfig) => {
       const sources = config.externalSources || [];
@@ -226,7 +267,7 @@ export function useSearch() {
     [saveSearchConfig],
   );
 
-  // Toggle mobile search
+  /** 切换移动端搜索框显示状态 */
   const toggleMobileSearch = useCallback(() => {
     setIsMobileSearchOpen((prev) => !prev);
     if (searchMode !== 'external') {
@@ -234,7 +275,11 @@ export function useSearch() {
     }
   }, [searchMode, handleSearchModeChange]);
 
-  // Initialize from localStorage
+  /**
+   * 初始化：从 localStorage 加载搜索配置
+   *
+   * 如果没有保存的配置，使用默认搜索源列表。
+   */
   useEffect(() => {
     const savedSearchConfig = safeLocalStorageGetItem(SEARCH_CONFIG_KEY);
     if (savedSearchConfig) {
@@ -271,7 +316,12 @@ export function useSearch() {
     }
   }, []);
 
-  // Handle popup visibility with delay
+  /**
+   * 搜索源弹窗显示/隐藏逻辑
+   *
+   * 使用延迟隐藏（100ms）避免鼠标从图标移动到弹窗时闪烁。
+   * 当鼠标在图标或弹窗上时保持显示。
+   */
   useEffect(() => {
     if (isIconHovered || isPopupHovered) {
       if (hideTimeoutRef.current) {

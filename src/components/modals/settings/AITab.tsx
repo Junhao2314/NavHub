@@ -12,6 +12,7 @@ import {
 import React, { useRef, useState } from 'react';
 import { AI_CONNECTION_STATUS_RESET_MS } from '../../../config/ui';
 import {
+  AIServiceError,
   fetchAvailableModels,
   generateLinkDescription,
   testAIConnection,
@@ -48,23 +49,21 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
     setTestingConnection(true);
     setConnectionStatus('idle');
     try {
-      const result = await testAIConnection(config);
-      setConnectionStatus(result ? 'success' : 'error');
-      if (result) {
-        setTimeout(() => setConnectionStatus('idle'), AI_CONNECTION_STATUS_RESET_MS);
-      } else {
-        if (config.provider === 'openai') {
-          notify(
-            '连接失败：请检查 Base URL/模型/API Key。若直连被 CORS 拦截，请使用 Workers/Pages 部署以启用 /api/ai 代理。',
-            'error',
-          );
-        } else {
-          notify('连接失败：请检查模型名称与 API Key', 'error');
-        }
-      }
+      await testAIConnection(config);
+      setConnectionStatus('success');
+      setTimeout(() => setConnectionStatus('idle'), AI_CONNECTION_STATUS_RESET_MS);
     } catch (e) {
       setConnectionStatus('error');
-      notify('连接测试异常，请查看控制台日志', 'error');
+      if (e instanceof AIServiceError) {
+        notify(e.getUserMessage(), 'error');
+      } else if (config.provider === 'openai') {
+        notify(
+          '连接失败：请检查 Base URL/模型/API Key。若直连被 CORS 拦截，请使用 Workers/Pages 部署以启用 /api/ai 代理。',
+          'error',
+        );
+      } else {
+        notify('连接失败：请检查模型名称与 API Key', 'error');
+      }
     } finally {
       setTestingConnection(false);
     }
@@ -94,7 +93,11 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
         }
       }
     } catch (e) {
-      notify('获取模型列表失败', 'error');
+      if (e instanceof AIServiceError) {
+        notify(e.getUserMessage(), 'error');
+      } else {
+        notify('获取模型列表失败', 'error');
+      }
     } finally {
       setFetchingModels(false);
     }
@@ -140,7 +143,8 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
         setProgress({ current: i + 1, total: missingLinks.length });
       } catch (e) {
         console.error(`Failed to generate for ${link.title}`, e);
-        notify(`"${link.title}" 描述生成失败`, 'warning');
+        const errorMsg = e instanceof AIServiceError ? e.getUserMessage() : '生成失败';
+        notify(`"${link.title}"：${errorMsg}`, 'warning');
       }
     }
 

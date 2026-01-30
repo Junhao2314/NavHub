@@ -16,7 +16,7 @@ interface SortableLinkCardProps {
   isSortingPinned: boolean;
 }
 
-const SortableLinkCard: React.FC<SortableLinkCardProps> = ({
+const SortableLinkCard: React.FC<SortableLinkCardProps> = React.memo(({
   link,
   siteCardStyle,
   isSortingMode,
@@ -140,6 +140,8 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = ({
       </div>
     </div>
   );
-};
+});
+
+SortableLinkCard.displayName = 'SortableLinkCard';
 
 export default SortableLinkCard;

@@ -24,7 +24,7 @@ interface LinkCardProps {
   onOpenLink?: (link: LinkItem) => void;
 }
 
-const LinkCard: React.FC<LinkCardProps> = ({
+const LinkCard: React.FC<LinkCardProps> = React.memo(({
   link,
   siteCardStyle,
   isBatchEditMode,
@@ -260,6 +260,8 @@ const LinkCard: React.FC<LinkCardProps> = ({
       )}
     </div>
   );
-};
+});
+
+LinkCard.displayName = 'LinkCard';
 
 export default LinkCard;

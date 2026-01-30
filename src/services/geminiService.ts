@@ -3,6 +3,46 @@ import { AIConfig } from '../types';
 
 const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
 
+/** AI 服务错误类型 */
+export type AIErrorCode =
+  | 'MISSING_API_KEY'
+  | 'MISSING_MODEL'
+  | 'NETWORK_ERROR'
+  | 'API_ERROR'
+  | 'INVALID_RESPONSE'
+  | 'UNKNOWN_ERROR';
+
+/** AI 服务错误 */
+export class AIServiceError extends Error {
+  constructor(
+    public readonly code: AIErrorCode,
+    message: string,
+    public readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = 'AIServiceError';
+  }
+
+  /** 获取用户友好的错误消息 */
+  getUserMessage(): string {
+    switch (this.code) {
+      case 'MISSING_API_KEY':
+        return '请在设置中配置 API Key';
+      case 'MISSING_MODEL':
+        return '请选择 AI 模型';
+      case 'NETWORK_ERROR':
+        return '网络连接失败，请检查网络';
+      case 'API_ERROR':
+        return 'AI 服务调用失败，请稍后重试';
+      case 'INVALID_RESPONSE':
+        return 'AI 返回了无效响应';
+      case 'UNKNOWN_ERROR':
+      default:
+        return '发生未知错误';
+    }
+  }
+}
+
 type OpenAICompatibleUrls = {
   chatCompletionsUrl: string;
   modelsUrl: string;
@@ -58,44 +98,49 @@ const buildOpenAICompatibleUrls = (baseUrlInput: string): OpenAICompatibleUrls =
 
 /**
  * Helper to call OpenAI Compatible API
+ * @throws {AIServiceError} 当调用失败时抛出
  */
 const callOpenAICompatible = async (
   config: AIConfig,
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> => {
+  const apiKey = config.apiKey.trim();
+  const model = config.model.trim();
+  const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
+  const { chatCompletionsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
+
+  if (!apiKey) {
+    throw new AIServiceError('MISSING_API_KEY', 'API Key is required');
+  }
+  if (!model) {
+    throw new AIServiceError('MISSING_MODEL', 'Model is required');
+  }
+
+  const payload = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.7,
+  };
+
+  let response: Response;
   try {
-    const apiKey = config.apiKey.trim();
-    const model = config.model.trim();
-    const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
-    const { chatCompletionsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
-
-    if (!apiKey) return '';
-    if (!model) return '';
-
-    const payload = {
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7,
-    };
-
-    let response: Response;
+    response = await fetch(chatCompletionsUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (directError) {
+    // Fallback: same-origin proxy to bypass browser CORS restrictions.
+    console.warn('Direct OpenAI Compatible request failed, trying /api/ai proxy...', directError);
     try {
-      response = await fetch(chatCompletionsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(payload),
-      });
-    } catch (directError) {
-      // Fallback: same-origin proxy to bypass browser CORS restrictions.
-      console.warn('Direct OpenAI Compatible request failed, trying /api/ai proxy...', directError);
       response = await fetch('/api/ai?action=chat', {
         method: 'POST',
         headers: {
@@ -108,25 +153,31 @@ const callOpenAICompatible = async (
           payload,
         }),
       });
+    } catch (proxyError) {
+      throw new AIServiceError('NETWORK_ERROR', 'Failed to connect to AI service', proxyError);
     }
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error('OpenAI Compatible API Error:', response.status, err);
-      return '';
-    }
-
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
-    return typeof content === 'string' ? content.trim() : '';
-  } catch (e) {
-    console.error('OpenAI Compatible Call Failed', e);
-    return '';
   }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'Unknown error');
+    throw new AIServiceError(
+      'API_ERROR',
+      `API returned ${response.status}: ${errText}`,
+      { status: response.status, body: errText },
+    );
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new AIServiceError('INVALID_RESPONSE', 'AI returned empty or invalid response');
+  }
+  return content.trim();
 };
 
 /**
  * Uses configured AI to generate a description
+ * @throws {AIServiceError} 当调用失败时抛出
  */
 export const generateLinkDescription = async (
   title: string,
@@ -134,7 +185,7 @@ export const generateLinkDescription = async (
   config: AIConfig,
 ): Promise<string> => {
   if (!config.apiKey) {
-    return '请在设置中配置 API Key';
+    throw new AIServiceError('MISSING_API_KEY', 'API Key is required');
   }
 
   const prompt = `
@@ -143,34 +194,38 @@ export const generateLinkDescription = async (
       Please write a very short description (max 15 words) in Chinese (Simplified) that explains what this website is for. Return ONLY the description text. No quotes.
   `;
 
-  try {
-    if (config.provider === 'gemini') {
+  if (config.provider === 'gemini') {
+    try {
       const ai = new GoogleGenAI({ apiKey: config.apiKey });
-      // Use user defined model or fallback
       const modelName = config.model || 'gemini-2.5-flash';
 
       const response: GenerateContentResponse = await ai.models.generateContent({
         model: modelName,
         contents: `I have a website bookmark. ${prompt}`,
       });
-      return response.text ? response.text.trim() : '无法生成描述';
-    } else {
-      // OpenAI Compatible
-      const result = await callOpenAICompatible(
-        config,
-        'You are a helpful assistant that summarizes website bookmarks.',
-        prompt,
-      );
-      return result || '生成描述失败';
+      const text = response.text?.trim();
+      if (!text) {
+        throw new AIServiceError('INVALID_RESPONSE', 'Gemini returned empty response');
+      }
+      return text;
+    } catch (error) {
+      if (error instanceof AIServiceError) throw error;
+      throw new AIServiceError('API_ERROR', 'Gemini API call failed', error);
     }
-  } catch (error) {
-    console.error('AI generation error:', error);
-    return '生成描述失败';
+  } else {
+    // OpenAI Compatible - callOpenAICompatible 已经会抛出 AIServiceError
+    return callOpenAICompatible(
+      config,
+      'You are a helpful assistant that summarizes website bookmarks.',
+      prompt,
+    );
   }
 };
 
 /**
  * Suggests a category
+ * @returns 分类 ID，如果无法分类则返回 null
+ * @throws {AIServiceError} 当调用失败时抛出
  */
 export const suggestCategory = async (
   title: string,
@@ -178,7 +233,9 @@ export const suggestCategory = async (
   categories: { id: string; name: string }[],
   config: AIConfig,
 ): Promise<string | null> => {
-  if (!config.apiKey) return null;
+  if (!config.apiKey) {
+    throw new AIServiceError('MISSING_API_KEY', 'API Key is required');
+  }
   if (categories.length === 0) return null;
 
   const fallbackId = categories.find((c) => c.id === 'common')?.id || categories[0].id;
@@ -200,8 +257,8 @@ export const suggestCategory = async (
     return categories.some((c) => c.id === trimmed) ? trimmed : fallbackId;
   };
 
-  try {
-    if (config.provider === 'gemini') {
+  if (config.provider === 'gemini') {
+    try {
       const ai = new GoogleGenAI({ apiKey: config.apiKey });
       const modelName = config.model || 'gemini-2.5-flash';
 
@@ -210,104 +267,115 @@ export const suggestCategory = async (
         contents: `Task: Categorize this website.\n${prompt}`,
       });
       return normalizeCategoryId(response.text);
-    } else {
-      // OpenAI Compatible
-      const result = await callOpenAICompatible(
-        config,
-        'You are an intelligent classification assistant. You only output the category ID.',
-        prompt,
-      );
-      return normalizeCategoryId(result);
+    } catch (error) {
+      if (error instanceof AIServiceError) throw error;
+      throw new AIServiceError('API_ERROR', 'Gemini API call failed', error);
     }
-  } catch (e) {
-    console.error(e);
-    return null;
+  } else {
+    // OpenAI Compatible
+    const result = await callOpenAICompatible(
+      config,
+      'You are an intelligent classification assistant. You only output the category ID.',
+      prompt,
+    );
+    return normalizeCategoryId(result);
   }
 };
 
 /**
  * Tests the connection to the AI provider
+ * @throws {AIServiceError} 当连接测试失败时抛出
  */
 export const testAIConnection = async (config: AIConfig): Promise<boolean> => {
-  if (!config.apiKey) return false;
+  if (!config.apiKey) {
+    throw new AIServiceError('MISSING_API_KEY', 'API Key is required');
+  }
 
-  try {
-    if (config.provider === 'gemini') {
+  if (config.provider === 'gemini') {
+    try {
       const ai = new GoogleGenAI({ apiKey: config.apiKey });
       const modelName = config.model || 'gemini-2.5-flash';
-      // Try a simple generation
       await ai.models.generateContent({
         model: modelName,
         contents: 'Hello',
       });
       return true;
-    } else {
-      // OpenAI Test
-      const result = await callOpenAICompatible(config, 'You are a connection tester.', 'Ping');
-      return result.length > 0;
+    } catch (error) {
+      throw new AIServiceError('API_ERROR', 'Gemini connection test failed', error);
     }
-  } catch (e) {
-    console.error('Connection Test Failed', e);
-    return false;
+  } else {
+    // OpenAI Test - callOpenAICompatible 会抛出错误
+    await callOpenAICompatible(config, 'You are a connection tester.', 'Ping');
+    return true;
   }
 };
 
 /**
  * Fetches available models from the provider
+ * @throws {AIServiceError} 当获取模型列表失败时抛出
  */
 export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> => {
   const apiKey = config.apiKey.trim();
-  if (!apiKey) return [];
+  if (!apiKey) {
+    throw new AIServiceError('MISSING_API_KEY', 'API Key is required');
+  }
 
-  try {
-    if (config.provider === 'gemini') {
-      type GeminiModelsListResponse = {
-        models?: Array<{ name?: unknown }>;
-      };
-      // Use REST API for listing models to keep it guaranteed
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+  if (config.provider === 'gemini') {
+    type GeminiModelsListResponse = {
+      models?: Array<{ name?: unknown }>;
+    };
+    let response: Response;
+    try {
+      response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
         method: 'GET',
         headers: {
           Accept: 'application/json',
           'x-goog-api-key': apiKey,
         },
       });
-      if (!response.ok) return [];
-      const data = (await response.json()) as GeminiModelsListResponse;
-      // Data format: { models: [{ name: 'models/gemini-pro', ... }] }
-      if (data.models && Array.isArray(data.models)) {
-        return data.models
-          .map((model) =>
-            typeof model?.name === 'string' ? model.name.replace('models/', '') : '',
-          )
-          .filter((name) => name.includes('gemini')); // Simple filter
-      }
-      return [];
-    } else {
-      type OpenAIModelsListResponse = {
-        data?: Array<{ id?: unknown }>;
-      };
-      // OpenAI Compatible
-      const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
-      const { modelsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
+    } catch (error) {
+      throw new AIServiceError('NETWORK_ERROR', 'Failed to fetch Gemini models', error);
+    }
 
-      if (!apiKey) return [];
+    if (!response.ok) {
+      throw new AIServiceError(
+        'API_ERROR',
+        `Failed to fetch models: ${response.status}`,
+        { status: response.status },
+      );
+    }
 
-      let response: Response;
+    const data = (await response.json()) as GeminiModelsListResponse;
+    if (data.models && Array.isArray(data.models)) {
+      return data.models
+        .map((model) =>
+          typeof model?.name === 'string' ? model.name.replace('models/', '') : '',
+        )
+        .filter((name) => name.includes('gemini'));
+    }
+    return [];
+  } else {
+    type OpenAIModelsListResponse = {
+      data?: Array<{ id?: unknown }>;
+    };
+    const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
+    const { modelsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
+
+    let response: Response;
+    try {
+      response = await fetch(modelsUrl, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+    } catch (directError) {
+      console.warn(
+        'Direct OpenAI Compatible models request failed, trying /api/ai proxy...',
+        directError,
+      );
       try {
-        response = await fetch(modelsUrl, {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-        });
-      } catch (directError) {
-        // Fallback: same-origin proxy to bypass browser CORS restrictions.
-        console.warn(
-          'Direct OpenAI Compatible models request failed, trying /api/ai proxy...',
-          directError,
-        );
         response = await fetch('/api/ai?action=models', {
           method: 'POST',
           headers: {
@@ -319,24 +387,26 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
             apiKey,
           }),
         });
+      } catch (proxyError) {
+        throw new AIServiceError('NETWORK_ERROR', 'Failed to fetch models', proxyError);
       }
-
-      if (!response.ok) {
-        return [];
-      }
-
-      const data = (await response.json()) as OpenAIModelsListResponse;
-      // OpenAI format: { data: [ { id: 'gpt-3.5-turbo', ... } ] }
-      if (data.data && Array.isArray(data.data)) {
-        return data.data
-          .map((model) => (typeof model?.id === 'string' ? model.id : ''))
-          .filter(Boolean)
-          .sort();
-      }
-      return [];
     }
-  } catch (e) {
-    console.error('Fetch Models Failed', e);
+
+    if (!response.ok) {
+      throw new AIServiceError(
+        'API_ERROR',
+        `Failed to fetch models: ${response.status}`,
+        { status: response.status },
+      );
+    }
+
+    const data = (await response.json()) as OpenAIModelsListResponse;
+    if (data.data && Array.isArray(data.data)) {
+      return data.data
+        .map((model) => (typeof model?.id === 'string' ? model.id : ''))
+        .filter(Boolean)
+        .sort();
+    }
     return [];
   }
 };

@@ -5,7 +5,7 @@ import {
   LINK_MODAL_SUCCESS_MESSAGE_HIDE_MS,
   LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS,
 } from '../../config/ui';
-import { generateLinkDescription, suggestCategory } from '../../services/geminiService';
+import { generateLinkDescription, suggestCategory, AIServiceError } from '../../services/geminiService';
 import { AIConfig, Category, LinkItem } from '../../types';
 import { getIcon as getFaviconIcon, setIcon as setFaviconIcon } from '../../utils/faviconCache';
 import { getIconToneStyle, normalizeHexColor } from '../../utils/iconTone';
@@ -284,7 +284,11 @@ const LinkModal: React.FC<LinkModalProps> = ({
       }
     } catch (e) {
       console.error('AI Assist failed', e);
-      notify('AI 生成失败，请检查 AI 配置或查看控制台日志', 'error');
+      if (e instanceof AIServiceError) {
+        notify(e.getUserMessage(), 'error');
+      } else {
+        notify('AI 生成失败，请检查 AI 配置或查看控制台日志', 'error');
+      }
     } finally {
       setIsGenerating(false);
     }
