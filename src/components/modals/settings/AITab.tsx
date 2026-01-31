@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { AI_CONNECTION_STATUS_RESET_MS } from '../../../config/ui';
+import { useI18n } from '../../../hooks/useI18n';
 import {
   AIServiceError,
   fetchAvailableModels,
@@ -28,6 +29,7 @@ interface AITabProps {
 }
 
 const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks }) => {
+  const { t } = useI18n();
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [fetchingModels, setFetchingModels] = useState(false);
@@ -41,7 +43,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
 
   const handleTestConnection = async () => {
     if (!config.apiKey.trim()) {
-      notify('请先填写 API Key', 'warning');
+      notify(t('settings.ai.configureApiKeyFirst'), 'warning');
       setConnectionStatus('error');
       return;
     }
@@ -57,12 +59,9 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
       if (e instanceof AIServiceError) {
         notify(e.getUserMessage(), 'error');
       } else if (config.provider === 'openai') {
-        notify(
-          '连接失败：请检查 Base URL/模型/API Key。若直连被 CORS 拦截，请使用 Workers/Pages 部署以启用 /api/ai 代理。',
-          'error',
-        );
+        notify(t('settings.ai.connectionFailedOpenAI'), 'error');
       } else {
-        notify('连接失败：请检查模型名称与 API Key', 'error');
+        notify(t('settings.ai.connectionFailedGemini'), 'error');
       }
     } finally {
       setTestingConnection(false);
@@ -71,7 +70,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
 
   const handleFetchModels = async () => {
     if (!config.apiKey.trim()) {
-      notify('请先填写 API Key', 'warning');
+      notify(t('settings.ai.configureApiKeyFirst'), 'warning');
       return;
     }
 
@@ -84,19 +83,16 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
         setShowModelList(true);
       } else {
         if (config.provider === 'openai') {
-          notify(
-            '未找到可用模型：部分 OpenAI Compatible 不支持 /v1/models，可手动输入。',
-            'warning',
-          );
+          notify(t('settings.ai.noModelsFoundOpenAI'), 'warning');
         } else {
-          notify('未找到可用模型，请检查配置或手动输入。', 'warning');
+          notify(t('settings.ai.noModelsFound'), 'warning');
         }
       }
     } catch (e) {
       if (e instanceof AIServiceError) {
         notify(e.getUserMessage(), 'error');
       } else {
-        notify('获取模型列表失败', 'error');
+        notify(t('settings.ai.noModelsFound'), 'error');
       }
     } finally {
       setFetchingModels(false);
@@ -105,21 +101,21 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
 
   const handleBulkGenerate = async () => {
     if (!config.apiKey) {
-      notify('请先配置并保存 API Key', 'warning');
+      notify(t('settings.ai.configureAndSaveApiKeyFirst'), 'warning');
       return;
     }
 
     const missingLinks = links.filter((l) => !l.description);
     if (missingLinks.length === 0) {
-      notify('所有链接都已有描述！', 'info');
+      notify(t('settings.ai.allLinksHaveDesc'), 'info');
       return;
     }
 
     const shouldGenerate = await confirm({
-      title: '批量生成描述',
-      message: `发现 ${missingLinks.length} 个链接缺少描述，确定要使用 AI 自动生成吗？这可能需要一些时间。`,
-      confirmText: '开始生成',
-      cancelText: '取消',
+      title: t('settings.ai.bulkGenerateConfirmTitle'),
+      message: t('settings.ai.bulkGenerateConfirmMessage', { count: missingLinks.length }),
+      confirmText: t('settings.ai.startGenerate'),
+      cancelText: t('common.cancel'),
     });
 
     if (!shouldGenerate) return;
@@ -143,7 +139,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
         setProgress({ current: i + 1, total: missingLinks.length });
       } catch (e) {
         console.error(`Failed to generate for ${link.title}`, e);
-        const errorMsg = e instanceof AIServiceError ? e.getUserMessage() : '生成失败';
+        const errorMsg = e instanceof AIServiceError ? e.getUserMessage() : t('common.failed');
         notify(`"${link.title}"：${errorMsg}`, 'warning');
       }
     }
@@ -159,13 +155,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
             <Sparkles size={18} />
           </div>
           <div className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-            <p>
-              配置 AI 助手后，可以自动为您的链接生成智能描述和分类建议。Key
-              默认仅在当前会话（sessionStorage）缓存，关闭标签页/浏览器后需重新填写；不会持久化到
-              localStorage。若 sessionStorage 不可用（无痕/被禁用），会回退写入 localStorage
-              以避免丢失（可能跨会话保留）。部分 OpenAI Compatible 接口若浏览器直连受 CORS
-              限制，会自动通过同源 /api/ai 代理请求（需 Workers/Pages 部署）。
-            </p>
+            <p>{t('settings.ai.description')}</p>
           </div>
         </div>
         <div className="flex justify-end mt-1">
@@ -178,7 +168,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
                   ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
             }`}
-            title="测试连接"
+            title={t('settings.ai.testConnection')}
           >
             {testingConnection ? (
               <Loader2 size={12} className="animate-spin" />
@@ -190,12 +180,12 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
               <Zap size={12} />
             )}
             {testingConnection
-              ? '测试中...'
+              ? t('settings.ai.testing')
               : connectionStatus === 'success'
-                ? '连接成功'
+                ? t('settings.ai.connectionSuccess')
                 : connectionStatus === 'error'
-                  ? '连接失败'
-                  : '测试连接'}
+                  ? t('settings.ai.connectionFailed')
+                  : t('settings.ai.testConnection')}
           </button>
         </div>
       </div>
@@ -204,7 +194,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              AI 提供商
+              {t('settings.ai.provider')}
             </label>
             <div className="relative">
               <select
@@ -222,7 +212,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              模型名称
+              {t('settings.ai.modelName')}
             </label>
             <div className="relative">
               <input
@@ -235,7 +225,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
               <button
                 onClick={handleFetchModels}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
-                title="自动获取模型列表"
+                title={t('settings.ai.fetchModels')}
               >
                 {fetchingModels ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -266,7 +256,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
 
         <div>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-            API Key
+            {t('settings.ai.apiKey')}
           </label>
           <div className="relative">
             <Key size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -283,13 +273,13 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
         {config.provider === 'openai' && (
           <div className="animate-in fade-in slide-in-from-top-1 duration-200">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Base URL (可选，支持填 /v1 或完整 /chat/completions)
+              {t('settings.ai.baseUrl')}
             </label>
             <input
               type="text"
               value={config.baseUrl}
               onChange={(e) => onChange('baseUrl', e.target.value)}
-              placeholder="https://api.openai.com/v1"
+              placeholder={t('settings.ai.baseUrlPlaceholder')}
               className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             />
           </div>
@@ -297,12 +287,14 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
       </div>
 
       <div className="pt-6 border-t border-slate-100 dark:border-slate-700/50">
-        <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-3">批量操作</h4>
+        <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-3">
+          {t('settings.ai.bulkOperations')}
+        </h4>
         {isProcessing ? (
           <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                正在生成描述... {progress.current}/{progress.total}
+                {t('settings.ai.generating')} {progress.current}/{progress.total}
               </span>
               <button
                 onClick={() => {
@@ -311,7 +303,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
                 }}
                 className="text-red-500 hover:text-red-600 flex items-center gap-1 text-xs font-medium px-2 py-1 hover:bg-red-50 rounded transition-colors"
               >
-                <PauseCircle size={12} /> 停止
+                <PauseCircle size={12} /> {t('settings.ai.stop')}
               </button>
             </div>
             <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -327,7 +319,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
             className="w-full group flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400"
           >
             <Sparkles size={16} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-medium">自动补全所有缺失的链接描述</span>
+            <span className="text-sm font-medium">{t('settings.ai.bulkGenerateDesc')}</span>
           </button>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { Bot, Database, Globe, Palette, Save, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { DEFAULT_SITE_SETTINGS } from '../../config/defaults';
+import { useI18n } from '../../hooks/useI18n';
 import {
   AIConfig,
   Category,
@@ -10,6 +11,7 @@ import {
   SyncRole,
   VerifySyncPasswordResult,
 } from '../../types';
+import LanguageSwitcher from '../ui/LanguageSwitcher';
 import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
 import DataTab from './settings/DataTab';
@@ -78,6 +80,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onTogglePrivacyAutoUnlock,
   closeOnBackdrop = true,
 }) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'site' | 'ai' | 'appearance' | 'data'>('site');
   const [localConfig, setLocalConfig] = useState<AIConfig>(config);
   const [localSiteSettings, setLocalSiteSettings] = useState<SiteSettings>(() => ({
@@ -134,12 +137,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800/50 shrink-0">
           <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-            设置
+            {t('settings.title')}
           </h3>
           <button
             onClick={onClose}
             className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-            aria-label="关闭设置"
+            aria-label={t('settings.closeSettings')}
           >
             <X size={20} strokeWidth={2} />
           </button>
@@ -157,7 +160,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <Globe size={16} />
-              <span>网站设置</span>
+              <span>{t('settings.tabs.site')}</span>
             </button>
             {canAccessAISettings && (
               <button
@@ -169,7 +172,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 }`}
               >
                 <Bot size={16} />
-                <span>AI 助手</span>
+                <span>{t('settings.tabs.ai')}</span>
               </button>
             )}
             <button
@@ -181,7 +184,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <Palette size={16} />
-              <span>外观</span>
+              <span>{t('settings.tabs.appearance')}</span>
             </button>
             <button
               onClick={() => setActiveTab('data')}
@@ -192,7 +195,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <Database size={16} />
-              <span>数据</span>
+              <span>{t('settings.tabs.data')}</span>
             </button>
           </div>
         </div>
@@ -245,6 +248,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Footer */}
         <div className="p-6 pt-2 border-t border-transparent shrink-0">
+          {/* Language Switcher */}
+          <div className="mb-4">
+            <LanguageSwitcher />
+          </div>
           <button
             onClick={handleSave}
             disabled={syncRole !== 'admin'}
@@ -255,7 +262,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <Save size={16} />
-            <span>{syncRole === 'admin' ? '保存设置' : '用户模式（仅管理员可保存）'}</span>
+            <span>
+              {syncRole === 'admin' ? t('settings.saveSettings') : t('settings.userModeHint')}
+            </span>
           </button>
         </div>
       </div>

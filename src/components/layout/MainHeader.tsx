@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
 import type { ExternalSearchSource, SearchMode } from '../../types';
 import { ADMIN_EDIT_DISABLED_HINT } from '../../utils/adminAccess';
@@ -63,6 +64,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   onOpenSettings,
   onEditDisabled,
 }) => {
+  const { t } = useI18n();
   const themeMode = useAppStore((s) => s.themeMode);
   const siteCardStyle = useAppStore((s) => s.siteSettings.cardStyle);
   const openSidebar = useAppStore((s) => s.openSidebar);
@@ -83,7 +85,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
 
   const editDisabledHint = ADMIN_EDIT_DISABLED_HINT;
   const showSortControls = canSortPinned || canSortCategory || isSortingPinned || isSortingCategory;
-  const sortLabel = canSortPinned ? '排序置顶' : '排序分类';
+  const sortLabel = canSortPinned ? t('header.sortPinned') : t('header.sortCategory');
   const isSorting = isSortingPinned || isSortingCategory;
   const activeSearchSource = hoveredSearchSource ?? selectedSearchSource;
 
@@ -153,9 +155,9 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 ? 'bg-white dark:bg-slate-800 text-accent shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
             }`}
-            title="站内搜索"
+            title={t('header.internalSearchTitle')}
           >
-            站内
+            {t('header.internalSearch')}
           </button>
           <button
             onClick={() => onSearchModeChange('external')}
@@ -164,9 +166,9 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 ? 'bg-white dark:bg-slate-800 text-accent shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
             }`}
-            title="站外搜索"
+            title={t('header.externalSearchTitle')}
           >
-            站外
+            {t('header.externalSearch')}
           </button>
         </div>
 
@@ -184,7 +186,11 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 setShowSearchSourcePopup((prev) => !prev);
               }
             }}
-            title={searchMode === 'external' ? '选择搜索源' : '站内搜索'}
+            title={
+              searchMode === 'external'
+                ? t('header.selectSearchSource')
+                : t('header.internalSearchTitle')
+            }
           >
             {searchMode === 'internal' ? (
               <Search size={15} />
@@ -209,10 +215,10 @@ const MainHeader: React.FC<MainHeaderProps> = ({
             type="text"
             placeholder={
               searchMode === 'internal'
-                ? '搜索站内资源...'
+                ? t('header.searchPlaceholder')
                 : selectedSearchSource
-                  ? `在 ${selectedSearchSource.name} 搜索`
-                  : '搜索全网内容...'
+                  ? t('header.searchInSource', { source: selectedSearchSource.name })
+                  : t('header.searchExternalPlaceholder')
             }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -242,7 +248,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 ? 'text-slate-400 hover:text-accent'
                 : 'text-slate-400 opacity-60 cursor-not-allowed'
             }`}
-            title={canEdit ? '管理搜索源' : editDisabledHint}
+            title={canEdit ? t('header.manageSearchSources') : editDisabledHint}
             aria-disabled={!canEdit}
           >
             <Settings size={14} />
@@ -275,7 +281,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           <button
             onClick={onToggleMobileSearch}
             className="md:hidden p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-accent/50"
-            title="搜索"
+            title={t('common.search')}
           >
             <Search size={18} />
           </button>
@@ -289,7 +295,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                   ? 'bg-white dark:bg-slate-700 text-accent shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
               }`}
-              title="简约视图"
+              title={t('header.simpleView')}
             >
               <List size={16} />
             </button>
@@ -300,7 +306,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                   ? 'bg-white dark:bg-slate-700 text-accent shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
               }`}
-              title="详情视图"
+              title={t('header.detailedView')}
             >
               <LayoutGrid size={16} />
             </button>
@@ -311,7 +317,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
             (isSorting ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm animate-in fade-in zoom-in-95 duration-200">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                  正在排序
+                  {t('header.sorting')}
                 </span>
                 <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                 <button
@@ -327,7 +333,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:scale-105'
                       : 'text-green-600 opacity-60 cursor-not-allowed'
                   }`}
-                  title={canEdit ? '保存排序' : editDisabledHint}
+                  title={canEdit ? t('header.saveSorting') : editDisabledHint}
                   aria-disabled={!canEdit}
                 >
                   <CheckCircle size={16} />
@@ -345,7 +351,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       ? 'text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:scale-105'
                       : 'text-slate-400 opacity-60 cursor-not-allowed'
                   }`}
-                  title={canEdit ? '取消' : editDisabledHint}
+                  title={canEdit ? t('header.cancelSorting') : editDisabledHint}
                   aria-disabled={!canEdit}
                 >
                   <X size={16} />
@@ -380,7 +386,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
               <button
                 onClick={() => setShowThemeMenu(!showThemeMenu)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
-                title="切换主题"
+                title={t('header.switchTheme')}
               >
                 {themeMode === 'system' ? (
                   <Monitor size={16} />
@@ -407,7 +413,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       }`}
                     >
                       <Sun size={16} />
-                      <span>浅色模式</span>
+                      <span>{t('header.lightMode')}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -421,7 +427,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       }`}
                     >
                       <Moon size={16} />
-                      <span>深色模式</span>
+                      <span>{t('header.darkMode')}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -435,7 +441,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       }`}
                     >
                       <Monitor size={16} />
-                      <span>跟随系统</span>
+                      <span>{t('header.systemMode')}</span>
                     </button>
                   </div>
                 </>
@@ -446,7 +452,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
             <button
               onClick={onOpenSettings}
               className="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
-              title="系统设置"
+              title={t('header.systemSettings')}
             >
               <Settings size={16} />
             </button>
@@ -460,7 +466,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 ? 'bg-gradient-to-r from-accent to-accent/80 hover:from-accent hover:to-accent/90 text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 active:scale-95'
                 : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
             }`}
-            title={canEdit ? '添加链接' : editDisabledHint}
+            title={canEdit ? t('header.addLink') : editDisabledHint}
             aria-disabled={!canEdit}
           >
             {canEdit && (
@@ -468,7 +474,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
             )}
             <span className="relative z-10 flex items-center gap-0.5">
               <span className="text-lg leading-none">+</span>{' '}
-              <span className="hidden sm:inline">添加</span>
+              <span className="hidden sm:inline">{t('common.add')}</span>
             </span>
           </button>
         </div>

@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../../hooks/useI18n';
 import { parseBookmarks } from '../../services/bookmarkParser';
 import { AIConfig, Category, LinkItem, SearchConfig } from '../../types';
 import { normalizeHttpUrl } from '../../utils/url';
@@ -38,8 +39,8 @@ interface FolderOption {
 }
 
 const getFolderKey = (path?: string[]) => JSON.stringify(path || []);
-const getFolderLabel = (path?: string[]) => {
-  if (!path || path.length === 0) return '根目录';
+const getFolderLabel = (path?: string[], rootFolderLabel: string = 'Root folder') => {
+  if (!path || path.length === 0) return rootFolderLabel;
   return path.join(' / ');
 };
 
@@ -53,6 +54,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
   onImportAIConfig,
   closeOnBackdrop = true,
 }) => {
+  const { t } = useI18n();
   const { notify } = useDialog();
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
   const [_file, setFile] = useState<File | null>(null);
@@ -86,15 +88,16 @@ const ImportModal: React.FC<ImportModalProps> = ({
         folderMap.set(key, { path, count: 1 });
       }
     });
+    const rootFolderLabel = t('modals.import.rootFolder');
     return Array.from(folderMap.entries())
       .map(([key, value]) => ({
         key,
-        label: getFolderLabel(value.path),
+        label: getFolderLabel(value.path, rootFolderLabel),
         path: value.path,
         count: value.count,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [importType, parsedLinks]);
+  }, [importType, parsedLinks, t]);
 
   useEffect(() => {
     if (importType !== 'html' || step !== 'preview') return;
@@ -211,7 +214,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
     }
 
     if (dropped > 0) {
-      notify(`已过滤 ${dropped} 条非 http/https 或无效 URL 的链接。`, 'warning');
+      notify(t('modals.import.filteredInvalidUrls', { count: dropped }), 'warning');
     }
 
     return {
@@ -285,9 +288,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
       setStep('preview');
     } catch (error) {
       const errorMessage =
-        type === 'html'
-          ? '解析文件失败，请确保是标准的 Chrome HTML 书签文件。'
-          : '解析文件失败，请确保是有效的 NavHub 备份文件。';
+        type === 'html' ? t('modals.import.parseHtmlFailed') : t('modals.import.parseJsonFailed');
       notify(errorMessage, 'error');
       console.error(error);
     } finally {
@@ -381,7 +382,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
           <h3 className="text-lg font-semibold dark:text-white flex items-center gap-2">
-            <Upload size={20} className="text-accent" /> 导入书签
+            <Upload size={20} className="text-accent" /> {t('modals.import.title')}
           </h3>
           <button
             onClick={handleClose}
@@ -411,7 +412,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
                 {analyzing && importType === 'html' ? (
                   <div className="flex flex-col items-center">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent mb-2"></div>
-                    <span className="text-slate-500">正在分析书签文件...</span>
+                    <span className="text-slate-500">{t('modals.import.analyzingHtml')}</span>
                   </div>
                 ) : (
                   <>
@@ -419,9 +420,11 @@ const ImportModal: React.FC<ImportModalProps> = ({
                       <FileText size={32} />
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-medium dark:text-white">点击选择 HTML 文件</p>
+                      <p className="text-sm font-medium dark:text-white">
+                        {t('modals.import.selectHtmlFile')}
+                      </p>
                       <p className="text-xs text-slate-500 mt-1">
-                        支持 Chrome, Edge, Firefox 导出的书签
+                        {t('modals.import.htmlFileHint')}
                       </p>
                     </div>
                   </>
@@ -444,7 +447,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
                 {analyzing && importType === 'json' ? (
                   <div className="flex flex-col items-center">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-500 mb-2"></div>
-                    <span className="text-slate-500">正在分析备份文件...</span>
+                    <span className="text-slate-500">{t('modals.import.analyzingJson')}</span>
                   </div>
                 ) : (
                   <>
@@ -453,10 +456,10 @@ const ImportModal: React.FC<ImportModalProps> = ({
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-medium dark:text-white">
-                        导入 navhub_backup.json 文件
+                        {t('modals.import.importJsonFile')}
                       </p>
                       <p className="text-xs text-slate-500 mt-1">
-                        NavHub 标准备份格式，便于数据迁移
+                        {t('modals.import.jsonFileHint')}
                       </p>
                     </div>
                   </>
@@ -473,19 +476,25 @@ const ImportModal: React.FC<ImportModalProps> = ({
                   <div className="text-xl font-bold text-green-600 dark:text-green-400">
                     {newLinksCount}
                   </div>
-                  <div className="text-xs text-green-700 dark:text-green-500">新增链接</div>
+                  <div className="text-xs text-green-700 dark:text-green-500">
+                    {t('modals.import.newLinks')}
+                  </div>
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-center border border-slate-200 dark:border-slate-600">
                   <div className="text-xl font-bold text-slate-600 dark:text-slate-400">
                     {duplicateCount}
                   </div>
-                  <div className="text-xs text-slate-500">重复跳过</div>
+                  <div className="text-xs text-slate-500">
+                    {t('modals.import.duplicateSkipped')}
+                  </div>
                 </div>
                 <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center border border-purple-100 dark:border-purple-900/30">
                   <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
                     {importMode === 'original' ? newCategoriesCount : 0}
                   </div>
-                  <div className="text-xs text-purple-700 dark:text-purple-500">新增分类</div>
+                  <div className="text-xs text-purple-700 dark:text-purple-500">
+                    {t('modals.import.newCategories')}
+                  </div>
                 </div>
               </div>
 
@@ -494,15 +503,17 @@ const ImportModal: React.FC<ImportModalProps> = ({
                   <AlertCircle size={16} />
                   <span>
                     {isFolderSelectionEmpty
-                      ? '未选择任何文件夹。'
-                      : '未发现新链接，所有链接已存在。'}
+                      ? t('modals.import.noFolderSelected')
+                      : t('modals.import.noNewLinks')}
                   </span>
                 </div>
               )}
 
               {newLinksCount > 0 && (
                 <div className="space-y-3">
-                  <label className="text-sm font-medium dark:text-slate-300">导入方式</label>
+                  <label className="text-sm font-medium dark:text-slate-300">
+                    {t('modals.import.importMethod')}
+                  </label>
 
                   <label
                     className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${importMode === 'original' ? 'border-accent bg-accent/10 dark:bg-accent/20' : 'border-slate-200 dark:border-slate-700'}`}
@@ -516,9 +527,11 @@ const ImportModal: React.FC<ImportModalProps> = ({
                     />
                     <div>
                       <div className="flex items-center gap-2 font-medium text-sm dark:text-white">
-                        <ListTree size={16} /> 保持原目录结构
+                        <ListTree size={16} /> {t('modals.import.keepStructure')}
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">如果分类不存在，将自动创建。</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {t('modals.import.keepStructureHint')}
+                      </p>
                     </div>
                   </label>
 
@@ -534,7 +547,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
                     />
                     <div className="w-full">
                       <div className="flex items-center gap-2 font-medium text-sm dark:text-white">
-                        <FolderInput size={16} /> 全部导入到指定目录
+                        <FolderInput size={16} /> {t('modals.import.importToFolder')}
                       </div>
                       <div className="mt-2">
                         <select
@@ -560,14 +573,14 @@ const ImportModal: React.FC<ImportModalProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium dark:text-slate-300">
-                      选择导入文件夹
+                      {t('modals.import.selectImportFolders')}
                     </label>
                     <button
                       type="button"
                       onClick={toggleAllFolders}
                       className="text-xs text-slate-500 hover:text-accent transition-colors"
                     >
-                      {allFoldersSelected ? '取消全选' : '全选'}
+                      {allFoldersSelected ? t('common.deselectAll') : t('common.selectAll')}
                     </button>
                   </div>
                   <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -591,7 +604,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
                   </div>
                   {selectedFolderKeys.size === 0 && (
                     <div className="text-xs text-amber-600 dark:text-amber-400">
-                      请至少选择一个文件夹
+                      {t('modals.import.selectAtLeastOneFolder')}
                     </div>
                   )}
                 </div>
@@ -607,7 +620,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
               onClick={handleClose}
               className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
-              取消
+              {t('common.cancel')}
             </button>
           ) : (
             <>
@@ -615,14 +628,14 @@ const ImportModal: React.FC<ImportModalProps> = ({
                 onClick={resetState}
                 className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
-                重新选择
+                {t('modals.import.reselect')}
               </button>
               <button
                 onClick={executeImport}
                 disabled={newLinksCount === 0}
                 className="px-4 py-2 text-sm bg-slate-900 dark:bg-accent text-white hover:bg-slate-800 dark:hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2 font-medium"
               >
-                <Check size={16} /> 确认导入 ({newLinksCount})
+                <Check size={16} /> {t('modals.import.confirmImport', { count: newLinksCount })}
               </button>
             </>
           )}

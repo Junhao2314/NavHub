@@ -1,5 +1,14 @@
+import i18n from 'i18next';
 import { create } from 'zustand';
 import { DEFAULT_AI_CONFIG, DEFAULT_SITE_SETTINGS } from '../config/defaults';
+import {
+  DEFAULT_LANGUAGE,
+  detectUserLanguage,
+  LANGUAGE_STORAGE_KEY,
+  loadLanguageResources,
+  SUPPORTED_LANGUAGES,
+  type SupportedLanguageCode,
+} from '../config/i18n';
 import type {
   AIConfig,
   Category,
@@ -15,11 +24,18 @@ export type SetStateAction<T> = T | ((prev: T) => T);
 const resolveNext = <T>(prev: T, next: SetStateAction<T>): T =>
   typeof next === 'function' ? (next as (p: T) => T)(prev) : next;
 
+// Language switching can involve async resource loading and async i18n APIs.
+// Keep it deterministic: if users switch rapidly, only the latest selection should win.
+let languageChangeSeq = 0;
+
 export interface AppStoreData {
   // Hydration flags (internal)
   __hydratedTheme: boolean;
   __hydratedConfig: boolean;
   __hydratedSearch: boolean;
+
+  // Language
+  currentLanguage: SupportedLanguageCode;
 
   // Theme
   themeMode: ThemeMode;
@@ -60,6 +76,10 @@ export interface AppStoreActions {
   __setHydratedTheme: (hydrated: boolean) => void;
   __setHydratedConfig: (hydrated: boolean) => void;
   __setHydratedSearch: (hydrated: boolean) => void;
+
+  // Language
+  setLanguage: (locale: SupportedLanguageCode) => Promise<void>;
+  initLanguage: () => Promise<void>;
 
   // Theme
   setThemeMode: (next: SetStateAction<ThemeMode>) => void;
@@ -113,6 +133,8 @@ export const createInitialAppStoreData = (): AppStoreData => ({
   __hydratedConfig: false,
   __hydratedSearch: false,
 
+  currentLanguage: DEFAULT_LANGUAGE,
+
   themeMode: 'system',
   isDarkMode: false,
 
@@ -148,6 +170,65 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   __setHydratedTheme: (hydrated) => set({ __hydratedTheme: hydrated }),
   __setHydratedConfig: (hydrated) => set({ __hydratedConfig: hydrated }),
   __setHydratedSearch: (hydrated) => set({ __hydratedSearch: hydrated }),
+
+  setLanguage: async (locale) => {
+    const seq = ++languageChangeSeq;
+
+    // Validate that the locale is supported
+    const isSupported = SUPPORTED_LANGUAGES.some((lang) => lang.code === locale);
+    const validLocale = isSupported ? locale : DEFAULT_LANGUAGE;
+
+    try {
+      // Ensure resources are loaded before switching language to avoid a short window
+      // where the store says "en-US" but i18n still renders fallback keys/previous language.
+      await loadLanguageResources(validLocale);
+
+      // Aborted by a newer request.
+      if (seq !== languageChangeSeq) return;
+
+      await i18n.changeLanguage(validLocale);
+
+      // Aborted by a newer request.
+      if (seq !== languageChangeSeq) return;
+    } catch (error) {
+      console.error('Failed to switch language:', error);
+      return;
+    }
+
+    // Persist to localStorage
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, validLocale);
+    } catch {
+      // localStorage may not be available (e.g., private browsing mode)
+      console.warn('Failed to persist language preference to localStorage');
+    }
+
+    // Update store state after i18n is ready to keep UI consistent.
+    set({ currentLanguage: validLocale });
+  },
+
+  initLanguage: async () => {
+    const seq = ++languageChangeSeq;
+
+    // Detect user's preferred language from localStorage or browser settings
+    const detectedLanguage = detectUserLanguage();
+
+    try {
+      await loadLanguageResources(detectedLanguage);
+
+      if (seq !== languageChangeSeq) return;
+
+      await i18n.changeLanguage(detectedLanguage);
+
+      if (seq !== languageChangeSeq) return;
+    } catch (error) {
+      console.error('Failed to initialize language:', error);
+      return;
+    }
+
+    // Update store state
+    set({ currentLanguage: detectedLanguage });
+  },
 
   setThemeMode: (next) => set((state) => ({ themeMode: resolveNext(state.themeMode, next) })),
   __setIsDarkMode: (dark) => set({ isDarkMode: dark }),
@@ -223,5 +304,6 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
 }));
 
 export const resetAppStore = (): void => {
+  languageChangeSeq = 0;
   useAppStore.setState(createInitialAppStoreData());
 };

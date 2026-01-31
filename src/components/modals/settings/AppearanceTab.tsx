@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '../../../hooks/useI18n';
 import { SiteSettings, SiteSettingsChangeHandler } from '../../../types';
 
 interface AppearanceTabProps {
@@ -42,6 +43,7 @@ const hexToRgbString = (hex: string) => {
 };
 
 const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => {
+  const { t } = useI18n();
   const isBackgroundEnabled = !!settings.backgroundImageEnabled;
   const isBackgroundMotionEnabled = !!settings.backgroundMotion;
   const accentHex = rgbStringToHex(settings.accentColor || DEFAULT_ACCENT_COLOR);
@@ -51,7 +53,7 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
       {/* Theme Color */}
       <div>
         <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">
-          主题色调 (Theme Color)
+          {t('settings.appearance.themeColor')}
         </label>
         <div className="grid grid-cols-6 gap-3">
           {[
@@ -88,10 +90,12 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
               }
             }}
             className="h-9 w-12 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800 cursor-pointer"
-            title="自定义颜色"
-            aria-label="自定义颜色"
+            title={t('settings.appearance.customColor')}
+            aria-label={t('settings.appearance.customColor')}
           />
-          <span className="text-xs text-slate-500 dark:text-slate-400">自定义颜色</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {t('settings.appearance.customColor')}
+          </span>
         </div>
       </div>
 
@@ -100,7 +104,7 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
       {/* Background Tone */}
       <div>
         <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">
-          背景风格 (Background)
+          {t('settings.appearance.backgroundStyle')}
         </label>
         <div className="grid grid-cols-3 gap-3">
           <button
@@ -112,8 +116,12 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
             }`}
           >
             <div className="w-full h-12 rounded-lg bg-zinc-500 mb-2 shadow-sm"></div>
-            <div className="text-xs font-bold text-zinc-700 dark:text-zinc-300">高级灰 (Zinc)</div>
-            <div className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">纯净无色偏</div>
+            <div className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+              {t('settings.appearance.zinc')}
+            </div>
+            <div className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
+              {t('settings.appearance.zincDesc')}
+            </div>
           </button>
 
           <button
@@ -125,8 +133,12 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
             }`}
           >
             <div className="w-full h-12 rounded-lg bg-slate-500 mb-2 shadow-sm"></div>
-            <div className="text-xs font-bold text-slate-700 dark:text-slate-300">青灰 (Slate)</div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5">经典冷色调</div>
+            <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              {t('settings.appearance.slate')}
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5">
+              {t('settings.appearance.slateDesc')}
+            </div>
           </button>
 
           <button
@@ -139,10 +151,10 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
           >
             <div className="w-full h-12 rounded-lg bg-neutral-500 mb-2 shadow-sm"></div>
             <div className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
-              暖灰 (Neutral)
+              {t('settings.appearance.neutral')}
             </div>
             <div className="text-[10px] text-neutral-500 dark:text-neutral-500 mt-0.5">
-              柔和舒适
+              {t('settings.appearance.neutralDesc')}
             </div>
           </button>
         </div>
@@ -153,15 +165,15 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
       {/* Custom Background */}
       <div className="space-y-3">
         <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
-          自定义背景
+          {t('settings.appearance.customBackground')}
         </label>
         <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
           <div>
             <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              启用背景图
+              {t('settings.appearance.enableBackgroundImage')}
             </div>
             <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              支持 URL 或 data URL
+              {t('settings.appearance.backgroundImageHint')}
             </div>
           </div>
           <button
@@ -171,7 +183,7 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
               isBackgroundEnabled ? 'bg-accent' : 'bg-slate-300 dark:bg-slate-600'
             }`}
             aria-pressed={isBackgroundEnabled}
-            aria-label="启用背景图"
+            aria-label={t('settings.appearance.enableBackgroundImage')}
           >
             <span
               className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
@@ -204,7 +216,7 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
-            清空
+            {t('common.clear')}
           </button>
         </div>
       </div>
@@ -214,9 +226,11 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
       {/* Background Motion */}
       <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
         <div>
-          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">高光动态</div>
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            {t('settings.appearance.backgroundMotion')}
+          </div>
           <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            轻微流动，提升层次感
+            {t('settings.appearance.backgroundMotionHint')}
           </div>
         </div>
         <button
@@ -226,7 +240,7 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
             isBackgroundMotionEnabled ? 'bg-accent' : 'bg-slate-300 dark:bg-slate-600'
           }`}
           aria-pressed={isBackgroundMotionEnabled}
-          aria-label="高光动态"
+          aria-label={t('settings.appearance.backgroundMotion')}
         >
           <span
             className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${

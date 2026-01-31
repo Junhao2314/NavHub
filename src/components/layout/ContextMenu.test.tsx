@@ -1,8 +1,35 @@
+import i18n from 'i18next';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category } from '../../types';
 import ContextMenu from './ContextMenu';
+
+// Initialize i18n for tests
+i18n.use(initReactI18next).init({
+  lng: 'zh-CN',
+  fallbackLng: 'zh-CN',
+  resources: {
+    'zh-CN': {
+      translation: {
+        contextMenu: {
+          copyLink: '复制链接',
+          duplicateLink: '复制一份',
+          moveToCategory: '转移分组',
+          editLink: '编辑链接',
+          togglePin: '置顶/取消置顶',
+          addToRecommended: '加入常用推荐',
+          removeFromRecommended: '取消常用推荐',
+          deleteLink: '删除链接',
+        },
+      },
+    },
+  },
+  interpolation: {
+    escapeValue: false,
+  },
+});
 
 describe('ContextMenu', () => {
   let container: HTMLDivElement;

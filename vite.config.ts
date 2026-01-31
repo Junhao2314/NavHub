@@ -95,7 +95,7 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks: {
-            // React core libraries
+            // React core libraries (stable, rarely updated - good for long-term caching)
             'vendor-react': ['react', 'react-dom'],
             // Drag and drop libraries
             'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],

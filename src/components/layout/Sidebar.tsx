@@ -1,6 +1,7 @@
 import { ChevronLeft, Settings } from 'lucide-react';
 import React from 'react';
 import { SIDEBAR_SHOW_DATE_PROBABILITY, SIDEBAR_TYPEWRITER_MS } from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
 import { Category } from '../../types';
 import { cn } from '../../utils/cn';
@@ -28,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   isAdmin,
   onOpenCategoryManager,
 }) => {
+  const { t } = useI18n();
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const isSidebarCollapsed = useAppStore((s) => s.isSidebarCollapsed);
   const selectedCategory = useAppStore((s) => s.selectedCategory);
@@ -137,7 +139,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={onToggleCollapsed}
               className="h-9 w-9 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-white/10 flex items-center justify-center transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-accent/20 hover:border-accent/30 hover:bg-white dark:hover:bg-slate-800 hover:scale-105 active:scale-95 group"
-              title="展开侧边栏"
+              title={t('sidebar.expandSidebar')}
             >
               <span className="font-mono font-black text-xl text-slate-700 dark:text-slate-200 group-hover:text-accent transition-colors duration-300">
                 N
@@ -171,8 +173,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onToggleCollapsed}
             className="hidden lg:inline-flex absolute right-2 p-1.5 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors"
-            title="收起侧边栏"
-            aria-label="收起侧边栏"
+            title={t('sidebar.collapseSidebar')}
+            aria-label={t('sidebar.collapseSidebar')}
           >
             <ChevronLeft size={16} />
           </button>
@@ -189,7 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* All / Pinned */}
         <button
           onClick={onSelectAll}
-          title="置顶网站"
+          title={t('sidebar.pinnedSites')}
           className={`relative w-full rounded-xl transition-all duration-200 mb-1 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${
             selectedCategory === 'all'
               ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
@@ -206,7 +208,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {!isSidebarCollapsed && (
             <>
-              <span className="font-medium flex-1 text-left">置顶网站</span>
+              <span className="font-medium flex-1 text-left">{t('sidebar.pinnedSites')}</span>
               {linkCounts['pinned'] > 0 && (
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedCategory === 'all' ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50'}`}
@@ -224,13 +226,13 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           {!isSidebarCollapsed && (
             <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              分类目录
+              {t('sidebar.categoryDirectory')}
             </span>
           )}
           <button
             onClick={onOpenCategoryManager}
             className="p-1 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors"
-            title="管理分类"
+            title={t('sidebar.manageCategories')}
           >
             <Settings size={13} />
           </button>
@@ -275,7 +277,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                       >
                         {cat.name}
                         {isAdmin && cat.hidden && (
-                          <span className="ml-1.5 text-[10px] text-amber-500">(隐藏)</span>
+                          <span className="ml-1.5 text-[10px] text-amber-500">
+                            ({t('sidebar.hidden')})
+                          </span>
                         )}
                       </span>
                       {count > 0 && (
@@ -298,7 +302,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className={`${isSidebarCollapsed ? 'px-2' : 'px-3'} pb-3`}>
             <button
               onClick={onSelectPrivate}
-              title="隐私分组"
+              title={t('sidebar.privacyGroup')}
               className={`relative w-full rounded-xl transition-all duration-200 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${
                 selectedCategory === PRIVATE_CATEGORY_ID
                   ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
@@ -315,7 +319,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
               {!isSidebarCollapsed && (
                 <>
-                  <span className="font-medium flex-1 text-left">隐私分组</span>
+                  <span className="font-medium flex-1 text-left">{t('sidebar.privacyGroup')}</span>
                   {isPrivateUnlocked && privateCount > 0 && (
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedCategory === PRIVATE_CATEGORY_ID ? 'bg-accent/20 text-accent' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50'}`}
@@ -339,7 +343,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
               >
                 <Icon name="Github" size={14} />
-                <span>View on GitHub</span>
+                <span>{t('sidebar.viewOnGitHub')}</span>
               </a>
             </div>
           </div>

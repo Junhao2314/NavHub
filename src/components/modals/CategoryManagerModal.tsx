@@ -33,6 +33,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { useI18n } from '../../hooks/useI18n';
 import { Category } from '../../types';
 import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
@@ -91,6 +92,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   closeOnBackdrop = true,
   isAdmin = false,
 }) => {
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editIcon, setEditIcon] = useState('');
@@ -159,21 +161,24 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   // 批量删除
   const handleBatchDelete = async () => {
     if (selectedCategories.size === 0) {
-      notify('请先选择要删除的分类', 'warning');
+      notify(t('modals.category.selectCategoryFirst'), 'warning');
       return;
     }
 
     const fallbackCategory = getFallbackCategory(selectedCategories);
     if (!fallbackCategory) {
-      notify('至少保留一个分类', 'warning');
+      notify(t('modals.category.keepAtLeastOne'), 'warning');
       return;
     }
 
     const shouldDelete = await confirm({
-      title: '删除分类',
-      message: `确定删除选中的 ${selectedCategories.size} 个分类吗？这些分类下的书签将移动到"${fallbackCategory.name}"。`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('modals.category.deleteConfirmTitle'),
+      message: t('modals.category.batchDeleteConfirmMessage', {
+        count: selectedCategories.size,
+        fallback: fallbackCategory.name,
+      }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'danger',
     });
 
@@ -215,20 +220,26 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   const handleDeleteClick = async (cat: Category) => {
     const fallbackCategory = getFallbackCategory(new Set([cat.id]));
     if (!fallbackCategory) {
-      notify('至少保留一个分类', 'warning');
+      notify(t('modals.category.keepAtLeastOne'), 'warning');
       return;
     }
 
     const prompt =
       cat.id === 'common'
-        ? `确定删除默认分类"${cat.name}"吗？该分类下的书签将移动到"${fallbackCategory.name}"。`
-        : `确定删除"${cat.name}"分类吗？该分类下的书签将移动到"${fallbackCategory.name}"。`;
+        ? t('modals.category.deleteDefaultConfirmMessage', {
+            name: cat.name,
+            fallback: fallbackCategory.name,
+          })
+        : t('modals.category.deleteConfirmMessage', {
+            name: cat.name,
+            fallback: fallbackCategory.name,
+          });
 
     const shouldDelete = await confirm({
-      title: '删除分类',
+      title: t('modals.category.deleteConfirmTitle'),
       message: prompt,
-      confirmText: '删除',
-      cancelText: '取消',
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'danger',
     });
 
@@ -303,7 +314,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700">
-          <h3 className="text-lg font-semibold dark:text-white">分类管理</h3>
+          <h3 className="text-lg font-semibold dark:text-white">{t('modals.category.title')}</h3>
           <div className="flex items-center gap-2">
             {/* 多选模式切换按钮 */}
             <button
@@ -314,7 +325,9 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
-              {isBatchMode ? '取消多选' : '多选'}
+              {isBatchMode
+                ? t('modals.category.cancelMultiSelect')
+                : t('modals.category.multiSelect')}
             </button>
             <button
               onClick={onClose}
@@ -338,10 +351,10 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                 ) : (
                   <Square size={16} />
                 )}
-                <span>全选</span>
+                <span>{t('common.selectAll')}</span>
               </button>
               <span className="text-sm text-slate-600 dark:text-slate-400">
-                已选择 {selectedCategories.size} 个分类
+                {t('modals.category.selectedCount', { count: selectedCategories.size })}
               </span>
             </div>
             <button
@@ -350,7 +363,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
             >
               <Trash2 size={14} />
-              <span>删除选中</span>
+              <span>{t('modals.category.deleteSelected')}</span>
             </button>
           </div>
         )}
@@ -404,8 +417,8 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                               {...attributes}
                               {...listeners}
                               className="p-0.5 text-slate-400 hover:text-blue-500 cursor-grab active:cursor-grabbing"
-                              title="拖拽排序"
-                              aria-label="拖拽排序"
+                              title={t('modals.category.dragToSort')}
+                              aria-label={t('modals.category.dragToSort')}
                             >
                               <GripVertical size={14} />
                             </button>
@@ -414,8 +427,8 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                 onClick={() => handleMove(index, 'up')}
                                 disabled={index === 0}
                                 className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
-                                title="上移"
-                                aria-label="上移"
+                                title={t('modals.category.moveUp')}
+                                aria-label={t('modals.category.moveUp')}
                               >
                                 <ArrowUp size={14} />
                               </button>
@@ -423,8 +436,8 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                 onClick={() => handleMove(index, 'down')}
                                 disabled={index === categories.length - 1}
                                 className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
-                                title="下移"
-                                aria-label="下移"
+                                title={t('modals.category.moveDown')}
+                                aria-label={t('modals.category.moveDown')}
                               >
                                 <ArrowDown size={14} />
                               </button>
@@ -442,14 +455,14 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                   value={editName}
                                   onChange={(e) => setEditName(e.target.value)}
                                   className="flex-1 p-1.5 px-2 text-sm rounded border border-accent dark:bg-slate-800 dark:text-white outline-none"
-                                  placeholder="分类名称"
+                                  placeholder={t('modals.category.categoryName')}
                                   autoFocus
                                 />
                                 <button
                                   type="button"
                                   className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
                                   onClick={() => openIconSelector('edit')}
-                                  title="选择图标"
+                                  title={t('modals.category.selectIcon')}
                                 >
                                   <Palette size={16} />
                                 </button>
@@ -461,10 +474,14 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                               <span className="font-medium dark:text-slate-200 truncate">
                                 {cat.name}
                                 {cat.id === 'common' && (
-                                  <span className="ml-2 text-xs text-slate-400">(默认分类)</span>
+                                  <span className="ml-2 text-xs text-slate-400">
+                                    {t('modals.category.defaultCategoryLabel')}
+                                  </span>
                                 )}
                                 {cat.hidden && (
-                                  <span className="ml-2 text-xs text-amber-500">(已隐藏)</span>
+                                  <span className="ml-2 text-xs text-amber-500">
+                                    {t('modals.category.hiddenLabel')}
+                                  </span>
                                 )}
                               </span>
                             </div>
@@ -493,8 +510,8 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                     }`}
                                     title={
                                       cat.hidden
-                                        ? '取消隐藏（用户模式可见）'
-                                        : '隐藏分类（仅管理员可见）'
+                                        ? t('modals.category.unhideCategory')
+                                        : t('modals.category.hideCategory')
                                     }
                                   >
                                     {cat.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -527,7 +544,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
           <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">
-            添加新分类
+            {t('modals.category.addNewCategory')}
           </label>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
@@ -536,14 +553,14 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                 type="text"
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
-                placeholder="分类名称"
+                placeholder={t('modals.category.categoryName')}
                 className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
               <button
                 type="button"
                 className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                 onClick={() => openIconSelector('new')}
-                title="选择图标"
+                title={t('modals.category.selectIcon')}
               >
                 <Palette size={16} />
               </button>
@@ -571,7 +588,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
               >
                 <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
                   <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-                    选择图标
+                    {t('modals.category.selectIcon')}
                   </h3>
                   <button
                     type="button"

@@ -615,3 +615,5 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     },
   };
 };
+
+export type AppController = ReturnType<typeof useAppController>;

@@ -352,6 +352,45 @@ npm run dev:workers
 
 ---
 
+## 🩺 本地自检（doctor）
+
+遇到本地构建/启动异常（尤其是 Windows 上的 `Error: spawn EPERM`）时，建议先运行自检脚本：
+
+```bash
+npm run doctor
+```
+
+- 若输出 `esbuild JS API build: OK`：通常说明本机可正常使用 Vite/esbuild 构建。
+- 若输出包含 `spawn EPERM`：请参考下节排障。
+
+---
+
+## 🪟 Windows 构建失败（spawn EPERM）排障
+
+部分 Windows 环境（安全软件/受控文件夹/网盘同步目录/企业策略等）可能会阻止 `esbuild.exe` 以“管道通信”方式启动，
+从而导致 Vite 在加载 `vite.config.ts` 时失败，典型报错类似：
+
+> failed to load config ... Error: spawn EPERM
+
+建议按顺序尝试：
+
+1. 运行 `npm run doctor` 复现并确认是 esbuild service 启动失败。
+2. 将项目移动到普通目录（避免 OneDrive/BaiduNetdisk 等同步目录、受控目录、网络盘路径）。
+3. 为项目目录（以及 `node_modules/@esbuild/*/esbuild.exe`）添加杀软/Windows Defender 排除（若策略允许）。
+4. 若为公司/受管设备，请联系管理员放行子进程执行。
+5. 使用 WSL2 / Linux 环境本地构建（CI 默认在 Linux 上构建，通常不受该问题影响）。
+
+> 说明：这类问题通常与项目代码无关，更像是运行环境对 `child_process.spawn` / `esbuild` 的限制。
+
+---
+
+## 💸 KV 指标与降本建议
+
+- 详见：`docs/kv-cost-optimization.md`
+- 大数据量/多端高频同步建议启用 R2（主同步数据优先走 R2；备份/历史仍走 KV）
+
+---
+
 ## 📦 项目结构
 
 ```

@@ -5,6 +5,7 @@ import {
   LINK_MODAL_SUCCESS_MESSAGE_HIDE_MS,
   LINK_MODAL_TAG_SUGGESTIONS_HIDE_DELAY_MS,
 } from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
 import {
   AIServiceError,
   generateLinkDescription,
@@ -61,6 +62,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const { notify } = useDialog();
+  const { t } = useI18n();
   const isEditMode = Boolean(onDelete);
 
   // 过滤出未使用且匹配输入的标签建议
@@ -226,11 +228,11 @@ const LinkModal: React.FC<LinkModalProps> = ({
       setFaviconIcon(domain, iconUrl, false);
     } catch (e) {
       console.error('Failed to fetch icon', e);
-      notify('无法获取图标，请检查URL是否正确', 'error');
+      notify(t('modals.link.fetchIconFailed'), 'error');
     } finally {
       setIsFetchingIcon(false);
     }
-  }, [notify, url]);
+  }, [notify, t, url]);
 
   // 当URL变化且启用自动获取图标时，自动获取图标
   useEffect(() => {
@@ -273,7 +275,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
     const finalUrl = normalizeHttpUrl(url);
     if (!finalUrl) {
-      notify('链接 URL 无效（仅支持 http/https）。', 'warning');
+      notify(t('modals.link.invalidUrl'), 'warning');
       return;
     }
 
@@ -322,7 +324,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const handleAIAssist = async () => {
     if (!url || !title) return;
     if (!aiConfig.apiKey) {
-      notify('请先点击侧边栏左下角设置图标配置 AI API Key', 'warning');
+      notify(t('modals.link.configureAiFirst'), 'warning');
       return;
     }
 
@@ -338,14 +340,14 @@ const LinkModal: React.FC<LinkModalProps> = ({
       if (desc) setDescription(desc);
       if (cat && cat !== categoryId) {
         const name = categories.find((c) => c.id === cat)?.name;
-        notify(`AI 推荐分类：${name || cat}（右上角可手动切换）`, 'info');
+        notify(t('modals.link.aiRecommendCategory', { category: name || cat }), 'info');
       }
     } catch (e) {
       console.error('AI Assist failed', e);
       if (e instanceof AIServiceError) {
         notify(e.getUserMessage(), 'error');
       } else {
-        notify('AI 生成失败，请检查 AI 配置或查看控制台日志', 'error');
+        notify(t('modals.link.aiFillFailed'), 'error');
       }
     } finally {
       setIsGenerating(false);
@@ -367,13 +369,13 @@ const LinkModal: React.FC<LinkModalProps> = ({
       'image/vnd.microsoft.icon',
     ];
     if (!validTypes.includes(file.type)) {
-      notify('请上传 PNG、JPG、SVG 或 ICO 格式的图标', 'warning');
+      notify(t('modals.link.iconFormatError'), 'warning');
       return;
     }
 
     // 验证文件大小 (限制为 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      notify('图标文件大小不能超过 2MB', 'warning');
+      notify(t('modals.link.iconSizeError'), 'warning');
       return;
     }
 
@@ -404,7 +406,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
     };
 
     reader.onerror = () => {
-      notify('读取图标文件失败', 'error');
+      notify(t('modals.link.readIconFailed'), 'error');
       setIsFetchingIcon(false);
     };
 
@@ -452,7 +454,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800/50">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-            {isEditMode ? '编辑链接' : '添加新链接'}
+            {isEditMode ? t('modals.link.editTitle') : t('modals.link.addTitle')}
           </h3>
           <div className="flex items-center gap-2">
             {!isEditMode && (
@@ -464,7 +466,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                   className={`w-2 h-2 rounded-full ${batchMode ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                 />
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-400 select-none">
-                  {batchMode ? '批量模式已开' : '批量模式'}
+                  {batchMode ? t('modals.link.batchModeOn') : t('modals.link.batchMode')}
                 </span>
               </div>
             )}
@@ -492,7 +494,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 }`}
               >
                 <Pin size={13} className={pinned ? 'fill-current' : ''} />
-                {pinned ? '已置顶' : '置顶'}
+                {pinned ? t('modals.link.isPinned') : t('modals.link.pinned')}
               </button>
 
               <button
@@ -508,15 +510,19 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 }`}
                 title={
                   categoryId === 'common'
-                    ? '当前分类已是「常用推荐」'
-                    : '加入「常用推荐」，同时保留原分类'
+                    ? t('modals.link.alreadyRecommendedHint')
+                    : t('modals.link.recommendHint')
                 }
               >
                 <Star
                   size={13}
                   className={recommended || categoryId === 'common' ? 'fill-current' : ''}
                 />
-                {categoryId === 'common' ? '已在此分类' : recommended ? '已推荐' : '推荐'}
+                {categoryId === 'common'
+                  ? t('modals.link.alreadyInCategory')
+                  : recommended
+                    ? t('modals.link.isRecommended')
+                    : t('modals.link.recommend')}
               </button>
 
               {isEditMode && typeof initialData?.id === 'string' && (
@@ -526,7 +532,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border bg-slate-50 border-slate-200 text-slate-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-red-900/20 dark:hover:border-red-800/30 dark:hover:text-red-400"
                 >
                   <Trash2 size={13} />
-                  删除
+                  {t('common.delete')}
                 </button>
               )}
             </div>
@@ -573,7 +579,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                placeholder="网站标题"
+                placeholder={t('modals.link.websiteTitle')}
               />
             </div>
 
@@ -631,7 +637,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     value={icon}
                     onChange={(e) => setIcon(e.target.value)}
                     className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-600 dark:text-slate-300 placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-mono"
-                    placeholder="图标链接..."
+                    placeholder={t('modals.link.iconUrl')}
                   />
                   <div className="flex gap-1">
                     <button
@@ -639,7 +645,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       onClick={handleFetchIcon}
                       disabled={!url || isFetchingIcon}
                       className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="自动获取"
+                      title={t('modals.link.autoFetchIcon')}
                     >
                       {isFetchingIcon ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -651,7 +657,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       type="button"
                       onClick={handleUploadClick}
                       className="p-2 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                      title="上传"
+                      title={t('common.upload')}
                     >
                       <Upload size={16} />
                     </button>
@@ -671,21 +677,23 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       htmlFor="autoFetchIcon"
                       className="text-[10px] text-slate-500 dark:text-slate-400 select-none cursor-pointer"
                     >
-                      输入链接时自动获取
+                      {t('modals.link.autoFetchOnInput')}
                     </label>
                   </div>
                   <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                    支持 SVG, PNG, ICO
+                    {t('modals.link.supportedFormats')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">图标颜色</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {t('modals.link.iconColor')}
+                  </span>
                   <input
                     type="color"
                     value={normalizeHexColor(iconToneInput) || '#64748b'}
                     onChange={(e) => handleTonePickerChange(e.target.value)}
                     className="h-8 w-8 rounded-md border border-slate-200 dark:border-slate-700 bg-transparent cursor-pointer"
-                    aria-label="选择图标颜色"
+                    aria-label={t('modals.link.selectIconColor')}
                   />
                   <input
                     type="text"
@@ -699,7 +707,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     onClick={handleToneAuto}
                     className="px-2 py-1.5 rounded-md text-[10px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                   >
-                    自动
+                    {t('common.auto')}
                   </button>
                 </div>
                 <input
@@ -727,7 +735,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     ) : (
                       <Sparkles size={10} />
                     )}
-                    {isGenerating ? '生成中...' : 'AI 填写'}
+                    {isGenerating ? t('modals.link.aiGenerating') : t('modals.link.aiFill')}
                   </button>
                 )}
               </div>
@@ -735,14 +743,16 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm min-h-[80px] resize-none"
-                placeholder="添加描述..."
+                placeholder={t('modals.link.addDescription')}
               />
             </div>
 
             {/* Tags */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">标签</span>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {t('modals.link.tags')}
+                </span>
                 {tags.length > 0 && (
                   <button
                     type="button"
@@ -752,7 +762,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     }}
                     className="text-[10px] font-medium text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                   >
-                    清空
+                    {t('common.clear')}
                   </button>
                 )}
               </div>
@@ -775,14 +785,14 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     commitTagInput();
                   }}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
-                  placeholder="输入标签，回车/逗号添加"
+                  placeholder={t('modals.link.tagInputPlaceholder')}
                 />
                 {/* 标签建议下拉列表 */}
                 {showTagSuggestions && filteredTagSuggestions.length > 0 && (
                   <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                     <div className="px-3 py-1.5 text-[10px] font-medium text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700 flex items-center gap-1">
                       <Tag size={10} />
-                      已有标签
+                      {t('modals.link.existingTags')}
                     </div>
                     {filteredTagSuggestions.map((tag) => (
                       <button
@@ -811,7 +821,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                         type="button"
                         onClick={() => removeTag(tag)}
                         className="h-4 w-4 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition-colors"
-                        aria-label={`移除标签 ${tag}`}
+                        aria-label={t('modals.link.removeTag', { tag })}
                       >
                         <X size={11} />
                       </button>
@@ -820,7 +830,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 </div>
               )}
               <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                回车/逗号添加，Backspace 可快速删除最后一个标签
+                {t('modals.link.tagHint')}
               </p>
             </div>
           </div>
@@ -840,7 +850,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 >
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
-                保存成功
+                {t('modals.link.saveSuccess')}
               </div>
             )}
 
@@ -848,7 +858,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
               type="submit"
               className="w-full bg-slate-900 dark:bg-accent text-white font-bold py-3.5 px-4 rounded-xl hover:bg-slate-800 dark:hover:bg-accent/90 transition-all shadow-lg shadow-slate-200 dark:shadow-none active:scale-[0.99] text-sm flex items-center justify-center gap-2"
             >
-              <span>保存链接</span>
+              <span>{t('modals.link.saveLink')}</span>
               <svg
                 width="16"
                 height="16"

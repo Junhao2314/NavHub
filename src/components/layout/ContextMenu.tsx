@@ -1,6 +1,7 @@
 import { ChevronRight, Copy, CopyPlus, Edit2, FolderInput, Pin, Star, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
 import { CONTEXT_MENU_VIEWPORT_GUARD_PX } from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
 import { Category } from '../../types';
 import { cn } from '../../utils/cn';
 
@@ -63,6 +64,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [isOpen, onClose]);
 
+  const { t } = useI18n();
+
   if (!isOpen) return null;
 
   // 确保菜单位置不会超出屏幕边界
@@ -72,24 +75,26 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   };
 
   const menuItems = [
-    { icon: Copy, label: '复制链接', onClick: onCopyLink },
-    { icon: CopyPlus, label: '复制一份', onClick: onDuplicateLink },
+    { icon: Copy, label: t('contextMenu.copyLink'), onClick: onCopyLink },
+    { icon: CopyPlus, label: t('contextMenu.duplicateLink'), onClick: onDuplicateLink },
     {
       icon: FolderInput,
-      label: '转移分组',
+      label: t('contextMenu.moveToCategory'),
       onClick: () => {},
       hasSubmenu: true,
     },
-    { icon: Edit2, label: '编辑链接', onClick: onEditLink },
-    { icon: Pin, label: '置顶/取消置顶', onClick: onTogglePin },
+    { icon: Edit2, label: t('contextMenu.editLink'), onClick: onEditLink },
+    { icon: Pin, label: t('contextMenu.togglePin'), onClick: onTogglePin },
     {
       icon: Star,
-      label: isRecommended ? '取消常用推荐' : '加入常用推荐',
+      label: isRecommended
+        ? t('contextMenu.removeFromRecommended')
+        : t('contextMenu.addToRecommended'),
       onClick: onToggleRecommended,
     },
     {
       icon: Trash2,
-      label: '删除链接',
+      label: t('contextMenu.deleteLink'),
       onClick: onDeleteLink,
       className: 'text-red-500 dark:text-red-400',
     },

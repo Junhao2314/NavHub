@@ -6,6 +6,35 @@ import {
   normalizeNavHubSyncData,
 } from '../../shared/syncApi/navHubSyncData';
 import { SYNC_API_ENDPOINT, SYNC_DEBOUNCE_MS, SYNC_META_KEY } from '../utils/constants';
+
+// Mock react-i18next to return translation keys as values for testing
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      // Return the actual translated strings for error messages
+      const translations: Record<string, string> = {
+        'errors.networkError': '网络错误',
+        'errors.networkErrorRetry': '网络错误，请检查网络连接后重试',
+        'errors.pullFailed': '拉取失败',
+        'errors.pushFailed': '推送失败',
+        'errors.backupFailed': '备份失败',
+        'errors.restoreFailed': '恢复失败',
+        'errors.deleteFailed': '删除失败',
+        'errors.invalidDataFormat': '云端数据格式异常',
+        'errors.serverDataFormatError': '云端返回的数据格式异常',
+        'errors.restoreDataFormatError': '恢复失败（数据格式异常）',
+        'errors.storageUnavailable':
+          '浏览器存储不可用（可能处于隐私模式或禁用了站点存储），无法同步',
+      };
+      return translations[key] || key;
+    },
+    i18n: {
+      language: 'zh-CN',
+      changeLanguage: vi.fn(),
+    },
+  }),
+}));
+
 import { buildSyncData, useSyncEngine } from './useSyncEngine';
 
 describe('buildSyncData', () => {

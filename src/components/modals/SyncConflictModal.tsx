@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import React from 'react';
+import { useI18n } from '../../hooks/useI18n';
 import { SyncConflict } from '../../types';
 
 interface SyncConflictModalProps {
@@ -32,14 +33,19 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
   onClose,
   closeOnBackdrop = true,
 }) => {
+  const { t, currentLanguage } = useI18n();
+
   if (!isOpen || !conflict) return null;
 
   const localTime = conflict.localData.meta.updatedAt;
   const remoteTime = conflict.remoteData.meta.updatedAt;
 
+  // Determine locale for date formatting based on current language
+  const dateLocale = currentLanguage === 'zh-CN' ? 'zh-CN' : 'en-US';
+
   const formatTime = (timestamp?: number) => {
-    if (!timestamp) return '未知时间';
-    return new Date(timestamp).toLocaleString('zh-CN', {
+    if (!timestamp) return t('common.unknownTime');
+    return new Date(timestamp).toLocaleString(dateLocale, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -48,12 +54,12 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
   };
 
   const formatDeviceLabel = (deviceId?: string) => {
-    if (!deviceId) return '未知设备';
+    if (!deviceId) return t('common.unknownDevice');
     const parts = deviceId.split('_');
     if (parts.length >= 3 && parts[0] === 'device') {
       const timestamp = Number(parts[1]);
       if (!Number.isNaN(timestamp)) {
-        return `设备 ${new Date(timestamp).toLocaleString('zh-CN', {
+        return `${t('common.device')} ${new Date(timestamp).toLocaleString(dateLocale, {
           month: 'short',
           day: 'numeric',
           hour: '2-digit',
@@ -87,9 +93,11 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
             <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">检测到数据冲突</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+              {t('modals.syncConflict.title')}
+            </h3>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              云端数据已被其他设备更新，请选择要保留的版本
+              {t('modals.syncConflict.description')}
             </p>
           </div>
           <button
@@ -113,12 +121,14 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
           >
             {isLocalNewer && (
               <span className="absolute -top-2.5 left-4 px-2 py-0.5 text-xs font-medium bg-blue-500 text-white rounded-full">
-                较新
+                {t('common.newer')}
               </span>
             )}
             <div className="flex items-center gap-2 mb-3">
               <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <span className="font-medium text-slate-900 dark:text-white">本地版本</span>
+              <span className="font-medium text-slate-900 dark:text-white">
+                {t('modals.syncConflict.localVersion')}
+              </span>
             </div>
 
             <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
@@ -137,11 +147,17 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
               )}
               <div className="flex items-center gap-2">
                 <Link2 className="w-4 h-4" />
-                <span>{conflict.localData.links.length} 个链接</span>
+                <span>
+                  {t('modals.syncConflict.links', { count: conflict.localData.links.length })}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" />
-                <span>{conflict.localData.categories.length} 个分类</span>
+                <span>
+                  {t('modals.syncConflict.categories', {
+                    count: conflict.localData.categories.length,
+                  })}
+                </span>
               </div>
             </div>
 
@@ -152,7 +168,7 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
                 onResolve('local');
               }}
             >
-              使用本地版本
+              {t('modals.syncConflict.useLocalVersion')}
             </button>
           </div>
 
@@ -167,12 +183,14 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
           >
             {!isLocalNewer && (
               <span className="absolute -top-2.5 left-4 px-2 py-0.5 text-xs font-medium bg-purple-500 text-white rounded-full">
-                较新
+                {t('common.newer')}
               </span>
             )}
             <div className="flex items-center gap-2 mb-3">
               <CloudOff className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              <span className="font-medium text-slate-900 dark:text-white">云端版本</span>
+              <span className="font-medium text-slate-900 dark:text-white">
+                {t('modals.syncConflict.remoteVersion')}
+              </span>
             </div>
 
             <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
@@ -191,11 +209,17 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
               )}
               <div className="flex items-center gap-2">
                 <Link2 className="w-4 h-4" />
-                <span>{conflict.remoteData.links.length} 个链接</span>
+                <span>
+                  {t('modals.syncConflict.links', { count: conflict.remoteData.links.length })}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" />
-                <span>{conflict.remoteData.categories.length} 个分类</span>
+                <span>
+                  {t('modals.syncConflict.categories', {
+                    count: conflict.remoteData.categories.length,
+                  })}
+                </span>
               </div>
             </div>
 
@@ -206,7 +230,7 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
                 onResolve('remote');
               }}
             >
-              使用云端版本
+              {t('modals.syncConflict.useRemoteVersion')}
             </button>
           </div>
         </div>
@@ -214,8 +238,7 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
         {/* Footer hint */}
         <div className="px-5 pb-5">
           <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-700/50 text-xs text-slate-500 dark:text-slate-400">
-            <strong>提示：</strong>
-            选择后，另一个版本将被覆盖。如需保留两者，请先导出本地数据后再选择云端版本。
+            {t('modals.syncConflict.hint')}
           </div>
         </div>
       </div>

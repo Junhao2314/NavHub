@@ -14,6 +14,7 @@ import {
   Upload,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '../../../hooks/useI18n';
 import { downloadJsonFile } from '../../../services/exportService';
 import {
   Category,
@@ -111,6 +112,7 @@ const DataTab: React.FC<DataTabProps> = ({
   onDeleteLink,
   onNavigateToCategory,
 }) => {
+  const { t, i18n } = useI18n();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isVerifyingSyncPassword, setIsVerifyingSyncPassword] = useState(false);
@@ -172,8 +174,9 @@ const DataTab: React.FC<DataTabProps> = ({
   const getAuthHeaders = useCallback(getSyncAuthHeaders, []);
 
   const formatBackupTime = (backup: BackupItem) => {
+    const locale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US';
     if (backup.updatedAt) {
-      return new Date(backup.updatedAt).toLocaleString('zh-CN', {
+      return new Date(backup.updatedAt).toLocaleString(locale, {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -183,22 +186,23 @@ const DataTab: React.FC<DataTabProps> = ({
     if (backup.timestamp) {
       return backup.timestamp.replace('T', ' ');
     }
-    return '未知时间';
+    return t('common.unknownTime');
   };
 
   const formatDeviceLabel = (deviceId?: string, browser?: string, os?: string) => {
+    const locale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US';
     // 如果有浏览器和操作系统信息,优先显示
     if (browser && os) {
       return `${browser} • ${os}`;
     }
 
     // 否则使用原有的设备ID格式化逻辑
-    if (!deviceId) return '未知设备';
+    if (!deviceId) return t('common.unknownDevice');
     const parts = deviceId.split('_');
     if (parts.length >= 3 && parts[0] === 'device') {
       const timestamp = Number(parts[1]);
       if (!Number.isNaN(timestamp)) {
-        return `设备 ${new Date(timestamp).toLocaleString('zh-CN', {
+        return `${t('common.device')} ${new Date(timestamp).toLocaleString(locale, {
           month: 'short',
           day: 'numeric',
           hour: '2-digit',
@@ -218,7 +222,7 @@ const DataTab: React.FC<DataTabProps> = ({
       });
       const result = (await response.json()) as SyncListBackupsResponse;
       if (result.success === false) {
-        setBackupError(result.error || '获取同步记录失败');
+        setBackupError(result.error || t('settings.data.fetchBackupsFailed'));
         setBackups([]);
         return;
       }
@@ -226,12 +230,12 @@ const DataTab: React.FC<DataTabProps> = ({
       next.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       setBackups(next);
     } catch (error: unknown) {
-      setBackupError(getErrorMessage(error, '网络错误'));
+      setBackupError(getErrorMessage(error, t('errors.networkError')));
     } finally {
       setIsLoadingBackups(false);
       setHasLoadedBackups(true);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, t]);
 
   const handleRestoreBackup = useCallback(
     async (backupKey: string) => {
@@ -280,12 +284,12 @@ const DataTab: React.FC<DataTabProps> = ({
         const result = (await response.json()) as SyncGetBackupResponse;
 
         if (result.success === false) {
-          setExportError(result.error || '导出失败，请稍后重试');
+          setExportError(result.error || t('settings.data.exportFailed'));
           return;
         }
 
         if (!result.data) {
-          setExportError('导出失败，请稍后重试');
+          setExportError(t('settings.data.exportFailed'));
           return;
         }
 
@@ -294,18 +298,19 @@ const DataTab: React.FC<DataTabProps> = ({
           : `${Date.now()}`;
         downloadJsonFile(result.data, `navhub_backup_${keySuffix}.json`);
       } catch (error: unknown) {
-        setExportError(getErrorMessage(error, '网络错误'));
+        setExportError(getErrorMessage(error, t('errors.networkError')));
       } finally {
         setExportingKey(null);
       }
     },
-    [getAuthHeaders],
+    [getAuthHeaders, t],
   );
 
   const handleVerifySyncPassword = useCallback(async () => {
+    const locale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US';
     if (loginLockedUntil && loginLockedUntil > Date.now()) {
       setSyncPasswordMessage(
-        `登录已锁定，请在 ${new Date(loginLockedUntil).toLocaleString('zh-CN')} 后重试`,
+        t('settings.data.loginLocked', { time: new Date(loginLockedUntil).toLocaleString(locale) }),
       );
       return;
     }
@@ -318,7 +323,7 @@ const DataTab: React.FC<DataTabProps> = ({
       if (result?.success && result.role === 'admin') {
         setLoginLockedUntil(null);
         safeLocalStorageRemoveItem(SYNC_PASSWORD_LOCK_UNTIL_KEY);
-        setSyncPasswordMessage('登录成功：已进入管理员模式');
+        setSyncPasswordMessage(t('settings.data.loginSuccess'));
         return;
       }
 
@@ -326,23 +331,28 @@ const DataTab: React.FC<DataTabProps> = ({
         setLoginLockedUntil(result.lockedUntil);
         safeLocalStorageSetItem(SYNC_PASSWORD_LOCK_UNTIL_KEY, String(result.lockedUntil));
         setSyncPasswordMessage(
-          `登录失败：连续输入错误次数过多，请在 ${new Date(result.lockedUntil).toLocaleString('zh-CN')} 后重试`,
+          t('settings.data.loginFailedLocked', {
+            time: new Date(result.lockedUntil).toLocaleString(locale),
+          }),
         );
         return;
       }
 
-      let message = result?.error || '登录失败：密码错误或无权限';
+      let message = result?.error || t('settings.data.loginFailed');
       if (
         typeof result?.remainingAttempts === 'number' &&
         typeof result?.maxAttempts === 'number'
       ) {
-        message += `（剩余 ${result.remainingAttempts}/${result.maxAttempts} 次）`;
+        message += t('settings.data.remainingAttempts', {
+          remaining: result.remainingAttempts,
+          max: result.maxAttempts,
+        });
       }
       setSyncPasswordMessage(message);
     } finally {
       setIsVerifyingSyncPassword(false);
     }
-  }, [onVerifySyncPassword, loginLockedUntil]);
+  }, [onVerifySyncPassword, loginLockedUntil, t, i18n.language]);
 
   const handleLogoutSyncPassword = useCallback(() => {
     setSyncPasswordMessage(null);
@@ -354,7 +364,9 @@ const DataTab: React.FC<DataTabProps> = ({
 
   const isSyncPasswordReady = password.trim().length > 0;
   const isLoginLocked = !!loginLockedUntil && loginLockedUntil > Date.now();
-  const currentPrivacyMode = useSeparatePrivacyPassword ? '独立密码' : '同步密码';
+  const currentPrivacyMode = useSeparatePrivacyPassword
+    ? t('settings.data.separatePassword')
+    : t('settings.data.syncPassword');
 
   const resetPrivacyMigration = useCallback(() => {
     setPrivacyTarget(null);
@@ -383,7 +395,7 @@ const DataTab: React.FC<DataTabProps> = ({
         newPassword: privacyNewPassword,
       });
       if (!success) {
-        setPrivacyError('迁移失败，请检查密码后重试');
+        setPrivacyError(t('settings.data.migrationFailed'));
         return;
       }
       resetPrivacyMigration();
@@ -396,6 +408,7 @@ const DataTab: React.FC<DataTabProps> = ({
     privacyNewPassword,
     onMigratePrivacyMode,
     resetPrivacyMigration,
+    t,
   ]);
 
   useEffect(() => {
@@ -438,7 +451,7 @@ const DataTab: React.FC<DataTabProps> = ({
       <div>
         <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
           <Database size={16} className="text-slate-500" />
-          数据管理 (Data Management)
+          {t('settings.data.title')}
         </h4>
 
         {/* KV Sync Info */}
@@ -447,10 +460,10 @@ const DataTab: React.FC<DataTabProps> = ({
             <Cloud className="w-5 h-5 text-green-600 dark:text-green-400" />
             <div className="flex-1">
               <div className="font-medium text-green-700 dark:text-green-300">
-                云端自动同步已启用
+                {t('settings.data.cloudSyncEnabled')}
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                数据变更会自动同步到 Cloudflare KV，多端实时同步
+                {t('settings.data.cloudSyncDesc')}
               </div>
             </div>
           </div>
@@ -459,14 +472,14 @@ const DataTab: React.FC<DataTabProps> = ({
           <div className="mt-4 pt-4 border-t border-green-200 dark:border-green-800/50">
             <label className="block text-xs font-bold text-green-800 dark:text-green-200 mb-2 flex items-center gap-1.5">
               <Lock size={12} />
-              API 访问密码 (可选)
+              {t('settings.data.apiPassword')}
             </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={handlePasswordChange}
-                placeholder="未设置密码"
+                placeholder={t('settings.data.apiPasswordPlaceholder')}
                 className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-900 border border-green-200 dark:border-green-800 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
               />
               <button
@@ -478,15 +491,14 @@ const DataTab: React.FC<DataTabProps> = ({
               </button>
             </div>
             <p className="text-[10px] text-green-600/80 dark:text-green-400/80 mt-1.5 leading-relaxed">
-              如需增强安全性，请在 Cloudflare Pages 后台设置 <code>SYNC_PASSWORD</code>{' '}
-              环境变量，并在此处输入相同密码。
+              {t('settings.data.apiPasswordHint')}
             </p>
             <div className="mt-2 flex items-center justify-between text-[10px] text-green-700/80 dark:text-green-300/80">
-              <span>当前模式：</span>
+              <span>{t('settings.data.currentMode')}</span>
               <span
                 className={`font-semibold ${syncRole === 'admin' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'}`}
               >
-                {syncRole === 'admin' ? '管理员' : '用户'}
+                {syncRole === 'admin' ? t('settings.data.adminMode') : t('settings.data.userMode')}
               </span>
             </div>
             {isSyncProtected && (
@@ -498,7 +510,7 @@ const DataTab: React.FC<DataTabProps> = ({
                   className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 disabled:opacity-60"
                 >
                   <RefreshCw size={12} className={isVerifyingSyncPassword ? 'animate-spin' : ''} />
-                  登录
+                  {t('common.login')}
                 </button>
                 <button
                   type="button"
@@ -509,26 +521,29 @@ const DataTab: React.FC<DataTabProps> = ({
                   className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60"
                 >
                   <LogOut size={12} />
-                  退出
+                  {t('common.logout')}
                 </button>
               </div>
             )}
             {isSyncProtected && isLoginLocked && !syncPasswordMessage && (
               <div className="mt-1 text-[10px] text-red-600/80 dark:text-red-400/80">
-                登录已锁定，请在 {new Date(loginLockedUntil as number).toLocaleString('zh-CN')}{' '}
-                后重试
+                {t('settings.data.loginLocked', {
+                  time: new Date(loginLockedUntil as number).toLocaleString(
+                    i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US',
+                  ),
+                })}
               </div>
             )}
             {syncPasswordMessage && (
               <div
-                className={`mt-1 text-[10px] ${syncPasswordMessage.startsWith('登录成功') ? 'text-emerald-700/80 dark:text-emerald-300/80' : 'text-red-600/80 dark:text-red-400/80'}`}
+                className={`mt-1 text-[10px] ${syncPasswordMessage.startsWith(t('settings.data.loginSuccess').split(':')[0]) ? 'text-emerald-700/80 dark:text-emerald-300/80' : 'text-red-600/80 dark:text-red-400/80'}`}
               >
                 {syncPasswordMessage}
               </div>
             )}
             {!isSyncProtected && (
               <div className="mt-1 text-[10px] text-green-600/80 dark:text-green-400/80">
-                未开启密码保护：所有访问者默认拥有管理员权限。
+                {t('settings.data.noPasswordProtection')}
               </div>
             )}
           </div>
@@ -539,10 +554,12 @@ const DataTab: React.FC<DataTabProps> = ({
           <div className="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/40">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
               <Lock size={14} className="text-slate-500" />
-              隐私分组
+              {t('settings.data.privacyGroup')}
             </div>
             <div className="mt-3 flex items-center justify-between">
-              <span className="text-xs text-slate-600 dark:text-slate-300">启用隐私分组</span>
+              <span className="text-xs text-slate-600 dark:text-slate-300">
+                {t('settings.data.enablePrivacyGroup')}
+              </span>
               <button
                 type="button"
                 onClick={() => onTogglePrivacyGroup(!privacyGroupEnabled)}
@@ -557,11 +574,13 @@ const DataTab: React.FC<DataTabProps> = ({
             </div>
             {!privacyGroupEnabled && (
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                已关闭后侧边栏不显示隐私分组
+                {t('settings.data.privacyGroupDisabledHint')}
               </div>
             )}
             <div className="mt-3 flex items-center justify-between">
-              <span className="text-xs text-slate-600 dark:text-slate-300">启用密码</span>
+              <span className="text-xs text-slate-600 dark:text-slate-300">
+                {t('settings.data.enablePassword')}
+              </span>
               <button
                 type="button"
                 onClick={() => onTogglePrivacyPassword(!privacyPasswordEnabled)}
@@ -581,11 +600,13 @@ const DataTab: React.FC<DataTabProps> = ({
             </div>
             {!privacyPasswordEnabled && privacyGroupEnabled && (
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                已关闭密码保护，隐私分组将自动解锁
+                {t('settings.data.passwordDisabledHint')}
               </div>
             )}
             <div className="mt-3 flex items-center justify-between">
-              <span className="text-xs text-slate-600 dark:text-slate-300">自动解锁</span>
+              <span className="text-xs text-slate-600 dark:text-slate-300">
+                {t('settings.data.autoUnlock')}
+              </span>
               <button
                 type="button"
                 onClick={() => onTogglePrivacyAutoUnlock(!privacyAutoUnlockEnabled)}
@@ -602,13 +623,13 @@ const DataTab: React.FC<DataTabProps> = ({
             </div>
             {privacyAutoUnlockEnabled && privacyPasswordEnabled && (
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                仅当前标签页有效，关闭标签页后自动加锁
+                {t('settings.data.autoUnlockHint')}
               </div>
             )}
             {privacyPasswordEnabled && (
               <>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  当前模式：{currentPrivacyMode}
+                  {t('settings.data.currentPrivacyMode', { mode: currentPrivacyMode })}
                 </p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -622,7 +643,7 @@ const DataTab: React.FC<DataTabProps> = ({
                     }
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    切换为独立密码
+                    {t('settings.data.switchToSeparatePassword')}
                   </button>
                   <button
                     type="button"
@@ -630,13 +651,13 @@ const DataTab: React.FC<DataTabProps> = ({
                     disabled={isTogglingPrivacyPassword || !useSeparatePrivacyPassword}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    切换为同步密码
+                    {t('settings.data.switchToSyncPassword')}
                   </button>
                 </div>
 
                 {!isSyncPasswordReady && !useSeparatePrivacyPassword && (
                   <div className="mt-2 text-[10px] text-amber-600 dark:text-amber-400">
-                    启用独立密码前请先设置同步密码。
+                    {t('settings.data.setSyncPasswordFirst')}
                   </div>
                 )}
               </>
@@ -645,18 +666,18 @@ const DataTab: React.FC<DataTabProps> = ({
             {privacyPasswordEnabled && privacyTarget && (
               <div className="mt-4 space-y-3">
                 <div className="text-xs text-slate-600 dark:text-slate-300">
-                  请输入旧密码与新密码后完成迁移。
+                  {t('settings.data.enterPasswordsToMigrate')}
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                    旧密码
+                    {t('settings.data.oldPassword')}
                   </label>
                   <div className="relative">
                     <input
                       type={showPrivacyOldPassword ? 'text' : 'password'}
                       value={privacyOldPassword}
                       onChange={(e) => setPrivacyOldPassword(e.target.value)}
-                      placeholder="请输入旧密码"
+                      placeholder={t('settings.data.oldPasswordPlaceholder')}
                       className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
                     />
                     <button
@@ -670,7 +691,7 @@ const DataTab: React.FC<DataTabProps> = ({
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                    新密码
+                    {t('settings.data.newPassword')}
                   </label>
                   <div className="relative">
                     <input
@@ -678,7 +699,9 @@ const DataTab: React.FC<DataTabProps> = ({
                       value={privacyNewPassword}
                       onChange={(e) => setPrivacyNewPassword(e.target.value)}
                       placeholder={
-                        privacyTarget === 'sync' ? '必须与同步密码一致' : '请输入新独立密码'
+                        privacyTarget === 'sync'
+                          ? t('settings.data.newPasswordSyncPlaceholder')
+                          : t('settings.data.newPasswordPlaceholder')
                       }
                       className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
                     />
@@ -703,14 +726,16 @@ const DataTab: React.FC<DataTabProps> = ({
                     disabled={isMigrating || (privacyTarget === 'separate' && !isSyncPasswordReady)}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isMigrating ? '迁移中...' : '确认迁移'}
+                    {isMigrating
+                      ? t('settings.data.migrating')
+                      : t('settings.data.confirmMigration')}
                   </button>
                   <button
                     type="button"
                     onClick={resetPrivacyMigration}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white"
                   >
-                    取消
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -735,10 +760,10 @@ const DataTab: React.FC<DataTabProps> = ({
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                云端同步记录（最近 20 次）
+                {t('settings.data.syncHistory')}
               </div>
               <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                为节省 Cloudflare KV 配额，自动同步默认不写入记录；手动同步/恢复会生成记录。
+                {t('settings.data.syncHistoryHint')}
               </div>
             </div>
             {syncRole === 'admin' && (
@@ -750,7 +775,7 @@ const DataTab: React.FC<DataTabProps> = ({
                   className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60"
                 >
                   <Cloud size={12} />
-                  {isSyncHistoryVisible ? '隐藏' : '显示'}
+                  {isSyncHistoryVisible ? t('common.hide') : t('common.show')}
                 </button>
                 {isSyncHistoryVisible && (
                   <button
@@ -760,7 +785,7 @@ const DataTab: React.FC<DataTabProps> = ({
                     className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60"
                   >
                     <RefreshCw size={12} className={isLoadingBackups ? 'animate-spin' : ''} />
-                    刷新
+                    {t('common.refresh')}
                   </button>
                 )}
               </div>
@@ -769,16 +794,16 @@ const DataTab: React.FC<DataTabProps> = ({
 
           {syncRole !== 'admin' ? (
             <div className="text-xs text-slate-500 dark:text-slate-400">
-              用户模式下不显示同步记录。输入管理员密码后可查看、恢复、导出与删除记录（当前记录不可删除）。
+              {t('settings.data.userModeNoHistory')}
             </div>
           ) : (
             <>
               <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-                说明：点击统计等“纯统计同步”会同步到云端，但不会写入同步记录（避免刷屏）。
+                {t('settings.data.syncHistoryNote')}
               </div>
               {!isSyncHistoryVisible ? (
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  默认不加载同步记录，点击“显示”后才会从云端读取最近 20 次同步记录。
+                  {t('settings.data.syncHistoryDefaultHidden')}
                 </div>
               ) : (
                 <>
@@ -787,7 +812,9 @@ const DataTab: React.FC<DataTabProps> = ({
                   )}
 
                   {isLoadingBackups && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400">加载中...</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {t('common.loading')}
+                    </div>
                   )}
 
                   {!isLoadingBackups && backupError && (
@@ -795,7 +822,9 @@ const DataTab: React.FC<DataTabProps> = ({
                   )}
 
                   {!isLoadingBackups && !backupError && displayBackups.length === 0 && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400">暂无记录</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {t('settings.data.noRecords')}
+                    </div>
                   )}
 
                   {!isLoadingBackups && !backupError && displayBackups.length > 0 && (
@@ -830,11 +859,13 @@ const DataTab: React.FC<DataTabProps> = ({
                                         : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
                                     }`}
                                   >
-                                    {kind === 'auto' ? '自动同步' : '手动同步'}
+                                    {kind === 'auto'
+                                      ? t('settings.data.autoSync')
+                                      : t('settings.data.manualSync')}
                                   </span>
                                   {isCurrent && (
                                     <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100">
-                                      当前
+                                      {t('common.current')}
                                     </span>
                                   )}
                                 </div>
@@ -849,7 +880,7 @@ const DataTab: React.FC<DataTabProps> = ({
                                       size={12}
                                       className={exportingKey === backup.key ? 'animate-spin' : ''}
                                     />
-                                    导出
+                                    {t('common.export')}
                                   </button>
                                   <button
                                     type="button"
@@ -863,7 +894,7 @@ const DataTab: React.FC<DataTabProps> = ({
                                       size={12}
                                       className={restoringKey === backup.key ? 'animate-spin' : ''}
                                     />
-                                    恢复
+                                    {t('settings.data.restore')}
                                   </button>
                                   <button
                                     type="button"
@@ -881,7 +912,7 @@ const DataTab: React.FC<DataTabProps> = ({
                                       size={12}
                                       className={deletingKey === backup.key ? 'animate-spin' : ''}
                                     />
-                                    删除
+                                    {t('common.delete')}
                                   </button>
                                 </div>
                               </div>
@@ -901,7 +932,7 @@ const DataTab: React.FC<DataTabProps> = ({
                       {totalBackupPages > 1 && (
                         <div className="mt-3 flex items-center justify-between gap-2">
                           <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                            第 {syncHistoryPage}/{totalBackupPages} 页
+                            {t('common.page')} {syncHistoryPage}/{totalBackupPages}
                           </div>
                           <div className="flex items-center gap-1">
                             {Array.from({ length: totalBackupPages }, (_, idx) => {
@@ -952,10 +983,10 @@ const DataTab: React.FC<DataTabProps> = ({
             </div>
             <div className="text-center">
               <div className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-accent">
-                导入数据
+                {t('settings.data.importData')}
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                支持 Chrome HTML 书签或 JSON 备份导入
+                {t('settings.data.importDataHint')}
               </div>
             </div>
           </button>

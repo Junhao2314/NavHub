@@ -1,5 +1,6 @@
 import { Globe, RefreshCw, Upload } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useI18n } from '../../../hooks/useI18n';
 import { SiteSettings, SiteSettingsChangeHandler } from '../../../types';
 import { useDialog } from '../../ui/DialogProvider';
 
@@ -52,6 +53,7 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
   const [generatedIcons, setGeneratedIcons] = useState<string[]>([]);
   const closeOnBackdrop = !!settings.closeOnBackdrop;
   const { notify } = useDialog();
+  const { t } = useI18n();
 
   const updateGeneratedIcons = useCallback((text: string) => {
     const newIcons: string[] = [];
@@ -77,7 +79,7 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
 
     // Validate size (2MB)
     if (file.size > 2 * 1024 * 1024) {
-      notify('图标文件大小不能超过 2MB', 'warning');
+      notify(t('settings.site.iconSizeLimit'), 'warning');
       return;
     }
 
@@ -94,7 +96,7 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
-            网页标题
+            {t('settings.site.pageTitle')}
           </label>
           <input
             type="text"
@@ -108,7 +110,7 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
 
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
-            网站图标
+            {t('settings.site.favicon')}
           </label>
           <div className="flex gap-3">
             <div className="w-14 h-14 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-2 group relative">
@@ -141,7 +143,7 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
                   onClick={() => fileInputRef.current?.click()}
                   className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors border border-slate-200 dark:border-slate-700"
                 >
-                  上传
+                  {t('common.upload')}
                 </button>
                 <input
                   ref={fileInputRef}
@@ -155,14 +157,14 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
               <div className="bg-slate-50 dark:bg-slate-800/30 rounded-lg p-2 border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    随机生成图标
+                    {t('settings.site.randomIcons')}
                   </span>
                   <button
                     type="button"
                     onClick={() => updateGeneratedIcons(settings.title)}
                     className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[10px] font-medium bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 px-1.5 py-0.5 rounded transition-colors"
                   >
-                    <RefreshCw size={10} /> 换一批
+                    <RefreshCw size={10} /> {t('settings.site.regenerateIcons')}
                   </button>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -186,14 +188,16 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
 
       <div>
         <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
-          弹窗交互
+          {t('settings.site.modalInteraction')}
         </label>
         <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
           <div>
             <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              点击遮罩关闭弹窗
+              {t('settings.site.closeOnBackdrop')}
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">关闭可避免误触</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {t('settings.site.closeOnBackdropHint')}
+            </div>
           </div>
           <button
             type="button"
@@ -202,7 +206,7 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
               closeOnBackdrop ? 'bg-accent' : 'bg-slate-300 dark:bg-slate-600'
             }`}
             aria-pressed={closeOnBackdrop}
-            aria-label="点击遮罩关闭弹窗"
+            aria-label={t('settings.site.closeOnBackdrop')}
           >
             <span
               className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${

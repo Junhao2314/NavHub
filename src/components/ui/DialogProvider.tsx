@@ -1,6 +1,7 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { TOAST_AUTO_DISMISS_MS } from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
 import type { ConfirmFn, ConfirmOptions, NotifyFn, ToastVariant } from '../../types/ui';
 
 interface ToastItem {
@@ -36,6 +37,7 @@ const toastToneClass = (variant: ToastVariant) => {
 };
 
 export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useI18n();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
@@ -91,7 +93,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               <button
                 onClick={() => removeToast(toast.id)}
                 className="ml-2 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                aria-label="关闭提示"
+                aria-label={t('errors.closeToast')}
               >
                 <X size={14} />
               </button>
@@ -121,7 +123,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 </div>
                 <div className="flex-1">
                   <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                    {confirmState.options.title || '请确认操作'}
+                    {confirmState.options.title || t('modals.confirm.defaultTitle')}
                   </h3>
                 </div>
               </div>
@@ -136,7 +138,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 onClick={() => handleResolve(false)}
                 className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
-                {confirmState.options.cancelText || '取消'}
+                {confirmState.options.cancelText || t('common.cancel')}
               </button>
               <button
                 onClick={() => handleResolve(true)}
@@ -146,7 +148,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     : 'bg-accent hover:bg-accent/90'
                 }`}
               >
-                {confirmState.options.confirmText || '确定'}
+                {confirmState.options.confirmText || t('common.confirm')}
               </button>
             </div>
           </div>

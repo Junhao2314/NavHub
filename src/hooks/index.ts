@@ -10,6 +10,7 @@
  * - useConfig: AI and site configuration / AI 和站点配置
  * - useContextMenu: Right-click context menu / 右键上下文菜单
  * - useDataStore: Links and categories data management / 链接和分类数据管理
+ * - useI18n: Internationalization / 国际化
  * - useModals: Modal dialogs state / 模态对话框状态
  * - useSearch: Search functionality / 搜索功能
  * - useSidebar: Sidebar state / 侧边栏状态
@@ -22,6 +23,7 @@ export { useBatchEdit } from './useBatchEdit';
 export { useConfig } from './useConfig';
 export { useContextMenu } from './useContextMenu';
 export { useDataStore } from './useDataStore';
+export { type LanguageOption, type UseI18nReturn, useI18n } from './useI18n';
 export { useModals } from './useModals';
 export { useSearch } from './useSearch';
 export { useSidebar } from './useSidebar';
