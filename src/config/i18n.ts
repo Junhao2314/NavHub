@@ -160,23 +160,29 @@ export function detectUserLanguage(): SupportedLanguageCode {
     // localStorage may not be available (e.g., private browsing mode)
   }
 
-  // Check browser language
-  const browserLanguages = navigator.languages || [navigator.language];
+  // Check browser language (guard for non-browser environments like tests/SSR)
+  try {
+    if (typeof navigator !== 'undefined') {
+      const browserLanguages = navigator.languages || [navigator.language];
 
-  for (const browserLang of browserLanguages) {
-    // Exact match
-    if (i18nConfig.supportedLanguages.includes(browserLang)) {
-      return browserLang as SupportedLanguageCode;
-    }
+      for (const browserLang of browserLanguages) {
+        // Exact match
+        if (i18nConfig.supportedLanguages.includes(browserLang)) {
+          return browserLang as SupportedLanguageCode;
+        }
 
-    // Partial match (e.g., 'zh' matches 'zh-CN', 'en' matches 'en-US')
-    const langPrefix = browserLang.split('-')[0];
-    const matchedLang = i18nConfig.supportedLanguages.find((supported) =>
-      supported.startsWith(langPrefix),
-    );
-    if (matchedLang) {
-      return matchedLang as SupportedLanguageCode;
+        // Partial match (e.g., 'zh' matches 'zh-CN', 'en' matches 'en-US')
+        const langPrefix = browserLang.split('-')[0];
+        const matchedLang = i18nConfig.supportedLanguages.find((supported) =>
+          supported.startsWith(langPrefix),
+        );
+        if (matchedLang) {
+          return matchedLang as SupportedLanguageCode;
+        }
+      }
     }
+  } catch {
+    // Ignore and fall back to default.
   }
 
   return DEFAULT_LANGUAGE;

@@ -11,6 +11,7 @@ import {
   MOVE_MENU_PADDING_PX,
   MOVE_MENU_WIDTH_PX,
 } from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
 import { Category, LinkItem } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
@@ -62,6 +63,7 @@ interface LinkSectionsProps {
 }
 
 const ClockWidget: React.FC = () => {
+  const { i18n } = useI18n();
   const [time, setTime] = React.useState(new Date());
 
   React.useEffect(() => {
@@ -69,12 +71,14 @@ const ClockWidget: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const locale = i18n.language || undefined;
+
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+    return date.toLocaleDateString(locale, { month: 'long', day: 'numeric', weekday: 'long' });
   };
 
   return (
@@ -115,6 +119,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   privateUnlockHint,
   privateUnlockSubHint,
 }) => {
+  const { t } = useI18n();
   const selectedCategory = useAppStore((s) => s.selectedCategory);
   const searchQuery = useAppStore((s) => s.searchQuery);
   const searchMode = useAppStore((s) => s.searchMode);
@@ -173,23 +178,23 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     try {
       const success = await onPrivateUnlock(privatePassword);
       if (!success) {
-        setPrivateUnlockError('解锁失败，请检查密码');
+        setPrivateUnlockError(t('linkSections.unlockFailed'));
       } else {
         setPrivatePassword('');
       }
     } finally {
       setIsPrivateUnlocking(false);
     }
-  }, [onPrivateUnlock, privatePassword]);
+  }, [onPrivateUnlock, privatePassword, t]);
 
-  const getGreeting = () => {
+  const getGreeting = React.useCallback(() => {
     const hour = new Date().getHours();
-    if (hour < 6) return '凌晨好';
-    if (hour < 11) return '上午好';
-    if (hour < 14) return '中午好';
-    if (hour < 19) return '下午好';
-    return '晚上好';
-  };
+    if (hour < 6) return t('greeting.earlyMorning');
+    if (hour < 11) return t('greeting.morning');
+    if (hour < 14) return t('greeting.noon');
+    if (hour < 19) return t('greeting.afternoon');
+    return t('greeting.evening');
+  }, [t]);
 
   const readHitokotoCache = React.useCallback(() => {
     try {
@@ -231,14 +236,14 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
         writeHitokotoCache(normalized);
       } catch (_error) {
         if (notifyOnError) {
-          notify('获取一言失败，请稍后再试。', 'warning');
+          notify(t('linkSections.hitokotoFailed'), 'warning');
         }
       } finally {
         hitokotoFetchingRef.current = false;
         setIsHitokotoLoading(false);
       }
     },
-    [notify, writeHitokotoCache],
+    [notify, writeHitokotoCache, t],
   );
 
   React.useEffect(() => {
@@ -259,25 +264,25 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     if (from && fromWho) return `${from} · ${fromWho}`;
     if (from) return from;
     if (fromWho) return fromWho;
-    return '佚名';
-  }, [hitokoto]);
+    return t('common.anonymous');
+  }, [hitokoto, t]);
 
   const hitokotoText = hitokoto?.hitokoto?.trim() || '';
   const activeCategory = React.useMemo(() => {
     if (isPrivateCategory) {
-      return { name: '隐私分组', icon: 'Lock' };
+      return { name: t('sidebar.privacyGroup'), icon: 'Lock' };
     }
     return categories.find((c) => c.id === selectedCategory) || null;
-  }, [categories, isPrivateCategory, selectedCategory]);
+  }, [categories, isPrivateCategory, selectedCategory, t]);
 
   const handleCopyHitokoto = async () => {
     if (!hitokotoText) return;
     const textToCopy = hitokotoAuthor ? `${hitokotoText} — ${hitokotoAuthor}` : hitokotoText;
     try {
       await navigator.clipboard.writeText(textToCopy);
-      notify('已复制到剪贴板', 'success');
+      notify(t('linkSections.copiedToClipboard'), 'success');
     } catch (_error) {
-      notify('复制失败，请手动复制。', 'warning');
+      notify(t('linkSections.copyFailed'), 'warning');
     }
   };
 
@@ -358,9 +363,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
           <div className="pt-8 pb-4 flex items-end justify-between">
             <div>
               <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
-                {getGreeting()}，<span className="text-accent">{siteTitle}</span>
+                {getGreeting()}
+                {t('linkSections.greetingSeparator')}
+                <span className="text-accent">{siteTitle}</span>
               </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">准备开始高效的一天了吗？</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">
+                {t('linkSections.productivePrompt')}
+              </p>
             </div>
             {/* Clock Widget */}
             <div className="hidden sm:block text-right">
@@ -379,19 +388,19 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   <Pin size={16} className="text-accent" />
                 </div>
                 <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-100 dark:to-slate-400">
-                  置顶 / 常用
+                  {t('linkSections.pinnedSectionTitle')}
                 </h2>
               </div>
               {/* Stats as badge */}
               <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
                 <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
-                  {linksCount} 站点
+                  {t('linkSections.stats.sites', { count: linksCount })}
                 </span>
                 <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
-                  {categories.length} 分类
+                  {t('linkSections.stats.categories', { count: categories.length })}
                 </span>
                 <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">
-                  {pinnedLinks.length} 置顶
+                  {t('linkSections.stats.pinned', { count: pinnedLinks.length })}
                 </span>
               </div>
             </div>
@@ -459,9 +468,9 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">
                   {selectedCategory === 'all'
                     ? searchQuery
-                      ? '搜索结果'
-                      : '所有链接'
-                    : activeCategory?.name || '未命名分类'}
+                      ? t('linkSections.searchResults')
+                      : t('linkSections.allLinks')
+                    : activeCategory?.name || t('linkSections.unnamedCategory')}
                 </h2>
                 {displayedLinks.length > 0 && (
                   <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full">
@@ -477,43 +486,45 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     <button
                       onClick={onToggleBatchEditMode}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-accent hover:border-accent/50 focus:ring-accent/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
-                      title="批量编辑"
+                      title={t('linkSections.batchEdit')}
                     >
-                      批量编辑
+                      {t('linkSections.batchEdit')}
                     </button>
                   ) : (
                     <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 shadow-sm backdrop-blur-sm">
                       <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        批量编辑
+                        {t('linkSections.batchEdit')}
                       </span>
                       <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                        已选 {selectedLinksCount}
+                        {t('linkSections.selectedCount', { count: selectedLinksCount })}
                       </span>
                       <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                       <button
                         onClick={onBatchPin}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
-                        title="批量置顶"
+                        title={t('linkSections.batchPin')}
                       >
                         <Pin size={13} />
-                        <span>置顶</span>
+                        <span>{t('modals.link.pinned')}</span>
                       </button>
                       <button
                         onClick={onBatchDelete}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="批量删除"
+                        title={t('linkSections.batchDelete')}
                       >
                         <Trash2 size={13} />
-                        <span>删除</span>
+                        <span>{t('common.delete')}</span>
                       </button>
                       <button
                         onClick={onSelectAll}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                        title="全选/取消全选"
+                        title={t('linkSections.selectDeselectAll')}
                       >
                         <CheckSquare size={13} />
                         <span>
-                          {selectedLinksCount === displayedLinks.length ? '取消全选' : '全选'}
+                          {selectedLinksCount === displayedLinks.length
+                            ? t('common.deselectAll')
+                            : t('common.selectAll')}
                         </span>
                       </button>
                       <div
@@ -524,16 +535,16 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         <button
                           ref={moveMenuButtonRef}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                          title="批量移动"
+                          title={t('linkSections.batchMove')}
                         >
                           <Upload size={13} />
-                          <span>移动</span>
+                          <span>{t('contextMenu.moveToCategory')}</span>
                         </button>
                       </div>
                       <button
                         onClick={onToggleBatchEditMode}
                         className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="退出批量编辑"
+                        title={t('linkSections.exitBatchEdit')}
                       >
                         <X size={14} />
                       </button>
@@ -559,7 +570,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     type="password"
                     value={privatePassword}
                     onChange={(e) => setPrivatePassword(e.target.value)}
-                    placeholder="请输入密码"
+                    placeholder={t('linkSections.enterPassword')}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -578,7 +589,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     disabled={isPrivateUnlocking}
                     className="mt-3 w-full px-3 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isPrivateUnlocking ? '解锁中...' : '解锁'}
+                    {isPrivateUnlocking ? t('linkSections.unlocking') : t('linkSections.unlock')}
                   </button>
                 </div>
               </div>
@@ -587,13 +598,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
                   <Search size={32} className="opacity-40" />
                 </div>
-                <p className="text-sm">没有找到相关内容</p>
+                <p className="text-sm">{t('linkSections.noContent')}</p>
                 {selectedCategory !== 'all' && (
                   <button
                     onClick={onAddLink}
                     className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded"
                   >
-                    添加一个?
+                    {t('linkSections.addOne')}
                   </button>
                 )}
               </div>
@@ -669,11 +680,14 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               type="button"
               onClick={handleCopyHitokoto}
               className="flex min-w-0 max-w-[70vw] items-center gap-1.5 text-left hover:text-slate-500 dark:hover:text-slate-300 transition-colors"
-              title={hitokotoText || '一言获取中'}
-              aria-label="点击复制一言"
+              title={hitokotoText || t('linkSections.hitokotoLoading')}
+              aria-label={t('linkSections.clickToCopyHitokoto')}
             >
               <span className="truncate">
-                {hitokotoText || (isHitokotoLoading ? '一言获取中…' : '点击刷新获取一言')}
+                {hitokotoText ||
+                  (isHitokotoLoading
+                    ? t('linkSections.hitokotoLoadingEllipsis')
+                    : t('linkSections.clickToRefreshHitokoto'))}
               </span>
               {hitokotoText && (
                 <span className="shrink-0 text-slate-400/80 dark:text-slate-500">
@@ -685,8 +699,8 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               type="button"
               onClick={() => fetchHitokoto(true)}
               className="h-6 w-6 inline-flex items-center justify-center rounded-full text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-60"
-              title="刷新一言"
-              aria-label="刷新一言"
+              title={t('linkSections.refreshHitokoto')}
+              aria-label={t('linkSections.refreshHitokoto')}
               disabled={isHitokotoLoading}
             >
               <RefreshCw size={13} className={isHitokotoLoading ? 'animate-spin' : ''} />

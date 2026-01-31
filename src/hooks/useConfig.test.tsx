@@ -69,8 +69,8 @@ describe('useConfig', () => {
 
     expect(get().aiConfig.provider).toBe('gemini');
     expect(get().aiConfig.model).toBe('gemini-2.5-flash');
-    expect(get().siteSettings.title).toBe('NavHub - AI 智能导航仪');
-    expect(document.title).toBe('NavHub - AI 智能导航仪');
+    expect(get().siteSettings.title).toBe('NavHub - AI Smart Navigator');
+    expect(document.title).toBe('NavHub - AI Smart Navigator');
     expect(get().navTitleText).toBe('NavHub');
     expect(get().navTitleShort).toBe('Na');
   });

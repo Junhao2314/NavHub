@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { buildDefaultSearchSources } from '../config/defaults';
+import { detectUserLanguage } from '../config/i18n';
 import { useAppStore } from '../stores/useAppStore';
 import { ExternalSearchSource, SearchConfig, SearchMode } from '../types';
 import { SEARCH_CONFIG_KEY } from '../utils/constants';
@@ -214,7 +215,31 @@ export function useSearch() {
       try {
         const parsed = JSON.parse(savedSearchConfig) as SearchConfig;
         if (parsed?.mode) {
-          const sources = parsed.externalSources || [];
+          const locale = detectUserLanguage();
+          const legacyLocale = locale.startsWith('zh') ? 'en-US' : 'zh-CN';
+          const defaultsById = new Map(
+            buildDefaultSearchSources(locale).map((s) => [s.id, s] as const),
+          );
+          const legacyById = new Map(
+            buildDefaultSearchSources(legacyLocale).map((s) => [s.id, s] as const),
+          );
+
+          const sources = (parsed.externalSources || []).map((source) => {
+            const current = defaultsById.get(source.id);
+            const legacy = legacyById.get(source.id);
+            if (!current || !legacy) return source;
+
+            // Upgrade only if the user kept the old default label/url.
+            const shouldUpgradeName = source.name === legacy.name && current.name !== legacy.name;
+            const shouldUpgradeUrl = source.url === legacy.url && current.url !== legacy.url;
+            if (!shouldUpgradeName && !shouldUpgradeUrl) return source;
+
+            return {
+              ...source,
+              name: shouldUpgradeName ? current.name : source.name,
+              url: shouldUpgradeUrl ? current.url : source.url,
+            };
+          });
           const resolvedSelected = resolveSelectedSource(
             sources,
             parsed.selectedSourceId,

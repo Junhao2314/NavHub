@@ -1,9 +1,50 @@
+import i18n from 'i18next';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SYNC_STATUS_AUTO_HIDE_DELAY_MS, SYNC_STATUS_EXIT_ANIMATION_MS } from '../../config/ui';
 import type { SyncStatus } from '../../types';
 import SyncStatusIndicator from './SyncStatusIndicator';
+
+// Initialize i18n for tests
+i18n.use(initReactI18next).init({
+  lng: 'zh-CN',
+  fallbackLng: 'zh-CN',
+  resources: {
+    'zh-CN': {
+      translation: {
+        sync: {
+          synced: '已同步',
+          lastSync: '上次: {{time}}',
+          syncedWithCloud: '与云端同步',
+          syncedClickRefresh: '已同步，点击刷新',
+          syncedLastClickRefresh: '已同步 (上次: {{time}})，点击刷新',
+          syncing: '同步中',
+          syncingWithCloud: '与云端同步中…',
+          syncingPleaseWait: '同步中，请稍候…',
+          pending: '待同步',
+          pendingAutoSync: '约 {{seconds}}s 后自动同步（点击立即同步）',
+          pendingDetected: '检测到本地变更，约 {{seconds}}s 后自动同步（点击立即同步）',
+          storageUnavailable: '存储不可用',
+          networkError: '网络错误',
+          syncFailed: '同步失败',
+          unknownError: '发生未知错误',
+          errorClickRetry: '{{label}}（点击重试）',
+          errorWithMessageClickRetry: '{{label}}：{{message}}（点击重试）',
+          conflict: '有冲突',
+          conflictDescription: '本地与云端数据不一致（点击处理）',
+          conflictDetected: '检测到同步冲突，点击处理',
+          disconnected: '待连接',
+          disconnectedClickRefresh: '待连接，点击刷新',
+        },
+      },
+    },
+  },
+  interpolation: {
+    escapeValue: false,
+  },
+});
 
 describe('SyncStatusIndicator', () => {
   let container: HTMLDivElement;

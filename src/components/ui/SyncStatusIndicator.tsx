@@ -1,12 +1,15 @@
 /**
- * SyncStatusIndicator - 同步状态指示器
+ * SyncStatusIndicator - Sync Status Indicator
+ * 同步状态指示器
  *
+ * Only shows on status change, auto-hides after sync success
  * 仅在状态变化时显示，同步成功后自动消失
  */
 
 import { AlertCircle, Check, Cloud, CloudUpload, GitMerge, RefreshCw } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SYNC_STATUS_AUTO_HIDE_DELAY_MS, SYNC_STATUS_EXIT_ANIMATION_MS } from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
 import { SyncErrorKind, SyncStatus } from '../../types';
 import { SYNC_DEBOUNCE_MS } from '../../utils/constants';
 
@@ -21,22 +24,21 @@ interface SyncStatusIndicatorProps {
   className?: string;
 }
 
-const formatLastSyncTime = (timestamp: number | null): string | null => {
+const formatLastSyncTime = (timestamp: number | null, locale?: string): string | null => {
   if (!timestamp) return null;
 
   const date = new Date(timestamp);
   const now = new Date();
   const isSameDay = now.toDateString() === date.toDateString();
 
-  const time = date.toLocaleTimeString('zh-CN', {
+  const time = date.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
   });
 
   if (isSameDay) return time;
 
-  const datePart = date.toLocaleDateString('zh-CN', {
+  const datePart = date.toLocaleDateString(locale, {
     month: '2-digit',
     day: '2-digit',
   });
@@ -54,6 +56,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   onOpenConflict,
   className = '',
 }) => {
+  const { t, i18n } = useI18n();
   const [visible, setVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const hideTimer = useRef<NodeJS.Timeout | null>(null);
@@ -110,7 +113,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   }, [clearHideTimer]);
 
   const getStatusConfig = () => {
-    const lastSyncedText = formatLastSyncTime(lastSyncTime);
+    const lastSyncedText = formatLastSyncTime(lastSyncTime, i18n.language || undefined);
     const autoSyncSeconds = Math.max(1, Math.round(SYNC_DEBOUNCE_MS / 1000));
 
     switch (status) {
@@ -120,12 +123,14 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           color: 'text-green-500',
           bgColor: 'bg-green-500/10 dark:bg-green-500/20',
           borderColor: 'border-green-500/30',
-          label: '已同步',
-          description: lastSyncedText ? `上次：${lastSyncedText}` : '已与云端一致',
+          label: t('sync.synced'),
+          description: lastSyncedText
+            ? t('sync.lastSync', { time: lastSyncedText })
+            : t('sync.syncedWithCloud'),
           animate: false as const,
           title: lastSyncedText
-            ? `已同步（上次：${lastSyncedText}），点击从云端刷新`
-            : '已同步，点击从云端刷新',
+            ? t('sync.syncedLastClickRefresh', { time: lastSyncedText })
+            : t('sync.syncedClickRefresh'),
         };
       case 'syncing':
         return {
@@ -133,10 +138,10 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           color: 'text-blue-500',
           bgColor: 'bg-blue-500/10 dark:bg-blue-500/20',
           borderColor: 'border-blue-500/30',
-          label: '同步中',
-          description: '正在与云端同步…',
+          label: t('sync.syncing'),
+          description: t('sync.syncingWithCloud'),
           animate: 'spin' as const,
-          title: '同步中，请稍候…',
+          title: t('sync.syncingPleaseWait'),
         };
       case 'pending':
         return {
@@ -144,18 +149,18 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           color: 'text-orange-500',
           bgColor: 'bg-orange-500/10 dark:bg-orange-500/20',
           borderColor: 'border-orange-500/30',
-          label: '待同步',
-          description: `约 ${autoSyncSeconds} 秒内自动同步（可点击立即同步）`,
+          label: t('sync.pending'),
+          description: t('sync.pendingAutoSync', { seconds: autoSyncSeconds }),
           animate: false as const,
-          title: `检测到本地变更，约 ${autoSyncSeconds} 秒内自动同步（点击立即同步）`,
+          title: t('sync.pendingDetected', { seconds: autoSyncSeconds }),
         };
       case 'error': {
         const label =
           errorKind === 'storage'
-            ? '存储不可用'
+            ? t('sync.storageUnavailable')
             : errorKind === 'network'
-              ? '网络错误'
-              : '同步失败';
+              ? t('sync.networkError')
+              : t('sync.syncFailed');
         const message = (errorMessage || '').trim();
         return {
           icon: AlertCircle,
@@ -163,9 +168,11 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           bgColor: 'bg-red-500/10 dark:bg-red-500/20',
           borderColor: 'border-red-500/30',
           label,
-          description: message || '发生未知错误',
+          description: message || t('sync.unknownError'),
           animate: false as const,
-          title: message ? `${label}：${message}（点击重试）` : `${label}（点击重试）`,
+          title: message
+            ? t('sync.errorWithMessageClickRetry', { label, message })
+            : t('sync.errorClickRetry', { label }),
         };
       }
       case 'conflict':
@@ -174,10 +181,10 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           color: 'text-amber-500',
           bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
           borderColor: 'border-amber-500/30',
-          label: '有冲突',
-          description: '本地与云端数据不一致（点击处理）',
+          label: t('sync.conflict'),
+          description: t('sync.conflictDescription'),
           animate: 'pulse',
-          title: '检测到同步冲突，点击处理',
+          title: t('sync.conflictDetected'),
         };
       default:
         return {
@@ -185,10 +192,10 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
           color: 'text-slate-400',
           bgColor: 'bg-slate-400/10',
           borderColor: 'border-slate-400/30',
-          label: '待连接',
-          description: lastSyncedText ? `上次：${lastSyncedText}` : undefined,
+          label: t('sync.disconnected'),
+          description: lastSyncedText ? t('sync.lastSync', { time: lastSyncedText }) : undefined,
           animate: false as const,
-          title: '待连接，点击刷新',
+          title: t('sync.disconnectedClickRefresh'),
         };
     }
   };

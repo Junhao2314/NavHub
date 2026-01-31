@@ -41,7 +41,52 @@
     "page": "Page",
     "of": "of",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "anonymous": "Anonymous"
+  },
+  "greeting": {
+    "earlyMorning": "Good early morning",
+    "morning": "Good morning",
+    "noon": "Good afternoon",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "linkSections": {
+    "unlockFailed": "Unlock failed, please check password",
+    "hitokotoFailed": "Failed to fetch quote, please try again later.",
+    "copiedToClipboard": "Copied to clipboard",
+    "copyFailed": "Copy failed, please copy manually.",
+    "greetingSeparator": ", ",
+    "productivePrompt": "Ready to start a productive day?",
+    "pinnedSectionTitle": "Pinned / Favorites",
+    "selectedCount": "Selected {{count}}",
+    "stats": {
+      "sites_one": "{{count}} site",
+      "sites_other": "{{count}} sites",
+      "categories_one": "{{count}} category",
+      "categories_other": "{{count}} categories",
+      "pinned_one": "{{count}} pinned item",
+      "pinned_other": "{{count}} pinned items"
+    },
+    "searchResults": "Search Results",
+    "allLinks": "All Links",
+    "unnamedCategory": "Unnamed Category",
+    "batchEdit": "Batch Edit",
+    "batchPin": "Batch Pin",
+    "batchDelete": "Batch Delete",
+    "selectDeselectAll": "Select/Deselect All",
+    "batchMove": "Batch Move",
+    "exitBatchEdit": "Exit Batch Edit",
+    "enterPassword": "Enter password",
+    "unlocking": "Unlocking...",
+    "unlock": "Unlock",
+    "hitokotoLoading": "Loading quote",
+    "hitokotoLoadingEllipsis": "Loading quote…",
+    "clickToRefreshHitokoto": "Click to refresh quote",
+    "refreshHitokoto": "Refresh quote",
+    "clickToCopyHitokoto": "Click to copy quote",
+    "noContent": "No content found",
+    "addOne": "Add one?"
   },
   "header": {
     "internalSearch": "Internal",
@@ -61,6 +106,7 @@
     "saveSorting": "Save sorting",
     "cancelSorting": "Cancel",
     "switchTheme": "Switch theme",
+    "switchLanguage": "Switch language",
     "lightMode": "Light mode",
     "darkMode": "Dark mode",
     "systemMode": "System",
@@ -77,6 +123,9 @@
     "viewOnGitHub": "View on GitHub",
     "hidden": "Hidden",
     "defaultCategory": "Default Category"
+  },
+  "admin": {
+    "editDisabledHint": "User mode cannot edit. Please enter the API access password to switch to admin mode."
   },
   "settings": {
     "title": "Settings",
@@ -337,7 +386,11 @@
     "serverDataFormatError": "Server returned invalid data format",
     "restoreDataFormatError": "Restore failed (invalid data format)",
     "storageUnavailable": "Browser storage unavailable (may be in private mode or site storage disabled), cannot sync",
-    "closeToast": "Close notification"
+    "closeToast": "Close notification",
+    "pageError": "Page error occurred",
+    "somethingWentWrong": "Something went wrong",
+    "refreshPage": "Refresh page",
+    "tryAgain": "Try again"
   },
   "contextMenu": {
     "copyLink": "Copy link",
@@ -348,5 +401,57 @@
     "addToRecommended": "Add to recommended",
     "removeFromRecommended": "Remove from recommended",
     "deleteLink": "Delete link"
+  },
+  "sync": {
+    "synced": "Synced",
+    "lastSync": "Last: {{time}}",
+    "syncedWithCloud": "In sync with cloud",
+    "syncedClickRefresh": "Synced, click to refresh from cloud",
+    "syncedLastClickRefresh": "Synced (Last: {{time}}), click to refresh from cloud",
+    "syncing": "Syncing",
+    "syncingWithCloud": "Syncing with cloud…",
+    "syncingPleaseWait": "Syncing, please wait…",
+    "pending": "Pending",
+    "pendingAutoSync": "Auto-sync in ~{{seconds}}s (click to sync now)",
+    "pendingDetected": "Local changes detected, auto-sync in ~{{seconds}}s (click to sync now)",
+    "storageUnavailable": "Storage unavailable",
+    "networkError": "Network error",
+    "syncFailed": "Sync failed",
+    "unknownError": "Unknown error occurred",
+    "errorClickRetry": "{{label}} (click to retry)",
+    "errorWithMessageClickRetry": "{{label}}: {{message}} (click to retry)",
+    "conflict": "Conflict",
+    "conflictDescription": "Local and cloud data mismatch (click to resolve)",
+    "conflictDetected": "Sync conflict detected, click to resolve",
+    "disconnected": "Disconnected",
+    "disconnectedClickRefresh": "Disconnected, click to refresh"
+  },
+  "iconSelector": {
+    "searchPlaceholder": "Search icons...",
+    "inputIconName": "Enter icon name:",
+    "inputExample": "e.g., star, heart, cloud...",
+    "invalidIcon": "Invalid icon",
+    "currentSelection": "Current selection:",
+    "noMatchingIcons": "No matching icons found",
+    "hint": "Tip: Supports emoji/text; Lucide icons only support built-in subset",
+    "confirmSelection": "Confirm"
+  },
+  "linkCard": {
+    "invalidUrl": "Invalid URL (only http/https supported), blocked from opening.",
+    "edit": "Edit",
+    "category": "Category: {{category}}"
+  },
+  "duplicateChecker": {
+    "title": "Duplicate checker",
+    "unknownCategory": "Unknown category",
+    "exactDuplicate": "Exact duplicate",
+    "similarUrl": "Similar URL",
+    "similarTitle": "Similar title",
+    "showSimilar": "Show similar",
+    "exactCount": "Exact duplicates: {{count}} groups",
+    "similarCount": "Similar: {{count}} groups",
+    "deleteCard": "Delete this card",
+    "noDuplicates": "No duplicate or similar cards detected",
+    "goToCategory": "Go to '{{category}}' category"
   }
 }

@@ -41,7 +41,49 @@
     "page": "页",
     "of": "共",
     "previous": "上一页",
-    "next": "下一页"
+    "next": "下一页",
+    "anonymous": "佚名"
+  },
+  "greeting": {
+    "earlyMorning": "凌晨好",
+    "morning": "上午好",
+    "noon": "中午好",
+    "afternoon": "下午好",
+    "evening": "晚上好"
+  },
+  "linkSections": {
+    "unlockFailed": "解锁失败，请检查密码",
+    "hitokotoFailed": "获取一言失败，请稍后再试。",
+    "copiedToClipboard": "已复制到剪贴板",
+    "copyFailed": "复制失败，请手动复制。",
+    "greetingSeparator": "，",
+    "productivePrompt": "准备开始高效的一天了吗？",
+    "pinnedSectionTitle": "置顶 / 常用",
+    "selectedCount": "已选 {{count}}",
+    "stats": {
+      "sites": "{{count}} 站点",
+      "categories": "{{count}} 分类",
+      "pinned": "{{count}} 置顶"
+    },
+    "searchResults": "搜索结果",
+    "allLinks": "所有链接",
+    "unnamedCategory": "未命名分类",
+    "batchEdit": "批量编辑",
+    "batchPin": "批量置顶",
+    "batchDelete": "批量删除",
+    "selectDeselectAll": "全选/取消全选",
+    "batchMove": "批量移动",
+    "exitBatchEdit": "退出批量编辑",
+    "enterPassword": "请输入密码",
+    "unlocking": "解锁中...",
+    "unlock": "解锁",
+    "hitokotoLoading": "一言获取中",
+    "hitokotoLoadingEllipsis": "一言获取中…",
+    "clickToRefreshHitokoto": "点击刷新获取一言",
+    "refreshHitokoto": "刷新一言",
+    "clickToCopyHitokoto": "点击复制一言",
+    "noContent": "没有找到相关内容",
+    "addOne": "添加一个?"
   },
   "header": {
     "internalSearch": "站内",
@@ -61,6 +103,7 @@
     "saveSorting": "保存排序",
     "cancelSorting": "取消",
     "switchTheme": "切换主题",
+    "switchLanguage": "切换语言",
     "lightMode": "浅色模式",
     "darkMode": "深色模式",
     "systemMode": "跟随系统",
@@ -77,6 +120,9 @@
     "viewOnGitHub": "View on GitHub",
     "hidden": "隐藏",
     "defaultCategory": "默认分类"
+  },
+  "admin": {
+    "editDisabledHint": "用户模式不可编辑，请先输入 API 访问密码进入管理员模式。"
   },
   "settings": {
     "title": "设置",
@@ -331,7 +377,11 @@
     "serverDataFormatError": "云端返回的数据格式异常",
     "restoreDataFormatError": "恢复失败（数据格式异常）",
     "storageUnavailable": "浏览器存储不可用（可能处于隐私模式或禁用了站点存储），无法同步",
-    "closeToast": "关闭提示"
+    "closeToast": "关闭提示",
+    "pageError": "页面发生错误",
+    "somethingWentWrong": "出了点问题",
+    "refreshPage": "刷新页面",
+    "tryAgain": "重试"
   },
   "contextMenu": {
     "copyLink": "复制链接",
@@ -342,5 +392,57 @@
     "addToRecommended": "加入常用推荐",
     "removeFromRecommended": "取消常用推荐",
     "deleteLink": "删除链接"
+  },
+  "sync": {
+    "synced": "已同步",
+    "lastSync": "上次：{{time}}",
+    "syncedWithCloud": "已与云端一致",
+    "syncedClickRefresh": "已同步，点击从云端刷新",
+    "syncedLastClickRefresh": "已同步（上次：{{time}}），点击从云端刷新",
+    "syncing": "同步中",
+    "syncingWithCloud": "正在与云端同步…",
+    "syncingPleaseWait": "同步中，请稍候…",
+    "pending": "待同步",
+    "pendingAutoSync": "约 {{seconds}} 秒内自动同步（可点击立即同步）",
+    "pendingDetected": "检测到本地变更，约 {{seconds}} 秒内自动同步（点击立即同步）",
+    "storageUnavailable": "存储不可用",
+    "networkError": "网络错误",
+    "syncFailed": "同步失败",
+    "unknownError": "发生未知错误",
+    "errorClickRetry": "{{label}}（点击重试）",
+    "errorWithMessageClickRetry": "{{label}}：{{message}}（点击重试）",
+    "conflict": "有冲突",
+    "conflictDescription": "本地与云端数据不一致（点击处理）",
+    "conflictDetected": "检测到同步冲突，点击处理",
+    "disconnected": "待连接",
+    "disconnectedClickRefresh": "待连接，点击刷新"
+  },
+  "iconSelector": {
+    "searchPlaceholder": "搜索图标...",
+    "inputIconName": "输入图标名称:",
+    "inputExample": "例如: star, heart, cloud...",
+    "invalidIcon": "无效图标",
+    "currentSelection": "当前选择:",
+    "noMatchingIcons": "没有找到匹配的图标",
+    "hint": "提示：支持 emoji/text；Lucide 图标仅支持项目内置的子集",
+    "confirmSelection": "确定选择"
+  },
+  "linkCard": {
+    "invalidUrl": "链接 URL 无效（仅支持 http/https），已阻止打开。",
+    "edit": "编辑",
+    "category": "分类: {{category}}"
+  },
+  "duplicateChecker": {
+    "title": "重复卡片检测",
+    "unknownCategory": "未知分类",
+    "exactDuplicate": "完全重复",
+    "similarUrl": "相似 URL",
+    "similarTitle": "相似标题",
+    "showSimilar": "显示相似项",
+    "exactCount": "完全重复: {{count}} 组",
+    "similarCount": "相似项: {{count}} 组",
+    "deleteCard": "删除此卡片",
+    "noDuplicates": "未检测到重复或相似的卡片",
+    "goToCategory": "跳转到「{{category}}」分类"
   }
 }

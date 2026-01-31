@@ -2,7 +2,6 @@ import * as fc from 'fast-check';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  DEFAULT_LANGUAGE,
   LANGUAGE_STORAGE_KEY,
   SUPPORTED_LANGUAGES,
   type SupportedLanguageCode,
@@ -110,9 +109,9 @@ describe('Language Persistence Round-Trip (Property 5)', () => {
           // Step 4: Simulate app restart by resetting the store
           resetAppStore();
 
-          // Step 5: Verify store is reset to default
+          // Step 5: Verify store reads persisted language on boot
           const storeLanguageAfterReset = useAppStore.getState().currentLanguage;
-          expect(storeLanguageAfterReset).toBe(DEFAULT_LANGUAGE);
+          expect(storeLanguageAfterReset).toBe(locale);
 
           // Step 6: Re-initialize the language (simulating app startup)
           await act(async () => {
@@ -157,7 +156,7 @@ describe('Language Persistence Round-Trip (Property 5)', () => {
           // Simulate app restart
           resetAppStore();
 
-          // Re-initialize
+          // Re-initialize (should keep persisted language)
           await act(async () => {
             await useAppStore.getState().initLanguage();
           });

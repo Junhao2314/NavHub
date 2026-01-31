@@ -1,5 +1,6 @@
 import { Settings } from 'lucide-react';
 import React from 'react';
+import { useI18n } from '../../hooks/useI18n';
 import { LinkItem } from '../../types';
 import { cn } from '../../utils/cn';
 import {
@@ -38,6 +39,7 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
     onEdit,
     onOpenLink,
   }) => {
+    const { t } = useI18n();
     const isDetailedView = siteCardStyle === 'detailed';
     const safeTags = Array.isArray(link.tags) ? link.tags.filter(Boolean) : [];
     const visibleTags = isDetailedView ? safeTags.slice(0, 5) : [];
@@ -116,7 +118,7 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
       } else {
         const safeUrl = normalizeHttpUrl(link.url);
         if (!safeUrl) {
-          notify('链接 URL 无效（仅支持 http/https），已阻止打开。', 'error');
+          notify(t('linkCard.invalidUrl'), 'error');
           return;
         }
         onOpenLink?.(link);
@@ -192,7 +194,7 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
               {categoryName && (
                 <span
                   className="px-2 py-0.5 rounded-md text-[11px] font-semibold border bg-accent/10 text-accent border-accent/20"
-                  title={`分类: ${categoryName}`}
+                  title={t('linkCard.category', { category: categoryName })}
                 >
                   {categoryName}
                 </span>
@@ -239,7 +241,7 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
                 onEdit(link);
               }}
               className="p-1.5 text-slate-400 hover:text-accent bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-slate-200/50 dark:border-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50"
-              title="编辑"
+              title={t('linkCard.edit')}
             >
               <Settings size={14} />
             </button>

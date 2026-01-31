@@ -1,6 +1,7 @@
 import { isLucideIconName, LEGACY_ICON_ALIASES } from '../components/ui/lucideIconMap';
+import { detectUserLanguage } from '../config/i18n';
+import { buildSeedLinks } from '../config/seedData';
 import type { Category, LinkItem } from '../types';
-import { INITIAL_LINKS } from '../types';
 import { normalizeHttpUrl } from './url';
 
 const CATEGORY_ICON_FALLBACK = 'Folder';
@@ -93,7 +94,8 @@ export interface SanitizeLinksResult {
 
 export const sanitizeLinks = (input: unknown): SanitizeLinksResult => {
   if (!Array.isArray(input)) {
-    return { links: INITIAL_LINKS, didChange: true, dropped: 0, normalized: 0 };
+    const locale = detectUserLanguage();
+    return { links: buildSeedLinks(locale), didChange: true, dropped: 0, normalized: 0 };
   }
 
   let didChange = false;

@@ -133,7 +133,7 @@ export const createInitialAppStoreData = (): AppStoreData => ({
   __hydratedConfig: false,
   __hydratedSearch: false,
 
-  currentLanguage: DEFAULT_LANGUAGE,
+  currentLanguage: detectUserLanguage(),
 
   themeMode: 'system',
   isDarkMode: false,

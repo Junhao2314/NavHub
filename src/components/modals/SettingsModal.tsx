@@ -1,6 +1,6 @@
 import { Bot, Database, Globe, Palette, Save, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { DEFAULT_SITE_SETTINGS } from '../../config/defaults';
+import { buildDefaultSiteSettings } from '../../config/defaults';
 import { useI18n } from '../../hooks/useI18n';
 import {
   AIConfig,
@@ -84,14 +84,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [activeTab, setActiveTab] = useState<'site' | 'ai' | 'appearance' | 'data'>('site');
   const [localConfig, setLocalConfig] = useState<AIConfig>(config);
   const [localSiteSettings, setLocalSiteSettings] = useState<SiteSettings>(() => ({
-    ...DEFAULT_SITE_SETTINGS,
+    ...buildDefaultSiteSettings(),
     ...siteSettings,
   }));
 
   useEffect(() => {
     if (isOpen) {
       setLocalConfig(config);
-      setLocalSiteSettings({ ...DEFAULT_SITE_SETTINGS, ...siteSettings });
+      setLocalSiteSettings({ ...buildDefaultSiteSettings(), ...siteSettings });
     }
   }, [isOpen, config, siteSettings]);
 

@@ -27,7 +27,8 @@
     "deploy:workers": "npm run build && wrangler deploy",
     "deploy:pages": "npm run build && wrangler pages deploy dist --project-name=navhub",
     "kv:create": "wrangler kv:namespace create YNAV_WORKER_KV",
-    "dev:workers": "npm run build && wrangler dev"
+    "dev:workers": "npm run build && wrangler dev",
+    "dev:pages": "npm run build && wrangler pages dev dist --compatibility-date=2024-01-01"
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "^0.3.4",

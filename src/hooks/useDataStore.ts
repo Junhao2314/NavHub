@@ -15,16 +15,30 @@
  */
 
 import { arrayMove } from '@dnd-kit/sortable';
+import type { TOptions } from 'i18next';
 import { useCallback, useEffect, useState } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
+import i18n, { detectUserLanguage } from '../config/i18n';
+import { buildSeedCategories, buildSeedLinks } from '../config/seedData';
 import type { Category, LinkItem } from '../types';
-import { DEFAULT_CATEGORIES, INITIAL_LINKS } from '../types';
 import { COMMON_CATEGORY_ID, FAVICON_CACHE_KEY, LOCAL_STORAGE_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
 import { getCommonRecommendedLinks } from '../utils/recommendation';
 import { formatInvalidIconNotice, sanitizeCategories, sanitizeLinks } from '../utils/sanitize';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../utils/storage';
 import { normalizeHttpUrl } from '../utils/url';
+
+const t = (key: string, fallback: string, options?: TOptions): string => {
+  try {
+    const translated = i18n.t(key, options);
+    if (typeof translated === 'string' && translated && translated !== key) {
+      return translated;
+    }
+  } catch {
+    // Ignore and fall back.
+  }
+  return fallback;
+};
 
 export const useDataStore = () => {
   const [links, setLinks] = useState<LinkItem[]>([]);
@@ -85,14 +99,16 @@ export const useDataStore = () => {
    * 6. 如有数据修正，重新持久化
    */
   useEffect(() => {
+    const seedLocale = detectUserLanguage();
+    const seedCategories = buildSeedCategories(seedLocale);
+    const seedLinks = buildSeedLinks(seedLocale);
+
     const stored = safeLocalStorageGetItem(LOCAL_STORAGE_KEY);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
         let loadedCategories =
-          parsed.categories && parsed.categories.length > 0
-            ? parsed.categories
-            : DEFAULT_CATEGORIES;
+          parsed.categories && parsed.categories.length > 0 ? parsed.categories : seedCategories;
 
         // 如果"常用推荐"分类存在，确保它是第一个分类
         const commonIndex = loadedCategories.findIndex((c: Category) => c.id === 'common');
@@ -107,23 +123,56 @@ export const useDataStore = () => {
 
         const {
           categories: sanitizedCategories,
-          didChange: categoriesChanged,
+          didChange: categoriesChangedRaw,
           invalidIcons,
         } = sanitizeCategories(loadedCategories);
+        let categoriesChanged = categoriesChangedRaw;
         loadedCategories = sanitizedCategories;
+
+        // Seed data migration: if user still has the old built-in category names from the other
+        // locale (e.g. they upgraded and switched language), upgrade them to current locale labels.
+        const legacyLocale = seedLocale.startsWith('zh') ? 'en-US' : 'zh-CN';
+        const legacySeedCategories = buildSeedCategories(legacyLocale);
+        const seedCategoryById = new Map(seedCategories.map((c) => [c.id, c] as const));
+        const legacyCategoryById = new Map(legacySeedCategories.map((c) => [c.id, c] as const));
+        loadedCategories = loadedCategories.map((cat: Category) => {
+          const currentSeed = seedCategoryById.get(cat.id);
+          const legacySeed = legacyCategoryById.get(cat.id);
+          if (!currentSeed || !legacySeed) return cat;
+          if (cat.name !== legacySeed.name) return cat;
+          if (currentSeed.name === legacySeed.name) return cat;
+          categoriesChanged = true;
+          return { ...cat, name: currentSeed.name };
+        });
 
         // 检查是否有链接的categoryId不存在于当前分类中，将这些链接移动到默认分类
         const validCategoryIds = new Set(loadedCategories.map((c: Category) => c.id));
         const fallbackCategoryId =
           loadedCategories.find((c: Category) => c.id === 'common')?.id || loadedCategories[0]?.id;
-        let loadedLinks = parsed.links || INITIAL_LINKS;
+        let loadedLinks = parsed.links || seedLinks;
         const {
           links: sanitizedLinks,
-          didChange: urlsChanged,
+          didChange: urlsChangedRaw,
           dropped: droppedUrls,
         } = sanitizeLinks(loadedLinks);
+        let urlsChanged = urlsChangedRaw;
         loadedLinks = sanitizedLinks;
         let linksChanged = false;
+
+        // Seed data migration: upgrade built-in link descriptions from the other locale.
+        const legacySeedLinks = buildSeedLinks(legacyLocale);
+        const seedLinkById = new Map(seedLinks.map((l) => [l.id, l] as const));
+        const legacyLinkById = new Map(legacySeedLinks.map((l) => [l.id, l] as const));
+        loadedLinks = loadedLinks.map((link: LinkItem) => {
+          const currentSeed = seedLinkById.get(link.id);
+          const legacySeed = legacyLinkById.get(link.id);
+          if (!currentSeed || !legacySeed) return link;
+          if (link.title !== legacySeed.title || link.url !== legacySeed.url) return link;
+          if (link.description !== legacySeed.description) return link;
+          if (currentSeed.description === legacySeed.description) return link;
+          linksChanged = true;
+          return { ...link, description: currentSeed.description };
+        });
         if (fallbackCategoryId) {
           loadedLinks = loadedLinks.map((link: LinkItem) => {
             if (!validCategoryIds.has(link.categoryId)) {
@@ -143,7 +192,14 @@ export const useDataStore = () => {
         }
 
         if (droppedUrls > 0) {
-          notify(`已移除 ${droppedUrls} 条无效链接（仅支持 http/https）。`, 'warning');
+          notify(
+            t(
+              'modals.import.filteredInvalidUrls',
+              `已移除 ${droppedUrls} 条无效链接（仅支持 http/https）。`,
+              { count: droppedUrls },
+            ),
+            'warning',
+          );
         }
 
         if (categoriesChanged || linksChanged || urlsChanged) {
@@ -153,14 +209,14 @@ export const useDataStore = () => {
           );
         }
       } catch {
-        setLinks(INITIAL_LINKS);
-        setCategories(DEFAULT_CATEGORIES);
-        loadLinkIcons(INITIAL_LINKS);
+        setLinks(seedLinks);
+        setCategories(seedCategories);
+        loadLinkIcons(seedLinks);
       }
     } else {
-      setLinks(INITIAL_LINKS);
-      setCategories(DEFAULT_CATEGORIES);
-      loadLinkIcons(INITIAL_LINKS);
+      setLinks(seedLinks);
+      setCategories(seedCategories);
+      loadLinkIcons(seedLinks);
     }
     setIsLoaded(true);
   }, [loadLinkIcons, notify]);
@@ -196,7 +252,7 @@ export const useDataStore = () => {
     (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
       const processedUrl = normalizeHttpUrl(data.url);
       if (!processedUrl) {
-        notify('链接 URL 无效（仅支持 http/https）。', 'warning');
+        notify(t('modals.link.invalidUrl', '链接 URL 无效（仅支持 http/https）。'), 'warning');
         return;
       }
 
@@ -260,7 +316,7 @@ export const useDataStore = () => {
     (data: Omit<LinkItem, 'createdAt'>) => {
       const processedUrl = normalizeHttpUrl(data.url);
       if (!processedUrl) {
-        notify('链接 URL 无效（仅支持 http/https）。', 'warning');
+        notify(t('modals.link.invalidUrl', '链接 URL 无效（仅支持 http/https）。'), 'warning');
         return;
       }
       const existing = links.find((l) => l.id === data.id);
@@ -497,7 +553,7 @@ export const useDataStore = () => {
   const deleteCategory = useCallback(
     (catId: string) => {
       if (categories.length <= 1) {
-        notify('至少保留一个分类', 'warning');
+        notify(t('modals.category.keepAtLeastOne', '至少保留一个分类'), 'warning');
         return;
       }
       const newCats = categories.filter((c) => c.id !== catId);

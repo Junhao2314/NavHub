@@ -15,7 +15,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   ensureNavHubSyncDataSchemaVersion,
   NAVHUB_SYNC_DATA_SCHEMA_VERSION,
@@ -58,6 +57,7 @@ import {
   safeLocalStorageSetItem,
 } from '../utils/storage';
 import { getSyncAuthHeaders } from '../utils/syncAuthHeaders';
+import { useI18n } from './useI18n';
 
 // fetch(..., { keepalive: true }) 的请求体大小在不同浏览器/平台有上限（常见约 64KB）。
 // 这里做一个保守阈值：超出则自动降级为普通请求（尽量保证请求不被浏览器直接拒绝）。
@@ -182,7 +182,7 @@ const sanitizeAiConfigForCloud = (config?: AIConfig): AIConfig | undefined => {
 
 export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngineReturn {
   const { onConflict, onSyncComplete, onError } = options;
-  const { t } = useTranslation();
+  const { t } = useI18n();
 
   // 状态
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');

@@ -208,7 +208,14 @@ export const useKvSyncStrategy = (args: {
           return;
         }
 
-        // 版本不一致时提示用户选择
+        // 新设备首次同步：本地版本为 0 表示从未同步过，直接应用云端数据。
+        // 这种情况下本地通常只有默认示例数据，不需要让用户选择。
+        if (localVersion === 0) {
+          applyCloudData(cloudData, auth.role);
+          return;
+        }
+
+        // 版本不一致时提示用户选择（仅当本地已有同步记录时）
         if (cloudData.meta.version !== localVersion) {
           // 管理员模式（可写）：本地与云端 version 不一致时，无法自动决定保留哪份。
           // 这里构造一个“本地快照 vs 云端快照”的冲突对象，交给 UI 让用户选择：保留本地（强制覆盖）/保留云端（丢弃本地）。

@@ -8,6 +8,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
+import { useI18n } from '../../../hooks/useI18n';
 import { Category, LinkItem } from '../../../types';
 
 interface DuplicateGroup {
@@ -82,6 +83,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
   onDeleteLink,
   onNavigateToCategory,
 }) => {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSimilar, setShowSimilar] = useState(true);
@@ -97,9 +99,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
 
   const getCategoryName = useCallback(
     (categoryId: string) => {
-      return categoryMap.get(categoryId) || '未知分类';
+      return categoryMap.get(categoryId) || t('duplicateChecker.unknownCategory');
     },
-    [categoryMap],
+    [categoryMap, t],
   );
 
   const handleNavigate = useCallback(
@@ -218,11 +220,11 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
   const getTypeLabel = (type: DuplicateGroup['type']) => {
     switch (type) {
       case 'exact-url':
-        return '完全重复';
+        return t('duplicateChecker.exactDuplicate');
       case 'similar-url':
-        return '相似 URL';
+        return t('duplicateChecker.similarUrl');
       case 'similar-title':
-        return '相似标题';
+        return t('duplicateChecker.similarTitle');
     }
   };
 
@@ -246,7 +248,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
       >
         <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
           <Copy size={14} className="text-slate-500" />
-          重复卡片检测
+          {t('duplicateChecker.title')}
           {totalCount > 0 && (
             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200">
               {totalCount}
@@ -260,7 +262,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
         <div className="mt-4 space-y-4">
           {/* 控制选项 */}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600 dark:text-slate-300">显示相似项</span>
+            <span className="text-xs text-slate-600 dark:text-slate-300">
+              {t('duplicateChecker.showSimilar')}
+            </span>
             <button
               type="button"
               onClick={() => setShowSimilar(!showSimilar)}
@@ -274,15 +278,17 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
 
           {/* 统计信息 */}
           <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-            <span>完全重复: {exactCount} 组</span>
-            {showSimilar && <span>相似项: {similarCount} 组</span>}
+            <span>{t('duplicateChecker.exactCount', { count: exactCount })}</span>
+            {showSimilar && (
+              <span>{t('duplicateChecker.similarCount', { count: similarCount })}</span>
+            )}
           </div>
 
           {/* 结果列表 */}
           {totalCount === 0 ? (
             <div className="text-center py-6 text-sm text-slate-500 dark:text-slate-400">
               <Copy size={24} className="mx-auto mb-2 opacity-50" />
-              未检测到重复或相似的卡片
+              {t('duplicateChecker.noDuplicates')}
             </div>
           ) : (
             <div className="space-y-3 max-h-80 overflow-y-auto">
@@ -330,7 +336,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
                               type="button"
                               onClick={() => handleNavigate(link.categoryId)}
                               className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-accent/10 hover:text-accent transition-colors shrink-0"
-                              title={`跳转到「${getCategoryName(link.categoryId)}」分类`}
+                              title={t('duplicateChecker.goToCategory', {
+                                category: getCategoryName(link.categoryId),
+                              })}
                             >
                               <FolderOpen size={10} />
                               <span className="truncate max-w-[60px]">
@@ -344,7 +352,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
                           onClick={() => handleDelete(link.id)}
                           disabled={deletingId === link.id}
                           className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shrink-0"
-                          title="删除此卡片"
+                          title={t('duplicateChecker.deleteCard')}
                         >
                           <Trash2
                             size={14}

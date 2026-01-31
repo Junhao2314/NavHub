@@ -162,7 +162,7 @@
       }
     })();
   </script>
-  <title>NavHub - AI 智能导航仪</title>
+  <title>NavHub</title>
 </head>
 
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
@@ -172,7 +172,7 @@
       <div class="loader-bar-container">
         <div class="loader-bar"></div>
       </div>
-      <div class="loader-text">加载中...</div>
+      <div class="loader-text">Loading...</div>
     </div>
   </div>
   <script>
@@ -182,6 +182,27 @@
       if (loader) {
         loader.className = window.__INITIAL_DARK_MODE__ ? 'dark-mode' : 'light-mode';
       }
+    })();
+  </script>
+  <script>
+    // 根据语言设置加载器文字 / Set loader text by language
+    (function() {
+      var el = document.querySelector('#app-loader .loader-text');
+      if (!el) return;
+
+      var lang = '';
+      try {
+        lang = localStorage.getItem('navhub-language') || '';
+      } catch (e) {
+        // Ignore
+      }
+
+      if (!lang && typeof navigator !== 'undefined') {
+        lang = navigator.language || '';
+      }
+
+      var isZh = String(lang).toLowerCase().indexOf('zh') === 0;
+      el.textContent = isZh ? '加载中...' : 'Loading...';
     })();
   </script>
   <div id="root"></div>

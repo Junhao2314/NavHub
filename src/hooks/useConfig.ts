@@ -13,7 +13,8 @@
  */
 
 import { useCallback, useEffect } from 'react';
-import { DEFAULT_AI_CONFIG, DEFAULT_SITE_SETTINGS } from '../config/defaults';
+import { buildDefaultSiteSettings, DEFAULT_AI_CONFIG } from '../config/defaults';
+import { detectUserLanguage } from '../config/i18n';
 import { useAppStore } from '../stores/useAppStore';
 import type { AIConfig, SiteSettings } from '../types';
 import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
@@ -95,13 +96,27 @@ const loadAIConfigFromStorage = (): AIConfig => {
 
 /** 从存储加载站点设置 */
 const loadSiteSettingsFromStorage = (): SiteSettings => {
+  const locale = detectUserLanguage();
+  const defaultSiteSettings = buildDefaultSiteSettings(locale);
+  const legacySiteSettings = buildDefaultSiteSettings(locale.startsWith('zh') ? 'en-US' : 'zh-CN');
   const saved = safeLocalStorageGetItem(SITE_SETTINGS_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved) as Partial<SiteSettings>;
+
+      // Migration: if user still has the old default title from the other locale, update it.
+      const nextParsed: Partial<SiteSettings> = { ...parsed };
+      if (
+        typeof parsed.title === 'string' &&
+        parsed.title === legacySiteSettings.title &&
+        legacySiteSettings.title !== defaultSiteSettings.title
+      ) {
+        nextParsed.title = defaultSiteSettings.title;
+      }
+
       return {
-        ...DEFAULT_SITE_SETTINGS,
-        ...parsed,
+        ...defaultSiteSettings,
+        ...nextParsed,
       } satisfies SiteSettings;
     } catch (error) {
       console.warn(
@@ -111,7 +126,7 @@ const loadSiteSettingsFromStorage = (): SiteSettings => {
       safeLocalStorageRemoveItem(SITE_SETTINGS_KEY);
     }
   }
-  return DEFAULT_SITE_SETTINGS;
+  return defaultSiteSettings;
 };
 
 export function useConfig() {
@@ -158,7 +173,7 @@ export function useConfig() {
   /** 从云端同步恢复站点设置 */
   const restoreSiteSettings = useCallback(
     (settings: SiteSettings) => {
-      const normalized = { ...DEFAULT_SITE_SETTINGS, ...settings } satisfies SiteSettings;
+      const normalized = { ...buildDefaultSiteSettings(), ...settings } satisfies SiteSettings;
       setSiteSettings(normalized);
       safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(normalized));
     },
@@ -170,7 +185,7 @@ export function useConfig() {
     (updates: Partial<SiteSettings>) => {
       setSiteSettings((prev) => {
         const newSettings = {
-          ...DEFAULT_SITE_SETTINGS,
+          ...buildDefaultSiteSettings(),
           ...prev,
           ...updates,
         } satisfies SiteSettings;

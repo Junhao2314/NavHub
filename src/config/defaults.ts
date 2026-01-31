@@ -1,4 +1,5 @@
 import type { AIConfig, ExternalSearchSource, SiteSettings } from '../types';
+import { detectUserLanguage } from './i18n';
 
 export const DEFAULT_AI_CONFIG: AIConfig = {
   provider: 'gemini',
@@ -7,8 +8,10 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   model: 'gemini-2.5-flash',
 };
 
-export const DEFAULT_SITE_SETTINGS: SiteSettings = {
-  title: 'NavHub - AI 智能导航仪',
+const isZhLocale = (locale: string): boolean => locale.toLowerCase().startsWith('zh');
+
+export const buildDefaultSiteSettings = (locale: string = detectUserLanguage()): SiteSettings => ({
+  title: isZhLocale(locale) ? 'NavHub - AI 智能导航仪' : 'NavHub - AI Smart Navigator',
   navTitle: 'NavHub',
   favicon: '',
   cardStyle: 'detailed',
@@ -18,14 +21,19 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   backgroundImage: '',
   backgroundImageEnabled: false,
   backgroundMotion: true,
-};
+});
 
-export const buildDefaultSearchSources = (): ExternalSearchSource[] => {
+export const DEFAULT_SITE_SETTINGS: SiteSettings = buildDefaultSiteSettings();
+
+export const buildDefaultSearchSources = (
+  locale: string = detectUserLanguage(),
+): ExternalSearchSource[] => {
   const now = Date.now();
+  const isZh = isZhLocale(locale);
   return [
     {
       id: 'bing',
-      name: '必应',
+      name: isZh ? '必应' : 'Bing',
       url: 'https://www.bing.com/search?q={query}',
       icon: 'Search',
       enabled: true,
@@ -41,7 +49,7 @@ export const buildDefaultSearchSources = (): ExternalSearchSource[] => {
     },
     {
       id: 'baidu',
-      name: '百度',
+      name: isZh ? '百度' : 'Baidu',
       url: 'https://www.baidu.com/s?wd={query}',
       icon: 'Globe',
       enabled: true,
@@ -49,7 +57,7 @@ export const buildDefaultSearchSources = (): ExternalSearchSource[] => {
     },
     {
       id: 'sogou',
-      name: '搜狗',
+      name: isZh ? '搜狗' : 'Sogou',
       url: 'https://www.sogou.com/web?query={query}',
       icon: 'Globe',
       enabled: true,
@@ -81,7 +89,7 @@ export const buildDefaultSearchSources = (): ExternalSearchSource[] => {
     },
     {
       id: 'bilibili',
-      name: 'B站',
+      name: isZh ? 'B站' : 'Bilibili',
       url: 'https://search.bilibili.com/all?keyword={query}',
       icon: 'Play',
       enabled: true,
@@ -97,8 +105,10 @@ export const buildDefaultSearchSources = (): ExternalSearchSource[] => {
     },
     {
       id: 'wikipedia',
-      name: '维基',
-      url: 'https://zh.wikipedia.org/wiki/Special:Search?search={query}',
+      name: isZh ? '维基' : 'Wikipedia',
+      url: isZh
+        ? 'https://zh.wikipedia.org/wiki/Special:Search?search={query}'
+        : 'https://en.wikipedia.org/wiki/Special:Search?search={query}',
       icon: 'BookOpen',
       enabled: true,
       createdAt: now,

@@ -1,7 +1,30 @@
+import i18n from 'i18next';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ErrorBoundary from './ErrorBoundary';
+
+// Initialize i18n for tests
+i18n.use(initReactI18next).init({
+  lng: 'zh-CN',
+  fallbackLng: 'zh-CN',
+  resources: {
+    'zh-CN': {
+      translation: {
+        errors: {
+          pageError: '页面发生错误',
+          somethingWentWrong: '出了点问题',
+          refreshPage: '刷新页面',
+          tryAgain: '重试',
+        },
+      },
+    },
+  },
+  interpolation: {
+    escapeValue: false,
+  },
+});
 
 describe('ErrorBoundary', () => {
   let container: HTMLDivElement;

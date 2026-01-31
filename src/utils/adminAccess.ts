@@ -1,8 +1,9 @@
+import i18n from '../config/i18n';
 import type { NotifyFn } from '../types/ui';
 
 export type { NotifyFn, ToastVariant } from '../types/ui';
 
-export const ADMIN_EDIT_DISABLED_HINT = '用户模式不可编辑，请先输入 API 访问密码进入管理员模式。';
+export const ADMIN_EDIT_DISABLED_HINT_KEY = 'admin.editDisabledHint';
 
 type AdminAccessToastRecord = {
   message: string;
@@ -18,7 +19,7 @@ export const requireAdminAccess = (
   message?: string,
 ): boolean => {
   if (isAdmin) return true;
-  const toastMessage = message ?? ADMIN_EDIT_DISABLED_HINT;
+  const toastMessage = message ?? i18n.t(ADMIN_EDIT_DISABLED_HINT_KEY);
   const now = Date.now();
   if (
     lastAdminAccessToast &&
