@@ -1,0 +1,195 @@
+@import "tailwindcss";
+@import "@fontsource/manrope";
+@import "@fontsource/outfit";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/outfit/700.css";
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --color-primary: #3b82f6;
+    --color-secondary: #64748b;
+    --color-accent: rgb(var(--accent-color));
+    --color-dark: #0f172a;
+    --color-card: #1e293b;
+
+    --font-display: "Outfit", "Manrope", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+
+@layer base {
+    :root {
+        --accent-color: 99 102 241;
+    }
+
+    body {
+        font-family: "Manrope", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    }
+}
+
+/* Global Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    /* slate-300 */
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+    /* slate-400 */
+}
+
+@media (prefers-color-scheme: dark) {
+    .dark ::-webkit-scrollbar-thumb {
+        background: #334155;
+        /* slate-700 */
+    }
+
+    .dark ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+        /* slate-600 */
+    }
+}
+
+/* Custom scrollbar for sidebar (hidden when needed) */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Simple CSS-only tooltip transition */
+.tooltip-custom {
+    transition: opacity 0.2s, visibility 0.2s;
+    pointer-events: none;
+}
+
+/* Terminal cursor blink animation */
+@keyframes cursor-blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+.animate-cursor-blink {
+    animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes shimmer-slow {
+    0% {
+        transform: translateX(-150%) skewX(-15deg);
+    }
+
+    15% {
+        transform: translateX(150%) skewX(-15deg);
+    }
+
+    100% {
+        transform: translateX(150%) skewX(-15deg);
+    }
+}
+
+.animate-shimmer-slow {
+    animation: shimmer-slow 5s ease-in-out infinite;
+}
+
+@keyframes glow-drift {
+    0% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.85;
+    }
+
+    50% {
+        transform: translate3d(2%, -1.5%, 0) scale(1.04);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.85;
+    }
+}
+
+@keyframes glow-drift-alt {
+    0% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: translate3d(-2%, 2%, 0) scale(1.06);
+        opacity: 0.85;
+    }
+
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.7;
+    }
+}
+
+@keyframes glow-drift-slow {
+    0% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: translate3d(1.5%, 1%, 0) scale(1.08);
+        opacity: 0.85;
+    }
+
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.7;
+    }
+}
+
+@keyframes aurora-shift {
+    0% {
+        background-position: 30% 20%;
+    }
+
+    50% {
+        background-position: 70% 60%;
+    }
+
+    100% {
+        background-position: 30% 20%;
+    }
+}
+
+.animate-glow-drift {
+    animation: glow-drift 18s ease-in-out infinite;
+}
+
+.animate-glow-drift-alt {
+    animation: glow-drift-alt 22s ease-in-out infinite;
+}
+
+.animate-glow-drift-slow {
+    animation: glow-drift-slow 28s ease-in-out infinite;
+}
+
+.animate-aurora-shift {
+    animation: aurora-shift 26s ease-in-out infinite;
+}

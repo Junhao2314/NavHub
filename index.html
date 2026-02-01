@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="https://lucide.dev/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('theme');
+        var mode = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'dark';
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var shouldDark = mode === 'dark' || (mode === 'system' && prefersDark);
+        var root = document.documentElement;
+        if (shouldDark) {
+          root.classList.add('dark');
+          root.style.backgroundColor = '#05070f';
+          document.body.style.backgroundColor = '#05070f';
+        } else {
+          root.classList.remove('dark');
+          root.style.backgroundColor = '#f8fafc';
+          document.body.style.backgroundColor = '#f8fafc';
+        }
+      } catch (e) {
+        // Ignore and fall back to default styling.
+      }
+    })();
+  </script>
+  <title>元启 Y-Nav</title>
+</head>
+
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
