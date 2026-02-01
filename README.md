@@ -5,12 +5,90 @@
 ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=flat-square&logo=tailwindcss)
-![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-orange?style=flat-square&logo=cloudflare)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%7C%20Pages-orange?style=flat-square&logo=cloudflare)
 
 **极简、隐私、智能。**
 **基于 Local-First 架构，配合 Cloudflare KV 实现无感多端同步。**
 
 </div>
+
+---
+
+## ⚡ 一键部署
+
+> 选择适合你的部署方式，Fork 后可以随时同步上游更新。
+
+### 方式一：Cloudflare Workers (推荐国内用户)
+
+**优势**：支持自定义域名 + 优选 IP，国内访问更快更稳定。
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yml2213/Y-Nav)
+
+<details>
+<summary>📖 手动部署步骤</summary>
+
+1. **Fork 本仓库**到你的 GitHub 账号
+
+2. **创建 KV 命名空间** (Workers 专用，与 Pages 区分)
+   ```bash
+   # 登录 Cloudflare
+   npx wrangler login
+   
+   # 创建 Workers 专用 KV
+   npm run kv:create
+   ```
+   记下返回的 `id`，填入 `wrangler.toml` 的 `kv_namespaces.id` 字段。
+
+3. **配置 GitHub Secrets**（用于 CI/CD 自动部署）
+   - `CLOUDFLARE_API_TOKEN`：[创建 API Token](https://dash.cloudflare.com/profile/api-tokens)，需要 `Workers` 编辑权限
+   - `CLOUDFLARE_ACCOUNT_ID`：在 Cloudflare Dashboard 右侧可找到
+   - `SYNC_PASSWORD`：(可选) 同步密码
+
+4. **推送代码触发部署**，或手动运行：
+   ```bash
+   npm install
+   npm run deploy:workers
+   ```
+
+5. **绑定自定义域名** (实现优选 IP)
+   - 进入 Cloudflare Dashboard -> Workers & Pages -> 你的 Worker -> Settings -> Triggers
+   - 添加 Custom Domain，例如 `nav.yourdomain.com`
+   - 在域名 DNS 处将该域名 CNAME 到 Cloudflare 优选 IP
+
+</details>
+
+---
+
+### 方式二：Cloudflare Pages (简单快速)
+
+**优势**：配置最简单，适合海外用户或快速体验。
+
+<details>
+<summary>📖 部署步骤</summary>
+
+1. **Fork 本仓库**到你的 GitHub 账号
+
+2. **创建 Pages 项目**
+   - 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
+   - 进入 **Workers & Pages** -> **Create Application** -> **Pages** -> **Connect to Git**
+   - 选择刚才 Fork 的仓库 `Y-Nav`
+
+3. **配置构建**
+   - **Framework preset**: None
+   - **Build command**: `npm run build`
+   - **Build output directory**: `dist`
+
+4. **绑定 KV 数据库** (开启同步功能)
+   - **Workers & Pages** -> **KV** -> **Create a Namespace** (命名为 `YNAV_DB`)
+   - 回到 Pages 项目 -> **Settings** -> **Functions** -> **KV Namespace Bindings**
+   - 添加绑定：`YNAV_KV` -> `YNAV_DB`
+
+5. **设置同步密码** (可选但推荐)
+   - Pages 项目 -> **Settings** -> **Environment variables**
+   - 添加：`SYNC_PASSWORD` = 你的密码
+   - 重新部署后生效
+
+</details>
 
 ---
 
@@ -27,66 +105,61 @@
 
 ## 🛠️ 技术栈
 
-- **Frontend**: React 19, TypeScript, Vite
-- **Styling**: Tailwind CSS v4, Lucide React Icons
-- **State/Sync**: LocalStorage + Custom Sync Engine (Optimistic UI)
-- **Backend**: Cloudflare Pages Functions + Workers KV
-- **AI**: Google Generative AI SDK
+| 层级 | 技术 |
+|------|------|
+| **Frontend** | React 19, TypeScript, Vite |
+| **Styling** | Tailwind CSS v4, Lucide React Icons |
+| **State/Sync** | LocalStorage + Custom Sync Engine (Optimistic UI) |
+| **Backend** | Cloudflare Workers / Pages Functions + KV |
+| **AI** | Google Generative AI SDK |
 
-## 🚀 部署指南 (Cloudflare Pages)
+## 📦 项目结构
 
-本项目专为 Cloudflare Pages 设计，**零成本**部署。
+```
+Y-Nav/
+├── src/                    # React 前端源码
+├── functions/              # Cloudflare Pages Functions (API)
+│   └── api/sync.ts
+├── worker/                 # Cloudflare Workers 入口
+│   └── index.ts
+├── .github/workflows/      # CI/CD 自动部署
+│   └── deploy-workers.yml  # Workers 自动部署 (push main 触发)
+├── wrangler.toml           # Workers 部署配置
+└── package.json
+```
 
-### 1. 准备工作
-Fork 本仓库到你的 GitHub 账号。
-
-### 2. 创建项目
-1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
-2. 进入 **Workers & Pages** -> **Create Application** -> **Pages** -> **Connect to Git**。
-3. 选择刚才 Fork 的仓库 `Y-Nav`。
-
-### 3. 配置构建
-- **Framework Intent**: None (或手动设置)
-- **Build command**: `npm run build`
-- **Output directory**: `dist`
-
-### 4. 绑定 KV 数据库 (关键步骤)
-为了启用同步功能，你需要创建一个 KV 命名空间：
-1. 在 Cloudflare 后台 **Workers & Pages** -> **KV** -> **Create a Namespace** (例如命名为 `YNAV_DB`)。
-2. 回到你的 Pages 项目页面 -> **Settings** -> **Functions** -> **KV Namespace Bindings**。
-3. 添加绑定：
-   - **Variable name**: `YNAV_KV` (必须完全一致)
-   - **KV Namespace**: 选择刚才创建的 `YNAV_DB`
-
-### 5. 增强安全性 (可选但推荐)
-为了防止他人通过 API 修改你的数据，建议设置访问密码：
-1. Pages 项目页面 -> **Settings** -> **Environment variables**。
-2. 添加变量：
-   - **Variable name**: `SYNC_PASSWORD`
-   - **Value**: (设置你的强密码)
-3. **重新部署 (Redeploy)** 项目以生效。
-4. 部署完成后，进入网站 **设置** -> **数据**，输入相同的密码即可解锁同步功能。
-
-## ✅ 快速开始
+## ✅ 本地开发
 
 ```bash
 # 安装依赖
 npm install
 
-# 启动本地开发服务器
+# 启动开发服务器 (仅前端)
 npm run dev
+
+# 启动 Workers 模拟环境 (含 API)
+npm run dev:workers
 ```
 
 本地服务默认运行在 `http://localhost:3000`。
 
-## 🧪 本地开发 (Cloudflare 模拟)
+## 🔄 同步上游更新
+
+Fork 后，当上游有新版本时，可以通过以下方式同步：
 
 ```bash
-# 启动带有 Cloudflare 模拟环境的开发服务器 (需安装 Wrangler)
-# 注意：你需要先登录 wrangler login
-npm run build
-npx wrangler pages dev dist --kv YNAV_KV
+# 添加上游仓库
+git remote add upstream https://github.com/yml2213/Y-Nav.git
+
+# 拉取并合并更新
+git fetch upstream
+git merge upstream/main
+
+# 推送到你的仓库 (触发自动部署)
+git push
 ```
+
+或直接在 GitHub 仓库页面点击 **Sync fork** 按钮。
 
 ## 🙏 鸣谢 (Credits)
 
