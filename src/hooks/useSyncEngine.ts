@@ -211,8 +211,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     setSyncStatus('syncing');
 
     try {
-      const response = await fetch(SYNC_API_ENDPOINT, {
+      const response = await fetch(`${SYNC_API_ENDPOINT}?t=${Date.now()}`, {
         headers: getSyncAuthHeaders(),
+        cache: 'no-store',
       });
       const result = (await response.json()) as SyncGetResponse;
 
@@ -248,8 +249,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
   const checkAuth = useCallback(async (): Promise<SyncAuthState> => {
     try {
-      const response = await fetch(`${SYNC_API_ENDPOINT}?action=auth`, {
+      const response = await fetch(`${SYNC_API_ENDPOINT}?action=auth&t=${Date.now()}`, {
         headers: getSyncAuthHeaders(),
+        cache: 'no-store',
       });
       const result = (await response.json()) as SyncAuthResponse;
 

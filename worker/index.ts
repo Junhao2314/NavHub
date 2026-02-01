@@ -28,9 +28,32 @@ interface Env {
   ASSETS: Fetcher;
 }
 
+function mergeVaryHeaderValue(prev: string | null, next: string): string {
+  const prevParts = (prev ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const nextParts = next
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const merged = [...prevParts];
+  for (const part of nextParts) {
+    if (!merged.includes(part)) merged.push(part);
+  }
+  return merged.join(', ');
+}
+
 function withCors(response: Response, corsHeaders: Record<string, string>): Response {
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(corsHeaders)) {
+    if (key.toLowerCase() === 'vary') {
+      const merged = mergeVaryHeaderValue(headers.get('Vary'), value);
+      if (merged) {
+        headers.set('Vary', merged);
+      }
+      continue;
+    }
     headers.set(key, value);
   }
   return new Response(response.body, {
@@ -49,6 +72,7 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
       status: 403,
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
         ...corsHeaders,
       },
     });
@@ -56,7 +80,7 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
 
   // CORS 预检
   if (request.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: { 'Cache-Control': 'no-store', ...corsHeaders } });
   }
 
   const syncEnv: SyncApiEnv = {

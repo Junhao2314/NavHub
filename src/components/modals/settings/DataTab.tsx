@@ -214,11 +214,12 @@ const DataTab: React.FC<DataTabProps> = ({
   };
 
   const fetchBackups = useCallback(async () => {
-    setIsLoadingBackups(true);
-    setBackupError(null);
-    try {
-      const response = await fetch(`${SYNC_API_ENDPOINT}?action=backups`, {
+      setIsLoadingBackups(true);
+      setBackupError(null);
+      try {
+      const response = await fetch(`${SYNC_API_ENDPOINT}?action=backups&t=${Date.now()}`, {
         headers: getAuthHeaders(),
+        cache: 'no-store',
       });
       const result = (await response.json()) as SyncListBackupsResponse;
       if (result.success === false) {
@@ -276,9 +277,10 @@ const DataTab: React.FC<DataTabProps> = ({
       setExportError(null);
       try {
         const response = await fetch(
-          `${SYNC_API_ENDPOINT}?action=backup&backupKey=${encodeURIComponent(backup.key)}`,
+          `${SYNC_API_ENDPOINT}?action=backup&backupKey=${encodeURIComponent(backup.key)}&t=${Date.now()}`,
           {
             headers: getAuthHeaders(),
+            cache: 'no-store',
           },
         );
         const result = (await response.json()) as SyncGetBackupResponse;

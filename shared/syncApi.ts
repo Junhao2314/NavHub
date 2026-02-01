@@ -32,6 +32,37 @@ import { getErrorMessage } from './utils/error';
 
 export type { KVNamespaceInterface, R2BucketInterface, SyncApiEnv };
 
+const mergeVaryHeaderValue = (prev: string | null, next: string): string => {
+  const prevParts = (prev ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const nextParts = next
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const merged = [...prevParts];
+  for (const part of nextParts) {
+    if (!merged.includes(part)) merged.push(part);
+  }
+  return merged.join(', ');
+};
+
+const withSyncApiResponseHeaders = (response: Response): Response => {
+  const headers = new Headers(response.headers);
+  headers.set('Cache-Control', 'no-store');
+  const vary = mergeVaryHeaderValue(headers.get('Vary'), 'X-Sync-Password');
+  if (vary) {
+    headers.set('Vary', vary);
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+};
+
 /**
  * Main entry point - follows Cloudflare Pages Function specification
  * 主入口 - 遵循 Cloudflare Pages Function 规范
@@ -47,15 +78,17 @@ export async function handleApiSyncRequest(request: Request, env: SyncApiEnv): P
   try {
     resolvedEnv = normalizeSyncApiEnv(env);
   } catch (error: unknown) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: getErrorMessage(error, 'KV binding missing'),
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      },
+    return withSyncApiResponseHeaders(
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: getErrorMessage(error, 'KV binding missing'),
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
     );
   }
 
@@ -66,44 +99,46 @@ export async function handleApiSyncRequest(request: Request, env: SyncApiEnv): P
   // 根据 HTTP 方法和 action 参数路由
   if (request.method === 'GET') {
     if (action === 'auth') {
-      return handleAuth(request, resolvedEnv);
+      return withSyncApiResponseHeaders(await handleAuth(request, resolvedEnv));
     }
     if (action === 'backup') {
-      return handleGetBackup(request, resolvedEnv);
+      return withSyncApiResponseHeaders(await handleGetBackup(request, resolvedEnv));
     }
     if (action === 'backups') {
-      return handleListBackups(request, resolvedEnv);
+      return withSyncApiResponseHeaders(await handleListBackups(request, resolvedEnv));
     }
-    return handleGet(request, resolvedEnv);
+    return withSyncApiResponseHeaders(await handleGet(request, resolvedEnv));
   }
 
   if (request.method === 'POST') {
     if (action === 'login') {
-      return handleLogin(request, resolvedEnv);
+      return withSyncApiResponseHeaders(await handleLogin(request, resolvedEnv));
     }
     if (action === 'backup') {
-      return handleBackup(request, resolvedEnv);
+      return withSyncApiResponseHeaders(await handleBackup(request, resolvedEnv));
     }
     if (action === 'restore') {
-      return handleRestoreBackup(request, resolvedEnv);
+      return withSyncApiResponseHeaders(await handleRestoreBackup(request, resolvedEnv));
     }
-    return handlePost(request, resolvedEnv);
+    return withSyncApiResponseHeaders(await handlePost(request, resolvedEnv));
   }
 
   if (request.method === 'DELETE') {
     if (action === 'backup') {
-      return handleDeleteBackup(request, resolvedEnv);
+      return withSyncApiResponseHeaders(await handleDeleteBackup(request, resolvedEnv));
     }
   }
 
-  return new Response(
-    JSON.stringify({
-      success: false,
-      error: 'Method not allowed',
-    }),
-    {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    },
+  return withSyncApiResponseHeaders(
+    new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Method not allowed',
+      }),
+      {
+        status: 405,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    ),
   );
 }

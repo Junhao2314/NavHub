@@ -18,11 +18,16 @@ import type {
   SiteSettings,
   ThemeMode,
 } from '../types';
+import { hideAppLoader, showAppLoader } from '../utils/appLoader';
 
 export type SetStateAction<T> = T | ((prev: T) => T);
 
 const resolveNext = <T>(prev: T, next: SetStateAction<T>): T =>
   typeof next === 'function' ? (next as (p: T) => T)(prev) : next;
+
+const getLoaderTextForLocale = (locale: string): string => {
+  return locale.toLowerCase().startsWith('zh') ? '加载中...' : 'Loading...';
+};
 
 // Language switching can involve async resource loading and async i18n APIs.
 // Keep it deterministic: if users switch rapidly, only the latest selection should win.
@@ -179,6 +184,8 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     const validLocale = isSupported ? locale : DEFAULT_LANGUAGE;
 
     try {
+      showAppLoader({ text: getLoaderTextForLocale(validLocale) });
+
       // Ensure resources are loaded before switching language to avoid a short window
       // where the store says "en-US" but i18n still renders fallback keys/previous language.
       await loadLanguageResources(validLocale);
@@ -193,6 +200,10 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     } catch (error) {
       console.error('Failed to switch language:', error);
       return;
+    } finally {
+      if (seq === languageChangeSeq) {
+        hideAppLoader();
+      }
     }
 
     // Persist to localStorage
@@ -214,6 +225,8 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     const detectedLanguage = detectUserLanguage();
 
     try {
+      showAppLoader({ text: getLoaderTextForLocale(detectedLanguage) });
+
       await loadLanguageResources(detectedLanguage);
 
       if (seq !== languageChangeSeq) return;
@@ -224,6 +237,10 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     } catch (error) {
       console.error('Failed to initialize language:', error);
       return;
+    } finally {
+      if (seq === languageChangeSeq) {
+        hideAppLoader();
+      }
     }
 
     // Update store state

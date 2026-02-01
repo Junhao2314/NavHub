@@ -18,6 +18,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { DialogProvider } from './components/ui/DialogProvider';
 import { initI18nAsync } from './config/i18n';
 import './index.css';
+import { hideAppLoader } from './utils/appLoader';
 
 /**
  * Hide the initial loading animation
@@ -27,13 +28,7 @@ import './index.css';
  * 在应用准备就绪或发生错误时调用。
  */
 const hideLoader = () => {
-  const loader = document.getElementById('app-loader');
-  if (loader) {
-    // Add fade-out animation / 添加淡出动画
-    loader.classList.add('fade-out');
-    // Remove element after animation completes / 动画完成后移除元素
-    setTimeout(() => loader.remove(), 300);
-  }
+  hideAppLoader();
 };
 
 // Get root element / 获取根元素
