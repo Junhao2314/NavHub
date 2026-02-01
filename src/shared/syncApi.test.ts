@@ -538,6 +538,42 @@ describe('syncApi legacy main-data migration', () => {
   });
 });
 
+describe('syncApi main-data recovery', () => {
+  it('recovers missing main-data from latest sync history and writes through to KV', async () => {
+    const kv = new MemoryKV();
+    const env = { YNAV_KV: kv } as any;
+
+    const olderKey = 'ynav:backup:history-2024-01-01T00-00-00-000Z_aaaa';
+    const newerKey = 'ynav:backup:history-2024-02-01T00-00-00-000Z_bbbb';
+
+    await kv.put(
+      olderKey,
+      JSON.stringify({
+        links: [],
+        categories: [],
+        meta: { updatedAt: 1, deviceId: 'device-older', version: 1 },
+      }),
+    );
+    await kv.put(
+      newerKey,
+      JSON.stringify({
+        links: [],
+        categories: [],
+        meta: { updatedAt: 2, deviceId: 'device-newer', version: 2 },
+      }),
+    );
+
+    const recovered = await getMainData(env);
+
+    expect(recovered?.meta.version).toBe(2);
+    expect(recovered?.schemaVersion).toBe(NAVHUB_SYNC_DATA_SCHEMA_VERSION);
+    expect(kv.has(KV_MAIN_DATA_KEY)).toBe(true);
+
+    const stored = (await kv.get(KV_MAIN_DATA_KEY, 'json')) as any;
+    expect(stored?.meta?.version).toBe(2);
+  });
+});
+
 describe('syncApi env bindings', () => {
   it('accepts YNAV_WORKER_KV binding (alias)', async () => {
     const kv = new MemoryKV();

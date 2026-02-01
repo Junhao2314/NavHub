@@ -84,9 +84,48 @@ const safeKvGetJson = async (env: Env, key: string): Promise<unknown> => {
   }
 };
 
+const recoverMainDataFromSyncHistory = async (env: Env): Promise<NavHubSyncData | null> => {
+  let index: SyncHistoryIndex | null = null;
+  try {
+    index = await readSyncHistoryIndex(env);
+  } catch {
+    index = null;
+  }
+
+  if (!index?.items?.length) {
+    try {
+      index = await ensureSyncHistoryIndexForListing(env);
+    } catch {
+      index = null;
+    }
+  }
+
+  if (!index?.items?.length) return null;
+
+  for (const item of index.items) {
+    if (!isSyncHistoryKey(item.key)) continue;
+    const recovered = normalizeNavHubSyncData(await safeKvGetJson(env, item.key));
+    if (!recovered) continue;
+
+    // Best-effort write-through: restore the missing main-data key so new devices can sync normally.
+    try {
+      await env.YNAV_KV.put(KV_MAIN_DATA_KEY, JSON.stringify(sanitizeSensitiveData(recovered)));
+    } catch {
+      // ignore write-through failures
+    }
+
+    return recovered;
+  }
+
+  return null;
+};
+
 const getMainDataFromKv = async (env: Env): Promise<NavHubSyncData | null> => {
   const current = normalizeNavHubSyncData(await safeKvGetJson(env, KV_MAIN_DATA_KEY));
   if (current) return current;
+
+  const recovered = await recoverMainDataFromSyncHistory(env);
+  if (recovered) return recovered;
 
   const now = Date.now();
   const kv = env.YNAV_KV;
