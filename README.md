@@ -341,12 +341,10 @@ npm install
 # 启动开发服务器
 npm run dev
 
-# 默认会在 Vite Dev Server 下对 `/api/*` 做轻量 mock（便于“只跑前端”）；如需本地联调后端可关闭：
-# - Bash:  VITE_MOCK_API=false npm run dev
-# - PowerShell:  $env:VITE_MOCK_API='false'; npm run dev
-# 如需在 Vite 下把 `/api/*` 代理到本地 Worker（例如 wrangler dev 默认的 8787 端口）：
-# - Bash:  VITE_MOCK_API=false VITE_API_PROXY_TARGET=http://127.0.0.1:8787 npm run dev
-# - PowerShell:  $env:VITE_MOCK_API='false'; $env:VITE_API_PROXY_TARGET='http://127.0.0.1:8787'; npm run dev
+# Vite dev server 不包含 `/api/*`（Workers/Pages Functions 不会在 Vite 下运行）。
+# 如需联调同步/AI 接口，可在 Vite 下把 `/api/*` 代理到本地/远端 Worker（例如 wrangler dev 默认的 8787 端口）：
+# - Bash:  VITE_API_PROXY_TARGET=http://127.0.0.1:8787 npm run dev
+# - PowerShell:  $env:VITE_API_PROXY_TARGET='http://127.0.0.1:8787'; npm run dev
 
 # 运行测试
 npm run test
