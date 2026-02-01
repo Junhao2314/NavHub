@@ -214,9 +214,9 @@ const DataTab: React.FC<DataTabProps> = ({
   };
 
   const fetchBackups = useCallback(async () => {
-      setIsLoadingBackups(true);
-      setBackupError(null);
-      try {
+    setIsLoadingBackups(true);
+    setBackupError(null);
+    try {
       const response = await fetch(`${SYNC_API_ENDPOINT}?action=backups&t=${Date.now()}`, {
         headers: getAuthHeaders(),
         cache: 'no-store',
