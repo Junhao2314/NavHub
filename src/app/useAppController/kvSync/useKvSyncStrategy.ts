@@ -12,6 +12,7 @@ import type {
   SyncRole,
   ThemeMode,
 } from '../../../types';
+import { SYNC_CONFLICT_STRATEGY } from '../../../config/sync';
 import { getDeviceId, SYNC_STATS_DEBOUNCE_MS } from '../../../utils/constants';
 import { getSyncPassword } from '../../../utils/secrets';
 import {

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NavHub 同步诊断工具</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      border-left: 4px solid #4CAF50;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #4CAF50;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button.danger {
+      background: #f44336;
+    }
+    button.danger:hover {
+      background: #da190b;
+    }
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    input[type="password"] {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 300px;
+      margin-right: 10px;
+    }
+    .input-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 NavHub 同步诊断工具</h1>
+    
+    <div class="section">
+      <h2>1. 检查本地存储</h2>
+      <button onclick="checkLocalStorage()">检查本地数据</button>
+      <button class="danger" onclick="clearLocalStorage()">清除本地数据</button>
+      <div id="localResult"></div>
+    </div>
+
+    <div class="section">
+      <h2>2. 检查云端数据（无密码）</h2>
+      <button onclick="checkCloudData()">拉取云端数据</button>
+      <div id="cloudResult"></div>
+    </div>
+
+    <div class="section">
+      <h2>3. 检查权限状态</h2>
+      <div class="input-group">
+        <label for="syncPassword">同步密码（如果有）：</label>
+        <input type="password" id="syncPassword" placeholder="留空表示无密码">
+      </div>
+      <button onclick="checkAuth()">检查权限</button>
+      <button onclick="testLogin()">测试登录</button>
+      <div id="authResult"></div>
+    </div>
+
+    <div class="section">
+      <h2>4. 检查云端数据（带密码）</h2>
+      <button onclick="checkCloudDataWithPassword()">拉取云端数据（管理员）</button>
+      <div id="cloudAdminResult"></div>
+    </div>
+
+    <div class="section">
+      <h2>5. 检查备份列表</h2>
+      <button onclick="checkBackups()">查看备份列表</button>
+      <div id="backupsResult"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_ENDPOINT = '/api/sync';
+
+    function showResult(elementId, content, type = 'info') {
+      const el = document.getElementById(elementId);
+      el.innerHTML = `<div class="status ${type}">${content}</div>`;
+    }
+
+    function showJson(elementId, data, message = '') {
+      const el = document.getElementById(elementId);
+      const pre = document.createElement('pre');
+      pre.textContent = JSON.stringify(data, null, 2);
+      el.innerHTML = message ? `<div class="status info">${message}</div>` : '';
+      el.appendChild(pre);
+    }
+
+    function checkLocalStorage() {
+      try {
+        const links = localStorage.getItem('ynav_links');
+        const categories = localStorage.getItem('ynav_categories');
+        const syncMeta = localStorage.getItem('ynav_sync_meta');
+        const siteSettings = localStorage.getItem('ynav_site_settings');
+
+        const data = {
+          links: links ? JSON.parse(links) : null,
+          categories: categories ? JSON.parse(categories) : null,
+          syncMeta: syncMeta ? JSON.parse(syncMeta) : null,
+          siteSettings: siteSettings ? JSON.parse(siteSettings) : null,
+        };
+
+        const linksCount = data.links ? data.links.length : 0;
+        const categoriesCount = data.categories ? data.categories.length : 0;
+        const version = data.syncMeta?.version || 0;
+
+        showJson('localResult', data, 
+          `✅ 本地数据：${linksCount} 个链接，${categoriesCount} 个分类，版本号：${version}`);
+      } catch (error) {
+        showResult('localResult', `❌ 读取失败：${error.message}`, 'error');
+      }
+    }
+
+    function clearLocalStorage() {
+      if (!confirm('确定要清除所有本地数据吗？此操作不可撤销！')) return;
+      
+      try {
+        localStorage.clear();
+        showResult('localResult', '✅ 本地数据已清除，请刷新页面重新加载', 'success');
+      } catch (error) {
+        showResult('localResult', `❌ 清除失败：${error.message}`, 'error');
+      }
+    }
+
+    async function checkCloudData() {
+      try {
+        showResult('cloudResult', '⏳ 正在拉取云端数据...', 'info');
+        
+        const response = await fetch(`${API_ENDPOINT}?t=${Date.now()}`, {
+          cache: 'no-store'
+        });
+        const data = await response.json();
+
+        if (data.success && data.data) {
+          const linksCount = data.data.links ? data.data.links.length : 0;
+          const categoriesCount = data.data.categories ? data.data.categories.length : 0;
+          const version = data.data.meta?.version || 0;
+          const updatedAt = data.data.meta?.updatedAt 
+            ? new Date(data.data.meta.updatedAt).toLocaleString('zh-CN')
+            : '未知';
+
+          showJson('cloudResult', data, 
+            `✅ 云端数据：${linksCount} 个链接，${categoriesCount} 个分类，版本号：${version}，更新时间：${updatedAt}`);
+        } else if (data.success && !data.data) {
+          showResult('cloudResult', '⚠️ 云端暂无数据（KV 为空）', 'info');
+        } else {
+          showResult('cloudResult', `❌ 拉取失败：${data.error || '未知错误'}`, 'error');
+        }
+      } catch (error) {
+        showResult('cloudResult', `❌ 网络错误：${error.message}`, 'error');
+      }
+    }
+
+    async function checkAuth() {
+      try {
+        showResult('authResult', '⏳ 正在检查权限...', 'info');
+        
+        const password = document.getElementById('syncPassword').value.trim();
+        const headers = password ? { 'X-Sync-Password': password } : {};
+        
+        const response = await fetch(`${API_ENDPOINT}?action=auth&t=${Date.now()}`, {
+          headers,
+          cache: 'no-store'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          const role = data.role === 'admin' ? '管理员' : '用户';
+          const canWrite = data.canWrite ? '可写' : '只读';
+          const protected = data.protected ? '已启用密码保护' : '未启用密码保护';
+          
+          showJson('authResult', data, 
+            `✅ 权限状态：${role}（${canWrite}），${protected}`);
+        } else {
+          showResult('authResult', `❌ 检查失败：${data.error || '未知错误'}`, 'error');
+        }
+      } catch (error) {
+        showResult('authResult', `❌ 网络错误：${error.message}`, 'error');
+      }
+    }
+
+    async function testLogin() {
+      try {
+        showResult('authResult', '⏳ 正在测试登录...', 'info');
+        
+        const password = document.getElementById('syncPassword').value.trim();
+        if (!password) {
+          showResult('authResult', '⚠️ 请先输入同步密码', 'error');
+          return;
+        }
+        
+        const response = await fetch(`${API_ENDPOINT}?action=login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Sync-Password': password
+          },
+          body: JSON.stringify({ deviceId: 'debug-tool' })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          showJson('authResult', data, '✅ 登录成功！密码正确');
+        } else {
+          const remaining = data.remainingAttempts !== undefined 
+            ? `，剩余尝试次数：${data.remainingAttempts}` 
+            : '';
+          showResult('authResult', `❌ 登录失败：${data.error || '密码错误'}${remaining}`, 'error');
+        }
+      } catch (error) {
+        showResult('authResult', `❌ 网络错误：${error.message}`, 'error');
+      }
+    }
+
+    async function checkCloudDataWithPassword() {
+      try {
+        showResult('cloudAdminResult', '⏳ 正在拉取云端数据（管理员）...', 'info');
+        
+        const password = document.getElementById('syncPassword').value.trim();
+        const headers = password ? { 'X-Sync-Password': password } : {};
+        
+        const response = await fetch(`${API_ENDPOINT}?t=${Date.now()}`, {
+          headers,
+          cache: 'no-store'
+        });
+        const data = await response.json();
+
+        if (data.success && data.data) {
+          const linksCount = data.data.links ? data.data.links.length : 0;
+          const categoriesCount = data.data.categories ? data.data.categories.length : 0;
+          const version = data.data.meta?.version || 0;
+          const role = data.role === 'admin' ? '管理员' : '用户';
+          const hasPrivateVault = !!data.data.privateVault;
+          const hasEncryptedConfig = !!data.data.encryptedSensitiveConfig;
+
+          showJson('cloudAdminResult', data, 
+            `✅ 云端数据（${role}）：${linksCount} 个链接，${categoriesCount} 个分类，版本号：${version}，隐私分组：${hasPrivateVault ? '有' : '无'}，加密配置：${hasEncryptedConfig ? '有' : '无'}`);
+        } else if (data.success && !data.data) {
+          showResult('cloudAdminResult', '⚠️ 云端暂无数据（KV 为空）', 'info');
+        } else {
+          showResult('cloudAdminResult', `❌ 拉取失败：${data.error || '未知错误'}`, 'error');
+        }
+      } catch (error) {
+        showResult('cloudAdminResult', `❌ 网络错误：${error.message}`, 'error');
+      }
+    }
+
+    async function checkBackups() {
+      try {
+        showResult('backupsResult', '⏳ 正在获取备份列表...', 'info');
+        
+        const password = document.getElementById('syncPassword').value.trim();
+        const headers = password ? { 'X-Sync-Password': password } : {};
+        
+        const response = await fetch(`${API_ENDPOINT}?action=backups&t=${Date.now()}`, {
+          headers,
+          cache: 'no-store'
+        });
+        const data = await response.json();
+
+        if (data.success && data.backups) {
+          const count = data.backups.length;
+          showJson('backupsResult', data, 
+            `✅ 找到 ${count} 个备份/同步记录`);
+        } else if (data.success && !data.backups) {
+          showResult('backupsResult', '⚠️ 暂无备份记录', 'info');
+        } else {
+          showResult('backupsResult', `❌ 获取失败：${data.error || '未知错误'}`, 'error');
+        }
+      } catch (error) {
+        showResult('backupsResult', `❌ 网络错误：${error.message}`, 'error');
+      }
+    }
+
+    // 页面加载时自动检查
+    window.addEventListener('load', () => {
+      checkLocalStorage();
+      checkCloudData();
+      checkAuth();
+    });
+  </script>
+</body>
+</html>
