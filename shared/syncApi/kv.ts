@@ -92,19 +92,33 @@ const recoverMainDataFromSyncHistory = async (env: Env): Promise<NavHubSyncData 
     index = null;
   }
 
-  if (!index?.items?.length) {
-    try {
-      index = await ensureSyncHistoryIndexForListing(env);
-    } catch {
-      index = null;
+  const candidateKeys: string[] = [];
+
+  // Prefer existing index (if present) to avoid listing.
+  if (index?.items?.length) {
+    for (const item of index.items) {
+      if (!isSyncHistoryKey(item.key)) continue;
+      candidateKeys.push(item.key);
     }
+  } else {
+    // No index: list history keys directly, but DO NOT write the index here.
+    // This path should be side-effect-free aside from the main-data write-through when recovery succeeds.
+    const [currentKeys, legacyKeys] = await Promise.all([
+      listAllKeys(env, KV_SYNC_HISTORY_PREFIX),
+      listAllKeys(env, LEGACY_KV_SYNC_HISTORY_PREFIX),
+    ]);
+    candidateKeys.push(
+      ...[...currentKeys, ...legacyKeys]
+        .map((key) => key.name)
+        .filter((name) => isSyncHistoryKey(name))
+        .sort(compareSyncHistoryKeysDesc),
+    );
   }
 
-  if (!index?.items?.length) return null;
+  if (candidateKeys.length === 0) return null;
 
-  for (const item of index.items) {
-    if (!isSyncHistoryKey(item.key)) continue;
-    const recovered = normalizeNavHubSyncData(await safeKvGetJson(env, item.key));
+  for (const key of candidateKeys) {
+    const recovered = normalizeNavHubSyncData(await safeKvGetJson(env, key));
     if (!recovered) continue;
 
     // Best-effort write-through: restore the missing main-data key so new devices can sync normally.

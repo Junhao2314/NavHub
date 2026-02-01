@@ -19,6 +19,8 @@ export const SYNC_PASSWORD_KEY = 'ynav_sync_password';
 export const LAST_SYNC_KEY = 'ynav_last_sync';
 export const SYNC_ADMIN_SESSION_KEY = 'ynav_sync_admin_session';
 export const SYNC_PASSWORD_LOCK_UNTIL_KEY = 'ynav_sync_password_lock_until';
+export const SYNC_DEBUG_KEY = 'ynav_sync_debug';
+export const SYNC_DEBUG_DUMP_KEY = 'ynav_sync_debug_dump';
 
 // Sync Auth Security (brute-force protection)
 export const SYNC_PASSWORD_MAX_ATTEMPTS = 5;
