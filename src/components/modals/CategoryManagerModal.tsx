@@ -1,5 +1,39 @@
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  CheckSquare,
+  Edit2,
+  Eye,
+  EyeOff,
+  GripVertical,
+  Palette,
+  Plus,
+  Square,
+  Trash2,
+  X,
+} from 'lucide-react';
 import React, { useState } from 'react';
-import { X, ArrowUp, ArrowDown, Trash2, Edit2, Plus, Check, Palette, Square, CheckSquare } from 'lucide-react';
+import { useI18n } from '../../hooks/useI18n';
 import { Category } from '../../types';
 import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
@@ -12,7 +46,42 @@ interface CategoryManagerModalProps {
   onUpdateCategories: (newCategories: Category[]) => void;
   onDeleteCategory: (id: string) => void;
   closeOnBackdrop?: boolean;
+  isAdmin?: boolean;
 }
+
+type SortableItemRenderProps = {
+  setNodeRef: (node: HTMLElement | null) => void;
+  setActivatorNodeRef: (node: HTMLElement | null) => void;
+  attributes: DraggableAttributes;
+  listeners: DraggableSyntheticListeners;
+  style: React.CSSProperties;
+  isDragging: boolean;
+};
+
+const SortableItem: React.FC<{
+  id: string;
+  disabled?: boolean;
+  children: (props: SortableItemRenderProps) => React.ReactNode;
+}> = ({ id, disabled = false, children }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: isDragging ? 'none' : transition,
+    opacity: isDragging ? 0.65 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  return children({ setNodeRef, setActivatorNodeRef, attributes, listeners, style, isDragging });
+};
 
 const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   isOpen,
@@ -20,8 +89,10 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   categories,
   onUpdateCategories,
   onDeleteCategory,
-  closeOnBackdrop = true
+  closeOnBackdrop = true,
+  isAdmin = false,
 }) => {
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editIcon, setEditIcon] = useState('');
@@ -36,6 +107,18 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const { notify, confirm } = useDialog();
+
+  // DnD-kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Prevent accidental drags
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   if (!isOpen) return null;
 
@@ -63,42 +146,47 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
       setSelectedCategories(new Set());
     } else {
       // 全选所有分类
-      const allIds = new Set(categories.map(c => c.id));
+      const allIds = new Set(categories.map((c) => c.id));
       setSelectedCategories(allIds);
     }
   };
 
   const getFallbackCategory = (excludeIds: Set<string>) => {
-    const remaining = categories.filter(c => !excludeIds.has(c.id));
+    const remaining = categories.filter((c) => !excludeIds.has(c.id));
     if (remaining.length === 0) return null;
-    const common = remaining.find(c => c.id === 'common');
+    const common = remaining.find((c) => c.id === 'common');
     return common || remaining[0];
   };
 
   // 批量删除
   const handleBatchDelete = async () => {
     if (selectedCategories.size === 0) {
-      notify('请先选择要删除的分类', 'warning');
+      notify(t('modals.category.selectCategoryFirst'), 'warning');
       return;
     }
 
     const fallbackCategory = getFallbackCategory(selectedCategories);
     if (!fallbackCategory) {
-      notify('至少保留一个分类', 'warning');
+      notify(t('modals.category.keepAtLeastOne'), 'warning');
       return;
     }
 
     const shouldDelete = await confirm({
-      title: '删除分类',
-      message: `确定删除选中的 ${selectedCategories.size} 个分类吗？这些分类下的书签将移动到"${fallbackCategory.name}"。`,
-      confirmText: '删除',
-      cancelText: '取消',
-      variant: 'danger'
+      title: t('modals.category.deleteConfirmTitle'),
+      message: t('modals.category.batchDeleteConfirmMessage', {
+        count: selectedCategories.size,
+        fallback: fallbackCategory.name,
+      }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      variant: 'danger',
     });
 
     if (!shouldDelete) return;
 
-    selectedCategories.forEach(id => onDeleteCategory(id));
+    selectedCategories.forEach((id) => {
+      onDeleteCategory(id);
+    });
     setSelectedCategories(new Set());
     setIsBatchMode(false);
   };
@@ -113,6 +201,18 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
     onUpdateCategories(newCats);
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (isBatchMode) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = categories.findIndex((c) => c.id === active.id);
+    const newIndex = categories.findIndex((c) => c.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    onUpdateCategories(arrayMove(categories, oldIndex, newIndex) as Category[]);
+  };
+
   const handleStartEdit = (cat: Category) => {
     startEdit(cat);
   };
@@ -120,20 +220,27 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   const handleDeleteClick = async (cat: Category) => {
     const fallbackCategory = getFallbackCategory(new Set([cat.id]));
     if (!fallbackCategory) {
-      notify('至少保留一个分类', 'warning');
+      notify(t('modals.category.keepAtLeastOne'), 'warning');
       return;
     }
 
-    const prompt = cat.id === 'common'
-      ? `确定删除默认分类"${cat.name}"吗？该分类下的书签将移动到"${fallbackCategory.name}"。`
-      : `确定删除"${cat.name}"分类吗？该分类下的书签将移动到"${fallbackCategory.name}"。`;
+    const prompt =
+      cat.id === 'common'
+        ? t('modals.category.deleteDefaultConfirmMessage', {
+            name: cat.name,
+            fallback: fallbackCategory.name,
+          })
+        : t('modals.category.deleteConfirmMessage', {
+            name: cat.name,
+            fallback: fallbackCategory.name,
+          });
 
     const shouldDelete = await confirm({
-      title: '删除分类',
+      title: t('modals.category.deleteConfirmTitle'),
       message: prompt,
-      confirmText: '删除',
-      cancelText: '取消',
-      variant: 'danger'
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      variant: 'danger',
     });
 
     if (shouldDelete) {
@@ -149,11 +256,15 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
 
   const saveEdit = () => {
     if (!editingId || !editName.trim()) return;
-    const newCats = categories.map(c => c.id === editingId ? {
-      ...c,
-      name: editName.trim(),
-      icon: editIcon
-    } : c);
+    const newCats = categories.map((c) =>
+      c.id === editingId
+        ? {
+            ...c,
+            name: editName.trim(),
+            icon: editIcon,
+          }
+        : c,
+    );
     onUpdateCategories(newCats);
     setEditingId(null);
   };
@@ -163,11 +274,16 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
     const newCat: Category = {
       id: Date.now().toString(),
       name: newCatName.trim(),
-      icon: newCatIcon
+      icon: newCatIcon,
     };
     onUpdateCategories([...categories, newCat]);
     setNewCatName('');
     setNewCatIcon('Folder');
+  };
+
+  const toggleCategoryHidden = (catId: string) => {
+    const newCats = categories.map((c) => (c.id === catId ? { ...c, hidden: !c.hidden } : c));
+    onUpdateCategories(newCats);
   };
 
   const openIconSelector = (target: 'edit' | 'new') => {
@@ -188,11 +304,6 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
     setIconSelectorTarget(null);
   };
 
-  const cancelAdd = () => {
-    setNewCatName('');
-    setNewCatIcon('Folder');
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -203,19 +314,25 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700">
-          <h3 className="text-lg font-semibold dark:text-white">分类管理</h3>
+          <h3 className="text-lg font-semibold dark:text-white">{t('modals.category.title')}</h3>
           <div className="flex items-center gap-2">
             {/* 多选模式切换按钮 */}
             <button
               onClick={toggleBatchMode}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isBatchMode
-                ? 'bg-accent text-white'
-                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                }`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isBatchMode
+                  ? 'bg-accent text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
             >
-              {isBatchMode ? '取消多选' : '多选'}
+              {isBatchMode
+                ? t('modals.category.cancelMultiSelect')
+                : t('modals.category.multiSelect')}
             </button>
-            <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+            >
               <X className="w-5 h-5 dark:text-slate-400" />
             </button>
           </div>
@@ -234,10 +351,10 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                 ) : (
                   <Square size={16} />
                 )}
-                <span>全选</span>
+                <span>{t('common.selectAll')}</span>
               </button>
               <span className="text-sm text-slate-600 dark:text-slate-400">
-                已选择 {selectedCategories.size} 个分类
+                {t('modals.category.selectedCount', { count: selectedCategories.size })}
               </span>
             </div>
             <button
@@ -246,115 +363,189 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
             >
               <Trash2 size={14} />
-              <span>删除选中</span>
+              <span>{t('modals.category.deleteSelected')}</span>
             </button>
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {categories.map((cat, index) => (
-            <div key={cat.id} className={`flex flex-col p-3 rounded-lg group gap-2 ${isBatchMode && selectedCategories.has(cat.id)
-              ? 'bg-accent/10 dark:bg-accent/20 border-2 border-accent'
-              : 'bg-slate-50 dark:bg-slate-700/50'
-              }`}>
-              <div className="flex items-center gap-2">
-                {/* 多选模式复选框 */}
-                {isBatchMode && (
-                  <button
-                    onClick={() => toggleCategorySelection(cat.id)}
-                    className="flex-shrink-0 p-1"
-                  >
-                    {selectedCategories.has(cat.id) ? (
-                      <CheckSquare size={18} className="text-accent" />
-                    ) : (
-                      <Square size={18} className="text-slate-400 hover:text-accent" />
-                    )}
-                  </button>
-                )}
-
-                {/* Order Controls - 非多选模式显示 */}
-                {!isBatchMode && (
-                  <div className="flex flex-col gap-1 mr-2">
-                    <button
-                      onClick={() => handleMove(index, 'up')}
-                      disabled={index === 0}
-                      className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={categories.map((c) => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {categories.map((cat, index) => (
+                <SortableItem key={cat.id} id={cat.id} disabled={isBatchMode}>
+                  {({
+                    setNodeRef,
+                    setActivatorNodeRef,
+                    attributes,
+                    listeners,
+                    style,
+                    isDragging,
+                  }) => (
+                    <div
+                      ref={setNodeRef}
+                      style={style}
+                      className={`flex flex-col p-3 rounded-lg group gap-2 ${
+                        isBatchMode && selectedCategories.has(cat.id)
+                          ? 'bg-accent/10 dark:bg-accent/20 border-2 border-accent'
+                          : 'bg-slate-50 dark:bg-slate-700/50'
+                      } ${isDragging ? 'shadow-lg shadow-slate-200/60 dark:shadow-black/30 ring-2 ring-accent/30' : ''}`}
                     >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleMove(index, 'down')}
-                      disabled={index === categories.length - 1}
-                      className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  {editingId === cat.id ? (
-                    <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
-                        <Icon name={editIcon} size={16} />
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="flex-1 p-1.5 px-2 text-sm rounded border border-accent dark:bg-slate-800 dark:text-white outline-none"
-                          placeholder="分类名称"
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
-                          onClick={() => openIconSelector('edit')}
-                          title="选择图标"
-                        >
-                          <Palette size={16} />
-                        </button>
+                        {/* 多选模式复选框 */}
+                        {isBatchMode && (
+                          <button
+                            onClick={() => toggleCategorySelection(cat.id)}
+                            className="flex-shrink-0 p-1"
+                          >
+                            {selectedCategories.has(cat.id) ? (
+                              <CheckSquare size={18} className="text-accent" />
+                            ) : (
+                              <Square size={18} className="text-slate-400 hover:text-accent" />
+                            )}
+                          </button>
+                        )}
+
+                        {/* Drag Handle + Fallback Order Controls (非多选模式显示) */}
+                        {!isBatchMode && (
+                          <div className="flex items-center gap-1 mr-2">
+                            <button
+                              ref={setActivatorNodeRef}
+                              type="button"
+                              {...attributes}
+                              {...listeners}
+                              className="p-0.5 text-slate-400 hover:text-blue-500 cursor-grab active:cursor-grabbing"
+                              title={t('modals.category.dragToSort')}
+                              aria-label={t('modals.category.dragToSort')}
+                            >
+                              <GripVertical size={14} />
+                            </button>
+                            <div className="flex flex-col gap-1">
+                              <button
+                                onClick={() => handleMove(index, 'up')}
+                                disabled={index === 0}
+                                className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
+                                title={t('modals.category.moveUp')}
+                                aria-label={t('modals.category.moveUp')}
+                              >
+                                <ArrowUp size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleMove(index, 'down')}
+                                disabled={index === categories.length - 1}
+                                className="p-0.5 text-slate-400 hover:text-blue-500 disabled:opacity-30"
+                                title={t('modals.category.moveDown')}
+                                aria-label={t('modals.category.moveDown')}
+                              >
+                                <ArrowDown size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          {editingId === cat.id ? (
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <Icon name={editIcon} size={16} />
+                                <input
+                                  type="text"
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  className="flex-1 p-1.5 px-2 text-sm rounded border border-accent dark:bg-slate-800 dark:text-white outline-none"
+                                  placeholder={t('modals.category.categoryName')}
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                                  onClick={() => openIconSelector('edit')}
+                                  title={t('modals.category.selectIcon')}
+                                >
+                                  <Palette size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Icon name={cat.icon} size={16} />
+                              <span className="font-medium dark:text-slate-200 truncate">
+                                {cat.name}
+                                {cat.id === 'common' && (
+                                  <span className="ml-2 text-xs text-slate-400">
+                                    {t('modals.category.defaultCategoryLabel')}
+                                  </span>
+                                )}
+                                {cat.hidden && (
+                                  <span className="ml-2 text-xs text-amber-500">
+                                    {t('modals.category.hiddenLabel')}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        {!isBatchMode && (
+                          <div className="flex items-center gap-1 self-start mt-1">
+                            {editingId === cat.id ? (
+                              <button
+                                onClick={saveEdit}
+                                className="text-green-500 hover:bg-green-50 dark:hover:bg-slate-600 p-1.5 rounded bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-600"
+                              >
+                                <Check size={16} />
+                              </button>
+                            ) : (
+                              <>
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => toggleCategoryHidden(cat.id)}
+                                    className={`p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 ${
+                                      cat.hidden
+                                        ? 'text-amber-500 hover:text-amber-600'
+                                        : 'text-slate-400 hover:text-slate-500'
+                                    }`}
+                                    title={
+                                      cat.hidden
+                                        ? t('modals.category.unhideCategory')
+                                        : t('modals.category.hideCategory')
+                                    }
+                                  >
+                                    {cat.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleStartEdit(cat)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(cat)}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Icon name={cat.icon} size={16} />
-                      <span className="font-medium dark:text-slate-200 truncate">
-                        {cat.name}
-                        {cat.id === 'common' && (
-                          <span className="ml-2 text-xs text-slate-400">(默认分类)</span>
-                        )}
-                      </span>
-                    </div>
                   )}
-                </div>
-
-                {/* Actions */}
-                {!isBatchMode && (
-                  <div className="flex items-center gap-1 self-start mt-1">
-                    {editingId === cat.id ? (
-                      <button onClick={saveEdit} className="text-green-500 hover:bg-green-50 dark:hover:bg-slate-600 p-1.5 rounded bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-600"><Check size={16} /></button>
-                    ) : (
-                      <>
-                        <button onClick={() => handleStartEdit(cat)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(cat)}
-                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+                </SortableItem>
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-          <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">添加新分类</label>
+          <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">
+            {t('modals.category.addNewCategory')}
+          </label>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <Icon name={newCatIcon} size={16} />
@@ -362,14 +553,14 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                 type="text"
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
-                placeholder="分类名称"
+                placeholder={t('modals.category.categoryName')}
                 className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
               <button
                 type="button"
                 className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                 onClick={() => openIconSelector('new')}
-                title="选择图标"
+                title={t('modals.category.selectIcon')}
               >
                 <Palette size={16} />
               </button>
@@ -396,7 +587,9 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">选择图标</h3>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+                    {t('modals.category.selectIcon')}
+                  </h3>
                   <button
                     type="button"
                     onClick={cancelIconSelector}
@@ -417,7 +610,6 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>

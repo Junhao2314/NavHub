@@ -1,7 +1,9 @@
 node_modules
+.npm-cache/
 .gemini-clipboard
 .ace-tool/
 .claude
+.kiro/
 .vscode/
 .idea/
 .DS_Store
@@ -19,3 +21,6 @@ npm-debug.log*
 yarn-debug.log*
 
 .wrangler
+test
+playwright-report/
+test-results/

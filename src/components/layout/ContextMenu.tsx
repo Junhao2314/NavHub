@@ -1,11 +1,15 @@
+import { ChevronRight, Copy, CopyPlus, Edit2, FolderInput, Pin, Star, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
-import { Copy, Edit2, Trash2, Pin, CopyPlus, FolderInput, ChevronRight } from 'lucide-react';
+import { CONTEXT_MENU_VIEWPORT_GUARD_PX } from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
 import { Category } from '../../types';
+import { cn } from '../../utils/cn';
 
 interface ContextMenuProps {
   isOpen: boolean;
   position: { x: number; y: number };
   categories: Category[];
+  isRecommended: boolean;
   onClose: () => void;
   onCopyLink: () => void;
   onEditLink: () => void;
@@ -13,19 +17,22 @@ interface ContextMenuProps {
   onMoveLink: (categoryId: string) => void;
   onDeleteLink: () => void;
   onTogglePin: () => void;
+  onToggleRecommended: () => void;
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
   isOpen,
   position,
   categories,
+  isRecommended,
   onClose,
   onCopyLink,
   onEditLink,
   onDuplicateLink,
   onMoveLink,
   onDeleteLink,
-  onTogglePin
+  onTogglePin,
+  onToggleRecommended,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,26 +64,40 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [isOpen, onClose]);
 
+  const { t } = useI18n();
+
   if (!isOpen) return null;
 
   // 确保菜单位置不会超出屏幕边界
   const adjustedPosition = {
-    x: Math.min(position.x, window.innerWidth - 400),
-    y: Math.min(position.y, window.innerHeight - 300)
+    x: Math.min(position.x, window.innerWidth - CONTEXT_MENU_VIEWPORT_GUARD_PX.width),
+    y: Math.min(position.y, window.innerHeight - CONTEXT_MENU_VIEWPORT_GUARD_PX.height),
   };
 
   const menuItems = [
-    { icon: Copy, label: '复制链接', onClick: onCopyLink },
-    { icon: CopyPlus, label: '复制一份', onClick: onDuplicateLink },
+    { icon: Copy, label: t('contextMenu.copyLink'), onClick: onCopyLink },
+    { icon: CopyPlus, label: t('contextMenu.duplicateLink'), onClick: onDuplicateLink },
     {
       icon: FolderInput,
-      label: '转移分组',
-      onClick: () => { },
-      hasSubmenu: true
+      label: t('contextMenu.moveToCategory'),
+      onClick: () => {},
+      hasSubmenu: true,
     },
-    { icon: Edit2, label: '编辑链接', onClick: onEditLink },
-    { icon: Pin, label: '置顶/取消置顶', onClick: onTogglePin },
-    { icon: Trash2, label: '删除链接', onClick: onDeleteLink, className: 'text-red-500 dark:text-red-400' }
+    { icon: Edit2, label: t('contextMenu.editLink'), onClick: onEditLink },
+    { icon: Pin, label: t('contextMenu.togglePin'), onClick: onTogglePin },
+    {
+      icon: Star,
+      label: isRecommended
+        ? t('contextMenu.removeFromRecommended')
+        : t('contextMenu.addToRecommended'),
+      onClick: onToggleRecommended,
+    },
+    {
+      icon: Trash2,
+      label: t('contextMenu.deleteLink'),
+      onClick: onDeleteLink,
+      className: 'text-red-500 dark:text-red-400',
+    },
   ];
 
   return (
@@ -85,11 +106,11 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
       className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl shadow-xl py-1.5 min-w-[180px] backdrop-blur-sm bg-white/95 dark:bg-slate-900/95"
       style={{
         left: adjustedPosition.x,
-        top: adjustedPosition.y
+        top: adjustedPosition.y,
       }}
     >
-      {menuItems.map((item, index) => (
-        <div key={index} className="relative group">
+      {menuItems.map((item) => (
+        <div key={item.label} className="relative group">
           <button
             onClick={(e) => {
               if (item.hasSubmenu) return; // Prevent closing for submenu trigger
@@ -98,11 +119,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
               item.onClick();
               onClose();
             }}
-            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${item.className || 'text-slate-700 dark:text-slate-300'
-              }`}
+            className={cn(
+              'w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors',
+              item.className || 'text-slate-700 dark:text-slate-300',
+            )}
           >
             <div className="flex items-center gap-3">
-              <item.icon size={15} className={item.className || 'text-slate-500 dark:text-slate-400'} />
+              <item.icon
+                size={15}
+                className={item.className || 'text-slate-500 dark:text-slate-400'}
+              />
               <span>{item.label}</span>
             </div>
             {item.hasSubmenu && <ChevronRight size={14} className="text-slate-400" />}

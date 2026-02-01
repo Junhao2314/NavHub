@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Globe, Search, GripVertical, Check, RotateCcw, AlertCircle } from 'lucide-react';
-import { ExternalSearchSource } from '../../types';
-import { useDialog } from '../ui/DialogProvider';
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -19,6 +15,22 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import {
+  AlertCircle,
+  Check,
+  Globe,
+  GripVertical,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { buildDefaultSearchSources } from '../../config/defaults';
+import { useI18n } from '../../hooks/useI18n';
+import { ExternalSearchSource } from '../../types';
+import { useDialog } from '../ui/DialogProvider';
 
 interface SearchConfigModalProps {
   isOpen: boolean;
@@ -28,24 +40,23 @@ interface SearchConfigModalProps {
   closeOnBackdrop?: boolean;
 }
 
-// 可排序的列表项组件
-const SortableSearchItem = ({
-  source,
-  onToggle,
-  onDelete
-}: {
+type SortableSearchItemProps = {
   source: ExternalSearchSource;
   onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
+  t: (key: string) => string;
+};
+
+// 可排序的列表项组件
+const SortableSearchItem: React.FC<SortableSearchItemProps> = ({
+  source,
+  onToggle,
+  onDelete,
+  t,
 }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: source.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: source.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -59,7 +70,7 @@ const SortableSearchItem = ({
     try {
       const hostname = new URL(url).hostname;
       return `https://www.faviconextractor.com/favicon/${hostname}?larger=true`;
-    } catch (e) {
+    } catch (_e) {
       return '';
     }
   };
@@ -68,8 +79,11 @@ const SortableSearchItem = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 group bg-white dark:bg-slate-800 ${isDragging ? 'shadow-lg ring-2 ring-accent border-transparent' : 'border-slate-200 dark:border-slate-700 hover:border-accent/50 dark:hover:border-accent/50'
-        }`}
+      className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 group bg-white dark:bg-slate-800 ${
+        isDragging
+          ? 'shadow-lg ring-2 ring-accent border-transparent'
+          : 'border-slate-200 dark:border-slate-700 hover:border-accent/50 dark:hover:border-accent/50'
+      }`}
     >
       {/* Drag Handle */}
       <div
@@ -112,22 +126,24 @@ const SortableSearchItem = ({
         {/* Toggle Switch - iOS Style */}
         <button
           onClick={() => onToggle(source.id)}
-          className={`relative w-10 h-6 rounded-full transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-accent/20 ${source.enabled
+          className={`relative w-10 h-6 rounded-full transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-accent/20 ${
+            source.enabled
               ? 'bg-accent shadow-[0_0_10px_rgb(var(--accent-color)/0.3)]'
               : 'bg-slate-200 dark:bg-slate-700'
-            }`}
-          title={source.enabled ? '已启用' : '已禁用'}
+          }`}
+          title={source.enabled ? t('common.enabled') : t('common.disabled')}
         >
           <span
-            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${source.enabled ? 'translate-x-4' : 'translate-x-0'
-              }`}
+            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+              source.enabled ? 'translate-x-4' : 'translate-x-0'
+            }`}
           />
         </button>
 
         <button
-          onClick={() => onDelete(source.id)}
+          onClick={() => void onDelete(source.id)}
           className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors group/delete"
-          title="删除"
+          title={t('common.delete')}
         >
           <Trash2 size={15} className="transition-transform group-hover/delete:scale-110" />
         </button>
@@ -136,14 +152,14 @@ const SortableSearchItem = ({
   );
 };
 
-
 const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
   isOpen,
   onClose,
   sources,
   onSave,
-  closeOnBackdrop = true
+  closeOnBackdrop = true,
 }) => {
+  const { t } = useI18n();
   const [localSources, setLocalSources] = useState<ExternalSearchSource[]>(sources);
   const [newSource, setNewSource] = useState({ name: '', url: '' });
   const [isAdding, setIsAdding] = useState(false);
@@ -154,7 +170,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   useEffect(() => {
@@ -186,7 +202,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
       url: newSource.url.trim(),
       icon: 'Globe',
       enabled: true,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
 
     setLocalSources([...localSources, source]);
@@ -196,22 +212,24 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
 
   const handleDeleteSource = async (id: string) => {
     const shouldDelete = await confirm({
-      title: '删除搜索源',
-      message: '确定要删除这个搜索源吗？',
-      confirmText: '删除',
-      cancelText: '取消',
-      variant: 'danger'
+      title: t('modals.searchConfig.deleteSourceTitle'),
+      message: t('modals.searchConfig.deleteSourceMessage'),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      variant: 'danger',
     });
 
     if (shouldDelete) {
-      setLocalSources(localSources.filter(source => source.id !== id));
+      setLocalSources(localSources.filter((source) => source.id !== id));
     }
   };
 
   const handleToggleEnabled = (id: string) => {
-    setLocalSources(localSources.map(source =>
-      source.id === id ? { ...source, enabled: !source.enabled } : source
-    ));
+    setLocalSources(
+      localSources.map((source) =>
+        source.id === id ? { ...source, enabled: !source.enabled } : source,
+      ),
+    );
   };
 
   const handleSave = () => {
@@ -221,28 +239,16 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
 
   const handleReset = async () => {
     const shouldReset = await confirm({
-      title: '重置搜索源',
-      message: '确定要重置为默认搜索源列表吗？自定义的搜索源将丢失。',
-      confirmText: '重置',
-      cancelText: '取消',
-      variant: 'danger'
+      title: t('modals.searchConfig.resetSourcesTitle'),
+      message: t('modals.searchConfig.resetSourcesMessage'),
+      confirmText: t('common.reset'),
+      cancelText: t('common.cancel'),
+      variant: 'danger',
     });
 
     if (!shouldReset) return;
 
-    const defaultSources: ExternalSearchSource[] = [
-      { id: 'bing', name: '必应', url: 'https://www.bing.com/search?q={query}', icon: 'Search', enabled: true, createdAt: Date.now() },
-      { id: 'google', name: 'Google', url: 'https://www.google.com/search?q={query}', icon: 'Search', enabled: true, createdAt: Date.now() },
-      { id: 'baidu', name: '百度', url: 'https://www.baidu.com/s?wd={query}', icon: 'Globe', enabled: true, createdAt: Date.now() },
-      { id: 'sogou', name: '搜狗', url: 'https://www.sogou.com/web?query={query}', icon: 'Globe', enabled: true, createdAt: Date.now() },
-      { id: 'yandex', name: 'Yandex', url: 'https://yandex.com/search/?text={query}', icon: 'Globe', enabled: true, createdAt: Date.now() },
-      { id: 'github', name: 'GitHub', url: 'https://github.com/search?q={query}', icon: 'Github', enabled: true, createdAt: Date.now() },
-      { id: 'linuxdo', name: 'Linux.do', url: 'https://linux.do/search?q={query}', icon: 'Terminal', enabled: true, createdAt: Date.now() },
-      { id: 'bilibili', name: 'B站', url: 'https://search.bilibili.com/all?keyword={query}', icon: 'Play', enabled: true, createdAt: Date.now() },
-      { id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com/results?search_query={query}', icon: 'Video', enabled: true, createdAt: Date.now() },
-      { id: 'wikipedia', name: '维基', url: 'https://zh.wikipedia.org/wiki/Special:Search?search={query}', icon: 'BookOpen', enabled: true, createdAt: Date.now() }
-    ];
-    setLocalSources(defaultSources);
+    setLocalSources(buildDefaultSearchSources());
   };
 
   if (!isOpen) return null;
@@ -263,8 +269,12 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
               <Search size={22} strokeWidth={2.5} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">搜索源</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">拖拽排序 · 自定义 · 数据同步</p>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                {t('modals.searchConfig.title')}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                {t('modals.searchConfig.subtitle')}
+              </p>
             </div>
           </div>
           <button
@@ -277,7 +287,6 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
-
           {/* Add Source Toggle */}
           {!isAdding ? (
             <button
@@ -287,41 +296,45 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
               <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 group-hover:bg-accent group-hover:text-white flex items-center justify-center transition-colors">
                 <Plus size={14} strokeWidth={3} />
               </div>
-              <span>添加自定义搜索源</span>
+              <span>{t('modals.searchConfig.addCustomSource')}</span>
             </button>
           ) : (
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none animate-in fade-in slide-in-from-top-2 ring-1 ring-slate-100 dark:ring-slate-700">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                   <div className="w-1 h-4 bg-accent rounded-full"></div>
-                  添加新搜索源
+                  {t('modals.searchConfig.addNewSource')}
                 </h3>
                 <button
                   onClick={() => setIsAdding(false)}
                   className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition-colors"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">名称</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
+                    {t('modals.searchConfig.sourceName')}
+                  </label>
                   <input
                     type="text"
                     value={newSource.name}
                     onChange={(e) => setNewSource({ ...newSource, name: e.target.value })}
-                    placeholder="例如：Google"
+                    placeholder={t('modals.searchConfig.sourceNamePlaceholder')}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all placeholder:text-slate-400"
                     autoFocus
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">搜索 URL</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
+                    {t('modals.searchConfig.searchUrl')}
+                  </label>
                   <input
                     type="text"
                     value={newSource.url}
                     onChange={(e) => setNewSource({ ...newSource, url: e.target.value })}
-                    placeholder="https://.../search?q={query}"
+                    placeholder={t('modals.searchConfig.searchUrlPlaceholder')}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all placeholder:text-slate-400"
                   />
                 </div>
@@ -331,7 +344,13 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
                   <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
                     <AlertCircle size={12} strokeWidth={2.5} />
                   </span>
-                  <span>需要 <code className="font-mono font-bold text-orange-600 bg-orange-50 px-1 rounded">{'{query}'}</code> 占位符</span>
+                  <span>
+                    {t('modals.searchConfig.queryPlaceholderHint').split('{query}')[0]}
+                    <code className="font-mono font-bold text-orange-600 bg-orange-50 px-1 rounded">
+                      {'{query}'}
+                    </code>
+                    {t('modals.searchConfig.queryPlaceholderHint').split('{query}')[1] || ''}
+                  </span>
                 </div>
                 <button
                   onClick={handleAddSource}
@@ -339,7 +358,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
                   className="px-5 py-2 bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-accent/25 hover:shadow-lg hover:shadow-accent/30 active:scale-95 flex items-center gap-2"
                 >
                   <Plus size={16} strokeWidth={2.5} />
-                  <span>确认添加</span>
+                  <span>{t('modals.searchConfig.confirmAdd')}</span>
                 </button>
               </div>
             </div>
@@ -353,7 +372,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={localSources.map(s => s.id)}
+                items={localSources.map((s) => s.id)}
                 strategy={verticalListSortingStrategy}
               >
                 {localSources.map((source) => (
@@ -362,6 +381,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
                     source={source}
                     onToggle={handleToggleEnabled}
                     onDelete={handleDeleteSource}
+                    t={t}
                   />
                 ))}
               </SortableContext>
@@ -375,15 +395,18 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
             onClick={handleReset}
             className="text-slate-400 hover:text-orange-500 flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors group"
           >
-            <RotateCcw size={14} className="group-hover:-rotate-180 transition-transform duration-500" />
-            重置默认
+            <RotateCcw
+              size={14}
+              className="group-hover:-rotate-180 transition-transform duration-500"
+            />
+            {t('modals.searchConfig.resetDefault')}
           </button>
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className="px-5 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 rounded-xl transition-colors"
             >
-              取消
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleSave}
@@ -391,7 +414,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
             >
               <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1s_infinite]" />
               <Check size={18} strokeWidth={2.5} />
-              <span>保存配置</span>
+              <span>{t('modals.searchConfig.saveConfig')}</span>
             </button>
           </div>
         </div>

@@ -1,14 +1,25 @@
+﻿import { closestCorners, DndContext, DragEndEvent, SensorDescriptor } from '@dnd-kit/core';
+import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
+import { CheckSquare, Pin, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react';
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { DndContext, DragEndEvent, closestCorners, SensorDescriptor } from '@dnd-kit/core';
-import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
-import { Pin, Trash2, CheckSquare, Upload, Search, X, RefreshCw } from 'lucide-react';
+import { VirtuosoGrid } from 'react-virtuoso';
+import {
+  CLOCK_TICK_MS,
+  MOVE_MENU_CLOSE_DELAY_MS,
+  MOVE_MENU_OFFSET_PX,
+  MOVE_MENU_PADDING_PX,
+  MOVE_MENU_WIDTH_PX,
+} from '../../config/ui';
+import { useI18n } from '../../hooks/useI18n';
+import { useAppStore } from '../../stores/useAppStore';
 import { Category, LinkItem } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
+import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
 import SortableLinkCard from '../ui/SortableLinkCard';
-import { useDialog } from '../ui/DialogProvider';
 
 interface HitokotoPayload {
   hitokoto: string;
@@ -26,17 +37,13 @@ interface LinkSectionsProps {
   linksCount: number;
   pinnedLinks: LinkItem[];
   displayedLinks: LinkItem[];
-  selectedCategory: string;
-  searchQuery: string;
   categories: Category[];
-  siteTitle: string;
-  siteCardStyle: 'detailed' | 'simple';
   isSortingPinned: boolean;
   isSortingMode: string | null;
   isBatchEditMode: boolean;
   selectedLinksCount: number;
   selectedLinks: Set<string>;
-  sensors: SensorDescriptor<any>[];
+  sensors: SensorDescriptor<object>[];
   onPinnedDragEnd: (event: DragEndEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onToggleBatchEditMode: () => void;
@@ -45,6 +52,7 @@ interface LinkSectionsProps {
   onSelectAll: () => void;
   onBatchMove: (targetCategoryId: string) => void;
   onAddLink: () => void;
+  onLinkOpen: (link: LinkItem) => void;
   onLinkSelect: (id: string) => void;
   onLinkContextMenu: (e: React.MouseEvent, link: LinkItem) => void;
   onLinkEdit: (link: LinkItem) => void;
@@ -55,19 +63,22 @@ interface LinkSectionsProps {
 }
 
 const ClockWidget: React.FC = () => {
+  const { i18n } = useI18n();
   const [time, setTime] = React.useState(new Date());
 
   React.useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
+    const timer = setInterval(() => setTime(new Date()), CLOCK_TICK_MS);
     return () => clearInterval(timer);
   }, []);
 
+  const locale = i18n.language || undefined;
+
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+    return date.toLocaleDateString(locale, { month: 'long', day: 'numeric', weekday: 'long' });
   };
 
   return (
@@ -75,9 +86,7 @@ const ClockWidget: React.FC = () => {
       <div className="text-4xl font-mono font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-br from-slate-700 to-slate-900 dark:from-white dark:to-slate-400">
         {formatTime(time)}
       </div>
-      <div className="text-xs font-medium text-accent mt-1 opacity-80">
-        {formatDate(time)}
-      </div>
+      <div className="text-xs font-medium text-accent mt-1 opacity-80">{formatDate(time)}</div>
     </div>
   );
 };
@@ -86,11 +95,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   linksCount,
   pinnedLinks,
   displayedLinks,
-  selectedCategory,
-  searchQuery,
   categories,
-  siteTitle,
-  siteCardStyle,
   isSortingPinned,
   isSortingMode,
   isBatchEditMode,
@@ -105,19 +110,49 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   onSelectAll,
   onBatchMove,
   onAddLink,
+  onLinkOpen,
   onLinkSelect,
   onLinkContextMenu,
   onLinkEdit,
   isPrivateUnlocked,
   onPrivateUnlock,
   privateUnlockHint,
-  privateUnlockSubHint
+  privateUnlockSubHint,
 }) => {
+  const { t } = useI18n();
+  const selectedCategory = useAppStore((s) => s.selectedCategory);
+  const searchQuery = useAppStore((s) => s.searchQuery);
+  const searchMode = useAppStore((s) => s.searchMode);
+  const siteTitle = useAppStore((s) => s.siteSettings.title);
+  const siteCardStyle = useAppStore((s) => s.siteSettings.cardStyle);
+  const isDarkMode = useAppStore((s) => s.isDarkMode);
+
   const isPrivateCategory = selectedCategory === PRIVATE_CATEGORY_ID;
-  const showPinnedSection = pinnedLinks.length > 0 && !searchQuery && (selectedCategory === 'all');
-  const showMainSection = (selectedCategory !== 'all' || searchQuery);
-  const gridClassName = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5';
+  const showPinnedSection = pinnedLinks.length > 0 && !searchQuery && selectedCategory === 'all';
+  const showMainSection = selectedCategory !== 'all' || searchQuery;
+  const isSimpleView = siteCardStyle === 'simple';
+  const gridClassName = isSimpleView
+    ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
+    : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+  const gridGap = isSimpleView ? 'gap-2.5' : 'gap-4';
   const { notify } = useDialog();
+
+  const [scrollParent, setScrollParent] = React.useState<HTMLDivElement | null>(null);
+  const setScrollParentRef = React.useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    setScrollParent((current) => current ?? node);
+  }, []);
+
+  // 站内搜索时显示分类名称
+  const isInternalSearchWithQuery = searchMode === 'internal' && searchQuery.trim();
+  const categoryMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.forEach((cat) => {
+      map[cat.id] = cat.name;
+    });
+    return map;
+  }, [categories]);
+
   const [hitokoto, setHitokoto] = React.useState<HitokotoPayload | null>(null);
   const [isHitokotoLoading, setIsHitokotoLoading] = React.useState(false);
   const hitokotoFetchingRef = React.useRef(false);
@@ -143,28 +178,27 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     try {
       const success = await onPrivateUnlock(privatePassword);
       if (!success) {
-        setPrivateUnlockError('解锁失败，请检查密码');
+        setPrivateUnlockError(t('linkSections.unlockFailed'));
       } else {
         setPrivatePassword('');
       }
     } finally {
       setIsPrivateUnlocking(false);
     }
-  }, [onPrivateUnlock, privatePassword]);
+  }, [onPrivateUnlock, privatePassword, t]);
 
-  const getGreeting = () => {
+  const getGreeting = React.useCallback(() => {
     const hour = new Date().getHours();
-    if (hour < 6) return '凌晨好';
-    if (hour < 11) return '上午好';
-    if (hour < 14) return '中午好';
-    if (hour < 19) return '下午好';
-    return '晚上好';
-  };
+    if (hour < 6) return t('greeting.earlyMorning');
+    if (hour < 11) return t('greeting.morning');
+    if (hour < 14) return t('greeting.noon');
+    if (hour < 19) return t('greeting.afternoon');
+    return t('greeting.evening');
+  }, [t]);
 
-  const readHitokotoCache = () => {
-    if (typeof window === 'undefined') return null;
+  const readHitokotoCache = React.useCallback(() => {
     try {
-      const raw = window.localStorage.getItem(HITOKOTO_CACHE_KEY);
+      const raw = safeLocalStorageGetItem(HITOKOTO_CACHE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { date?: string; data?: HitokotoPayload };
       if (!parsed?.date || !parsed?.data?.hitokoto) return null;
@@ -172,43 +206,45 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     } catch {
       return null;
     }
-  };
+  }, []);
 
-  const writeHitokotoCache = (payload: HitokotoPayload) => {
-    if (typeof window === 'undefined') return;
+  const writeHitokotoCache = React.useCallback((payload: HitokotoPayload) => {
     const cache = { date: getTodayKey(), data: payload };
-    window.localStorage.setItem(HITOKOTO_CACHE_KEY, JSON.stringify(cache));
-  };
+    safeLocalStorageSetItem(HITOKOTO_CACHE_KEY, JSON.stringify(cache));
+  }, []);
 
-  const fetchHitokoto = React.useCallback(async (notifyOnError = false) => {
-    if (hitokotoFetchingRef.current) return;
-    hitokotoFetchingRef.current = true;
-    setIsHitokotoLoading(true);
-    try {
-      const response = await fetch('https://v1.hitokoto.cn');
-      if (!response.ok) {
-        throw new Error(`Hitokoto request failed: ${response.status}`);
+  const fetchHitokoto = React.useCallback(
+    async (notifyOnError = false) => {
+      if (hitokotoFetchingRef.current) return;
+      hitokotoFetchingRef.current = true;
+      setIsHitokotoLoading(true);
+      try {
+        const response = await fetch('https://v1.hitokoto.cn');
+        if (!response.ok) {
+          throw new Error(`Hitokoto request failed: ${response.status}`);
+        }
+        const payload = (await response.json()) as HitokotoPayload;
+        if (!payload?.hitokoto) {
+          throw new Error('Hitokoto payload missing text');
+        }
+        const normalized = {
+          hitokoto: payload.hitokoto,
+          from: payload.from,
+          from_who: payload.from_who ?? null,
+        };
+        setHitokoto(normalized);
+        writeHitokotoCache(normalized);
+      } catch (_error) {
+        if (notifyOnError) {
+          notify(t('linkSections.hitokotoFailed'), 'warning');
+        }
+      } finally {
+        hitokotoFetchingRef.current = false;
+        setIsHitokotoLoading(false);
       }
-      const payload = (await response.json()) as HitokotoPayload;
-      if (!payload?.hitokoto) {
-        throw new Error('Hitokoto payload missing text');
-      }
-      const normalized = {
-        hitokoto: payload.hitokoto,
-        from: payload.from,
-        from_who: payload.from_who ?? null
-      };
-      setHitokoto(normalized);
-      writeHitokotoCache(normalized);
-    } catch (error) {
-      if (notifyOnError) {
-        notify('获取一言失败，请稍后再试。', 'warning');
-      }
-    } finally {
-      hitokotoFetchingRef.current = false;
-      setIsHitokotoLoading(false);
-    }
-  }, [notify]);
+    },
+    [notify, writeHitokotoCache, t],
+  );
 
   React.useEffect(() => {
     const cache = readHitokotoCache();
@@ -219,7 +255,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     if (!cache || cache.date !== todayKey) {
       fetchHitokoto(false);
     }
-  }, [fetchHitokoto]);
+  }, [fetchHitokoto, readHitokotoCache]);
 
   const hitokotoAuthor = React.useMemo(() => {
     if (!hitokoto) return '';
@@ -228,25 +264,25 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     if (from && fromWho) return `${from} · ${fromWho}`;
     if (from) return from;
     if (fromWho) return fromWho;
-    return '佚名';
-  }, [hitokoto]);
+    return t('common.anonymous');
+  }, [hitokoto, t]);
 
   const hitokotoText = hitokoto?.hitokoto?.trim() || '';
   const activeCategory = React.useMemo(() => {
     if (isPrivateCategory) {
-      return { name: '隐私分组', icon: 'Lock' };
+      return { name: t('sidebar.privacyGroup'), icon: 'Lock' };
     }
     return categories.find((c) => c.id === selectedCategory) || null;
-  }, [categories, isPrivateCategory, selectedCategory]);
+  }, [categories, isPrivateCategory, selectedCategory, t]);
 
   const handleCopyHitokoto = async () => {
     if (!hitokotoText) return;
     const textToCopy = hitokotoAuthor ? `${hitokotoText} — ${hitokotoAuthor}` : hitokotoText;
     try {
       await navigator.clipboard.writeText(textToCopy);
-      notify('已复制到剪贴板', 'success');
-    } catch (error) {
-      notify('复制失败，请手动复制。', 'warning');
+      notify(t('linkSections.copiedToClipboard'), 'success');
+    } catch (_error) {
+      notify(t('linkSections.copyFailed'), 'warning');
     }
   };
 
@@ -255,13 +291,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     const trigger = moveMenuButtonRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
-    const menuWidth = 176;
-    const padding = 8;
+    const menuWidth = MOVE_MENU_WIDTH_PX;
+    const padding = MOVE_MENU_PADDING_PX;
     const left = Math.max(
       padding,
-      Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - padding)
+      Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - padding),
     );
-    const top = rect.bottom + 8;
+    const top = rect.bottom + MOVE_MENU_OFFSET_PX;
     setMoveMenuPosition({ top, left });
   }, []);
 
@@ -280,7 +316,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     }
     moveMenuCloseTimeoutRef.current = window.setTimeout(() => {
       setMoveMenuOpen(false);
-    }, 120);
+    }, MOVE_MENU_CLOSE_DELAY_MS);
   }, []);
 
   const cancelCloseMoveMenu = React.useCallback(() => {
@@ -290,10 +326,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     }
   }, []);
 
-  const handleBatchMoveSelect = React.useCallback((targetCategoryId: string) => {
-    onBatchMove(targetCategoryId);
-    setMoveMenuOpen(false);
-  }, [onBatchMove]);
+  const handleBatchMoveSelect = React.useCallback(
+    (targetCategoryId: string) => {
+      onBatchMove(targetCategoryId);
+      setMoveMenuOpen(false);
+    },
+    [onBatchMove],
+  );
 
   React.useEffect(() => {
     if (!moveMenuOpen) return;
@@ -313,20 +352,23 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   }, [isBatchEditMode]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide">
+    <div
+      ref={setScrollParentRef}
+      className="flex-1 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide"
+    >
       {/* Content wrapper with max-width - Added min-h and flex to push footer to bottom */}
       <div className="max-w-[1600px] mx-auto min-h-full flex flex-col">
-
-
         {/* Dashboard Header / Greeting */}
         {!searchQuery && selectedCategory === 'all' && (
           <div className="pt-8 pb-4 flex items-end justify-between">
             <div>
               <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
-                {getGreeting()}，<span className="text-accent">{siteTitle}</span>
+                {getGreeting()}
+                {t('linkSections.greetingSeparator')}
+                <span className="text-accent">{siteTitle}</span>
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm">
-                准备开始高效的一天了吗？
+                {t('linkSections.productivePrompt')}
               </p>
             </div>
             {/* Clock Widget */}
@@ -346,14 +388,20 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   <Pin size={16} className="text-accent" />
                 </div>
                 <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-100 dark:to-slate-400">
-                  置顶 / 常用
+                  {t('linkSections.pinnedSectionTitle')}
                 </h2>
               </div>
               {/* Stats as badge */}
               <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{linksCount} 站点</span>
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">{categories.length} 分类</span>
-                <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">{pinnedLinks.length} 置顶</span>
+                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                  {t('linkSections.stats.sites', { count: linksCount })}
+                </span>
+                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                  {t('linkSections.stats.categories', { count: categories.length })}
+                </span>
+                <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">
+                  {t('linkSections.stats.pinned', { count: pinnedLinks.length })}
+                </span>
               </div>
             </div>
 
@@ -367,12 +415,13 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   items={pinnedLinks.map((link) => link.id)}
                   strategy={rectSortingStrategy}
                 >
-                  <div className={`grid gap-4 ${gridClassName}`}>
+                  <div className={`grid ${gridGap} ${gridClassName}`}>
                     {pinnedLinks.map((link) => (
                       <SortableLinkCard
                         key={link.id}
                         link={link}
                         siteCardStyle={siteCardStyle}
+                        isDarkMode={isDarkMode}
                         isSortingMode={false}
                         isSortingPinned={isSortingPinned}
                       />
@@ -381,17 +430,19 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 </SortableContext>
               </DndContext>
             ) : (
-              <div className={`grid gap-4 ${gridClassName}`}>
+              <div className={`grid ${gridGap} ${gridClassName}`}>
                 {pinnedLinks.map((link) => (
                   <LinkCard
                     key={link.id}
                     link={link}
                     siteCardStyle={siteCardStyle}
+                    isDarkMode={isDarkMode}
                     isBatchEditMode={isBatchEditMode}
                     isSelected={selectedLinks.has(link.id)}
                     onSelect={onLinkSelect}
                     onContextMenu={onLinkContextMenu}
                     onEdit={onLinkEdit}
+                    onOpenLink={onLinkOpen}
                   />
                 ))}
               </div>
@@ -407,14 +458,19 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               <div className="flex items-center gap-3">
                 {selectedCategory !== 'all' && (
                   <div className="p-2 rounded-lg bg-accent/10">
-                    <Icon name={activeCategory?.icon || 'Folder'} size={16} className="text-accent" />
+                    <Icon
+                      name={activeCategory?.icon || 'Folder'}
+                      size={16}
+                      className="text-accent"
+                    />
                   </div>
                 )}
                 <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">
                   {selectedCategory === 'all'
-                    ? (searchQuery ? '搜索结果' : '所有链接')
-                    : (activeCategory?.name || '未命名分类')
-                  }
+                    ? searchQuery
+                      ? t('linkSections.searchResults')
+                      : t('linkSections.allLinks')
+                    : activeCategory?.name || t('linkSections.unnamedCategory')}
                 </h2>
                 {displayedLinks.length > 0 && (
                   <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full">
@@ -430,42 +486,46 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     <button
                       onClick={onToggleBatchEditMode}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-accent hover:border-accent/50 focus:ring-accent/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
-                      title="批量编辑"
+                      title={t('linkSections.batchEdit')}
                     >
-                      批量编辑
+                      {t('linkSections.batchEdit')}
                     </button>
                   ) : (
                     <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 shadow-sm backdrop-blur-sm">
                       <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        批量编辑
+                        {t('linkSections.batchEdit')}
                       </span>
                       <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                        已选 {selectedLinksCount}
+                        {t('linkSections.selectedCount', { count: selectedLinksCount })}
                       </span>
                       <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                       <button
                         onClick={onBatchPin}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
-                        title="批量置顶"
+                        title={t('linkSections.batchPin')}
                       >
                         <Pin size={13} />
-                        <span>置顶</span>
+                        <span>{t('modals.link.pinned')}</span>
                       </button>
                       <button
                         onClick={onBatchDelete}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="批量删除"
+                        title={t('linkSections.batchDelete')}
                       >
                         <Trash2 size={13} />
-                        <span>删除</span>
+                        <span>{t('common.delete')}</span>
                       </button>
                       <button
                         onClick={onSelectAll}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                        title="全选/取消全选"
+                        title={t('linkSections.selectDeselectAll')}
                       >
                         <CheckSquare size={13} />
-                        <span>{selectedLinksCount === displayedLinks.length ? '取消全选' : '全选'}</span>
+                        <span>
+                          {selectedLinksCount === displayedLinks.length
+                            ? t('common.deselectAll')
+                            : t('common.selectAll')}
+                        </span>
                       </button>
                       <div
                         className="relative"
@@ -475,16 +535,16 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         <button
                           ref={moveMenuButtonRef}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                          title="批量移动"
+                          title={t('linkSections.batchMove')}
                         >
                           <Upload size={13} />
-                          <span>移动</span>
+                          <span>{t('contextMenu.moveToCategory')}</span>
                         </button>
                       </div>
                       <button
                         onClick={onToggleBatchEditMode}
                         className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title="退出批量编辑"
+                        title={t('linkSections.exitBatchEdit')}
                       >
                         <X size={14} />
                       </button>
@@ -501,14 +561,16 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300">{privateUnlockHint}</p>
                 {privateUnlockSubHint && (
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{privateUnlockSubHint}</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                    {privateUnlockSubHint}
+                  </p>
                 )}
                 <div className="mt-4 w-full max-w-xs">
                   <input
                     type="password"
                     value={privatePassword}
                     onChange={(e) => setPrivatePassword(e.target.value)}
-                    placeholder="请输入密码"
+                    placeholder={t('linkSections.enterPassword')}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -517,7 +579,9 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     }}
                   />
                   {privateUnlockError && (
-                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">{privateUnlockError}</div>
+                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                      {privateUnlockError}
+                    </div>
                   )}
                   <button
                     type="button"
@@ -525,62 +589,86 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     disabled={isPrivateUnlocking}
                     className="mt-3 w-full px-3 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isPrivateUnlocking ? '解锁中...' : '解锁'}
+                    {isPrivateUnlocking ? t('linkSections.unlocking') : t('linkSections.unlock')}
                   </button>
                 </div>
               </div>
-            ) : (
-              displayedLinks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                  <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-                    <Search size={32} className="opacity-40" />
-                  </div>
-                  <p className="text-sm">没有找到相关内容</p>
-                  {selectedCategory !== 'all' && (
-                    <button onClick={onAddLink} className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded">添加一个?</button>
-                  )}
+            ) : displayedLinks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
+                  <Search size={32} className="opacity-40" />
                 </div>
-              ) : (
-                isSortingMode === selectedCategory ? (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCorners}
-                    onDragEnd={onDragEnd}
+                <p className="text-sm">{t('linkSections.noContent')}</p>
+                {selectedCategory !== 'all' && (
+                  <button
+                    onClick={onAddLink}
+                    className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded"
                   >
-                    <SortableContext
-                      items={displayedLinks.map((link) => link.id)}
-                      strategy={rectSortingStrategy}
-                    >
-                      <div className={`grid gap-4 ${gridClassName}`}>
-                        {displayedLinks.map((link) => (
-                          <SortableLinkCard
-                            key={link.id}
-                            link={link}
-                            siteCardStyle={siteCardStyle}
-                            isSortingMode={true}
-                            isSortingPinned={false}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                ) : (
-                  <div className={`grid gap-4 ${gridClassName}`}>
+                    {t('linkSections.addOne')}
+                  </button>
+                )}
+              </div>
+            ) : isSortingMode === selectedCategory ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragEnd={onDragEnd}
+              >
+                <SortableContext
+                  items={displayedLinks.map((link) => link.id)}
+                  strategy={rectSortingStrategy}
+                >
+                  <div className={`grid ${gridGap} ${gridClassName}`}>
                     {displayedLinks.map((link) => (
-                      <LinkCard
+                      <SortableLinkCard
                         key={link.id}
                         link={link}
                         siteCardStyle={siteCardStyle}
-                        isBatchEditMode={isBatchEditMode}
-                        isSelected={selectedLinks.has(link.id)}
-                        onSelect={onLinkSelect}
-                        onContextMenu={onLinkContextMenu}
-                        onEdit={onLinkEdit}
+                        isDarkMode={isDarkMode}
+                        isSortingMode={true}
+                        isSortingPinned={false}
                       />
                     ))}
                   </div>
-                )
-              )
+                </SortableContext>
+              </DndContext>
+            ) : scrollParent ? (
+              <VirtuosoGrid
+                customScrollParent={scrollParent}
+                data={displayedLinks}
+                computeItemKey={(_, link) => link.id}
+                listClassName={`grid ${gridGap} ${gridClassName}`}
+                itemClassName="min-w-0"
+                increaseViewportBy={{ top: 600, bottom: 800 }}
+                itemContent={(_, link) => (
+                  <LinkCard
+                    link={link}
+                    siteCardStyle={siteCardStyle}
+                    isDarkMode={isDarkMode}
+                    isBatchEditMode={isBatchEditMode}
+                    isSelected={selectedLinks.has(link.id)}
+                    categoryName={
+                      isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined
+                    }
+                    onSelect={onLinkSelect}
+                    onContextMenu={onLinkContextMenu}
+                    onEdit={onLinkEdit}
+                    onOpenLink={onLinkOpen}
+                  />
+                )}
+              />
+            ) : (
+              <div className={`grid ${gridGap} ${gridClassName}`}>
+                {Array.from(
+                  { length: Math.min(displayedLinks.length, 12) },
+                  (_, index) => `skeleton-${index}`,
+                ).map((key) => (
+                  <div
+                    key={key}
+                    className="h-20 rounded-xl bg-slate-100/80 dark:bg-slate-800/40 animate-pulse"
+                  />
+                ))}
+              </div>
             )}
           </section>
         )}
@@ -592,11 +680,14 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               type="button"
               onClick={handleCopyHitokoto}
               className="flex min-w-0 max-w-[70vw] items-center gap-1.5 text-left hover:text-slate-500 dark:hover:text-slate-300 transition-colors"
-              title={hitokotoText || '一言获取中'}
-              aria-label="点击复制一言"
+              title={hitokotoText || t('linkSections.hitokotoLoading')}
+              aria-label={t('linkSections.clickToCopyHitokoto')}
             >
               <span className="truncate">
-                {hitokotoText || (isHitokotoLoading ? '一言获取中…' : '点击刷新获取一言')}
+                {hitokotoText ||
+                  (isHitokotoLoading
+                    ? t('linkSections.hitokotoLoadingEllipsis')
+                    : t('linkSections.clickToRefreshHitokoto'))}
               </span>
               {hitokotoText && (
                 <span className="shrink-0 text-slate-400/80 dark:text-slate-500">
@@ -608,8 +699,8 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
               type="button"
               onClick={() => fetchHitokoto(true)}
               className="h-6 w-6 inline-flex items-center justify-center rounded-full text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-60"
-              title="刷新一言"
-              aria-label="刷新一言"
+              title={t('linkSections.refreshHitokoto')}
+              aria-label={t('linkSections.refreshHitokoto')}
               disabled={isHitokotoLoading}
             >
               <RefreshCw size={13} className={isHitokotoLoading ? 'animate-spin' : ''} />
@@ -617,27 +708,31 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
           </div>
         </footer>
       </div>
-      {moveMenuOpen && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed z-[70] w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden"
-          style={{ top: moveMenuPosition.top, left: moveMenuPosition.left }}
-          onMouseEnter={cancelCloseMoveMenu}
-          onMouseLeave={scheduleCloseMoveMenu}
-        >
-          {categories.filter((cat) => cat.id !== selectedCategory).map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => handleBatchMoveSelect(cat.id)}
-              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
+      {moveMenuOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed z-[70] w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden"
+            style={{ top: moveMenuPosition.top, left: moveMenuPosition.left }}
+            onMouseEnter={cancelCloseMoveMenu}
+            onMouseLeave={scheduleCloseMoveMenu}
+          >
+            {categories
+              .filter((cat) => cat.id !== selectedCategory)
+              .map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => handleBatchMoveSelect(cat.id)}
+                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {cat.name}
+                </button>
+              ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };
 
-export default LinkSections;
+export default React.memo(LinkSections);

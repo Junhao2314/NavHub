@@ -1,0 +1,158 @@
+import { useCallback } from 'react';
+import LinkSections from '../components/layout/LinkSections';
+import MainHeader from '../components/layout/MainHeader';
+import Sidebar from '../components/layout/Sidebar';
+
+import { GITHUB_REPO_URL, PRIVATE_CATEGORY_ID } from '../utils/constants';
+import { AppBackground } from './AppBackground';
+import { AppBottomOverlays, AppTopOverlays } from './AppOverlays';
+import { useAppController } from './useAppController';
+
+export interface AppProps {
+  onReady?: () => void;
+}
+
+function App({ onReady }: AppProps) {
+  const controller = useAppController({ onReady });
+
+  const {
+    core,
+    theme,
+    sidebar,
+    config,
+    search,
+    modals,
+    privacy,
+    sorting,
+    batchEdit,
+    displayed,
+    actions,
+    meta,
+    appearance,
+    admin,
+  } = controller;
+
+  const { links, categories } = core;
+  const { sidebarOpen, setSidebarOpen, selectedCategory } = sidebar;
+  const { isAdmin, handleEditDisabled } = admin;
+
+  const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
+
+  const handleOpenSettings = useCallback(
+    () => modals.setIsSettingsModalOpen(true),
+    [modals.setIsSettingsModalOpen],
+  );
+
+  const handleOpenSearchConfig = useCallback(() => {
+    if (!isAdmin) return handleEditDisabled();
+    modals.setIsSearchConfigModalOpen(true);
+  }, [handleEditDisabled, isAdmin, modals.setIsSearchConfigModalOpen]);
+
+  const handleStartCategorySorting = useCallback(() => {
+    if (!isPrivateView) {
+      sorting.startSorting(selectedCategory);
+    }
+  }, [isPrivateView, sorting.startSorting, selectedCategory]);
+
+  const handleOpenCategoryManager = useCallback(() => {
+    if (!isAdmin) return handleEditDisabled();
+    modals.setIsCatManagerOpen(true);
+  }, [handleEditDisabled, isAdmin, modals.setIsCatManagerOpen]);
+
+  // === Render ===
+  return (
+    <div className={`flex h-screen overflow-hidden ${appearance.toneClasses.text}`}>
+      <AppTopOverlays controller={controller} />
+
+      {/* Sidebar Mobile Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 lg:hidden backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <Sidebar
+        categories={categories}
+        linkCounts={meta.linkCounts}
+        privacyGroupEnabled={privacy.privacyGroupEnabled}
+        isPrivateUnlocked={privacy.isPrivateUnlocked}
+        privateCount={privacy.privateCount}
+        repoUrl={GITHUB_REPO_URL}
+        isAdmin={isAdmin}
+        onOpenCategoryManager={handleOpenCategoryManager}
+      />
+
+      {/* Main Content */}
+      <main
+        className={`flex-1 flex flex-col h-full overflow-hidden relative ${appearance.toneClasses.bg}`}
+      >
+        <AppBackground
+          useCustomBackground={appearance.useCustomBackground}
+          backgroundImage={appearance.backgroundImage}
+          backgroundMotion={appearance.backgroundMotion}
+        />
+
+        <div className="relative z-10 flex flex-col h-full">
+          <MainHeader
+            canEdit={isAdmin}
+            canSortPinned={sorting.canSortPinned}
+            canSortCategory={sorting.canSortCategory}
+            isSortingPinned={sorting.isSortingPinned}
+            isSortingCategory={sorting.isSortingCategory}
+            onSetTheme={theme.setThemeAndApply}
+            onViewModeChange={config.handleViewModeChange}
+            onSearchModeChange={search.handleSearchModeChange}
+            onOpenSearchConfig={handleOpenSearchConfig}
+            onExternalSearch={search.handleExternalSearch}
+            onSearchSourceSelect={search.handleSearchSourceSelect}
+            onToggleMobileSearch={search.toggleMobileSearch}
+            onStartPinnedSorting={sorting.startPinnedSorting}
+            onStartCategorySorting={handleStartCategorySorting}
+            onSavePinnedSorting={sorting.savePinnedSorting}
+            onCancelPinnedSorting={sorting.cancelPinnedSorting}
+            onSaveCategorySorting={sorting.saveSorting}
+            onCancelCategorySorting={sorting.cancelSorting}
+            onAddLink={actions.handleAddLinkRequest}
+            onOpenSettings={handleOpenSettings}
+            onEditDisabled={handleEditDisabled}
+          />
+
+          <LinkSections
+            linksCount={links.length}
+            pinnedLinks={displayed.pinnedLinks}
+            displayedLinks={displayed.activeDisplayedLinks}
+            categories={categories}
+            isSortingPinned={sorting.isSortingPinned}
+            isSortingMode={sorting.isSortingMode}
+            isBatchEditMode={batchEdit.effectiveIsBatchEditMode}
+            selectedLinksCount={batchEdit.effectiveSelectedLinksCount}
+            sensors={sorting.sensors}
+            onPinnedDragEnd={sorting.handlePinnedDragEnd}
+            onDragEnd={sorting.handleDragEnd}
+            onToggleBatchEditMode={batchEdit.effectiveToggleBatchEditMode}
+            onBatchDelete={batchEdit.effectiveBatchDelete}
+            onBatchPin={batchEdit.effectiveBatchPin}
+            onSelectAll={batchEdit.effectiveSelectAll}
+            onBatchMove={batchEdit.effectiveBatchMove}
+            onAddLink={actions.handleAddLinkRequest}
+            onLinkOpen={actions.handleLinkOpen}
+            selectedLinks={batchEdit.effectiveSelectedLinks}
+            onLinkSelect={batchEdit.handleLinkSelect}
+            onLinkContextMenu={actions.handleLinkContextMenu}
+            onLinkEdit={actions.handleLinkEdit}
+            isPrivateUnlocked={privacy.isPrivateUnlocked}
+            onPrivateUnlock={privacy.handleUnlockPrivateVault}
+            privateUnlockHint={privacy.privateUnlockHint}
+            privateUnlockSubHint={privacy.privateUnlockSubHint}
+          />
+        </div>
+      </main>
+
+      <AppBottomOverlays controller={controller} />
+    </div>
+  );
+}
+
+export default App;

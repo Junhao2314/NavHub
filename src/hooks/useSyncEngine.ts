@@ -1,354 +1,667 @@
 /**
- * useSyncEngine - Y-Nav KV 同步引擎
- * 
+ * useSyncEngine - NavHub KV 同步引擎
+ *
  * 功能:
  *   - 页面加载时检测云端数据并处理冲突
  *   - 数据变更时 debounce 自动同步到 KV
  *   - 手动触发备份
  *   - 同步状态管理
+ *
+ * 设计要点（避免“多端 + 高频变更”带来的坑）:
+ *   - 乐观锁：客户端携带 expectedVersion（上一次已知的云端 version），服务端检测版本是否一致。
+ *   - 串行化推送：同一页面内的多次 push 通过 Promise chain 串行执行，避免并发 push 交错导致冲突。
+ *   - debounce：把频繁的小改动合并成一次 push（尤其是点击统计等高频字段）。
+ *   - 元数据写回：push 成功只更新本地 meta（version/updatedAt），不回写业务数据，避免触发循环同步。
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    YNavSyncData,
-    SyncStatus,
-    SyncConflict,
-    SyncMetadata,
-    LinkItem,
-    Category,
-    SearchConfig,
-    AIConfig,
-    SiteSettings
+  ensureNavHubSyncDataSchemaVersion,
+  NAVHUB_SYNC_DATA_SCHEMA_VERSION,
+  normalizeNavHubSyncData,
+} from '../../shared/syncApi/navHubSyncData';
+import {
+  AIConfig,
+  Category,
+  CustomFaviconCache,
+  LinkItem,
+  NavHubSyncData,
+  PrivacyConfig,
+  SearchConfig,
+  SiteSettings,
+  SyncAuthResponse,
+  SyncAuthState,
+  SyncConflict,
+  SyncCreateBackupResponse,
+  SyncDeleteBackupResponse,
+  SyncErrorKind,
+  SyncGetResponse,
+  SyncMetadata,
+  SyncPostResponse,
+  SyncRestoreBackupResponse,
+  SyncRole,
+  SyncStatus,
+  ThemeMode,
 } from '../types';
 import {
-    SYNC_DEBOUNCE_MS,
-    SYNC_API_ENDPOINT,
-    SYNC_META_KEY,
-    SYNC_PASSWORD_KEY,
-    getDeviceId
+  getDeviceId,
+  getDeviceInfo,
+  SYNC_API_ENDPOINT,
+  SYNC_DEBOUNCE_MS,
+  SYNC_META_KEY,
 } from '../utils/constants';
+import { getErrorMessage } from '../utils/error';
+import {
+  safeLocalStorageGetItem,
+  safeLocalStorageRemoveItem,
+  safeLocalStorageSetItem,
+} from '../utils/storage';
+import { getSyncAuthHeaders } from '../utils/syncAuthHeaders';
+import { useI18n } from './useI18n';
+
+// fetch(..., { keepalive: true }) 的请求体大小在不同浏览器/平台有上限（常见约 64KB）。
+// 这里做一个保守阈值：超出则自动降级为普通请求（尽量保证请求不被浏览器直接拒绝）。
+const KEEPALIVE_BODY_LIMIT_BYTES = 64 * 1024;
+const keepaliveBodyEncoder = new TextEncoder();
+
+const isKeepaliveBodyWithinLimit = (body: string): boolean => {
+  return keepaliveBodyEncoder.encode(body).length <= KEEPALIVE_BODY_LIMIT_BYTES;
+};
+
+const getSyncNetworkErrorMessage = (error: unknown, t: (key: string) => string): string => {
+  const message = getErrorMessage(error, t('errors.networkError')).trim();
+  if (!message) return t('errors.networkError');
+
+  const normalized = message.toLowerCase();
+  const looksLikeNetworkError =
+    error instanceof TypeError ||
+    message === 'Failed to fetch' ||
+    normalized.includes('networkerror') ||
+    normalized.includes('load failed') ||
+    (normalized.includes('fetch') && normalized.includes('failed')) ||
+    normalized.includes('the network connection was lost') ||
+    normalized.includes('the internet connection appears to be offline');
+
+  if (looksLikeNetworkError) {
+    return t('errors.networkErrorRetry');
+  }
+
+  return message;
+};
+
+type SyncEngineCallbackName = 'onConflict' | 'onSyncComplete' | 'onError';
+
+const callSyncEngineCallback = <Args extends unknown[]>(
+  name: SyncEngineCallbackName,
+  callback: ((...args: Args) => void) | undefined,
+  ...args: Args
+): void => {
+  if (!callback) return;
+  try {
+    callback(...args);
+  } catch (error) {
+    console.error(`[useSyncEngine] ${name} callback threw`, error);
+  }
+};
 
 // 同步引擎配置
 interface UseSyncEngineOptions {
-    onConflict?: (conflict: SyncConflict) => void;
-    onSyncComplete?: (data: YNavSyncData) => void;
-    onError?: (error: string) => void;
+  onConflict?: (conflict: SyncConflict) => void;
+  onSyncComplete?: (data: NavHubSyncData) => void;
+  onError?: (error: string) => void;
 }
+
+export type PushToCloudOptions = {
+  /**
+   * 跳过写入“云端同步记录”(history snapshot)。
+   *
+   * 业务场景：点击统计等高频字段变更（纯统计同步）仍需要同步到云端用于多端一致，
+   * 但不希望刷屏“最近 20 次同步记录”（也避免额外的 KV 写放大）。
+   */
+  skipHistory?: boolean;
+  /**
+   * 页面关闭/切后台时的兜底同步：用 keepalive 提升请求在卸载阶段送达的概率。
+   * 注意：keepalive 请求体大小在不同浏览器有上限（通常 ~64KB）。
+   */
+  keepalive?: boolean;
+};
 
 // 同步引擎返回值
 interface UseSyncEngineReturn {
-    // 状态
-    syncStatus: SyncStatus;
-    lastSyncTime: number | null;
+  // 状态
+  syncStatus: SyncStatus;
+  lastSyncTime: number | null;
+  lastError: string | null;
+  lastErrorKind: SyncErrorKind | null;
 
-    // 操作
-    pullFromCloud: () => Promise<YNavSyncData | null>;
-    pushToCloud: (data: Omit<YNavSyncData, 'meta'>, force?: boolean) => Promise<boolean>;
-    schedulePush: (data: Omit<YNavSyncData, 'meta'>) => void;
-    createBackup: (data: Omit<YNavSyncData, 'meta'>) => Promise<boolean>;
-    restoreBackup: (backupKey: string) => Promise<YNavSyncData | null>;
+  // 操作
+  pullFromCloud: () => Promise<NavHubSyncData | null>;
+  pushToCloud: (
+    data: Omit<NavHubSyncData, 'meta'>,
+    force?: boolean,
+    syncKind?: 'auto' | 'manual',
+    options?: PushToCloudOptions,
+  ) => Promise<boolean>;
+  schedulePush: (data: Omit<NavHubSyncData, 'meta'>) => void;
+  createBackup: (data: Omit<NavHubSyncData, 'meta'>) => Promise<boolean>;
+  restoreBackup: (backupKey: string) => Promise<NavHubSyncData | null>;
+  deleteBackup: (backupKey: string) => Promise<boolean>;
 
-    // 冲突解决
-    resolveConflict: (choice: 'local' | 'remote') => void;
-    currentConflict: SyncConflict | null;
+  // 冲突解决
+  resolveConflict: (choice: 'local' | 'remote') => void;
+  currentConflict: SyncConflict | null;
 
-    // 工具
-    cancelPendingSync: () => void;
+  // 工具
+  cancelPendingSync: () => void;
+  flushPendingSync: (options?: { keepalive?: boolean }) => Promise<boolean>;
+
+  // 权限
+  checkAuth: () => Promise<SyncAuthState>;
 }
 
 // 获取当前本地的 sync meta
 const getLocalSyncMeta = (): SyncMetadata | null => {
-    try {
-        const stored = localStorage.getItem(SYNC_META_KEY);
-        return stored ? JSON.parse(stored) : null;
-    } catch {
-        return null;
-    }
+  const stored = safeLocalStorageGetItem(SYNC_META_KEY);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored) as SyncMetadata;
+  } catch {
+    return null;
+  }
 };
 
 // 保存 sync meta 到本地
 const saveLocalSyncMeta = (meta: SyncMetadata): void => {
-    localStorage.setItem(SYNC_META_KEY, JSON.stringify(meta));
+  safeLocalStorageSetItem(SYNC_META_KEY, JSON.stringify(meta));
 };
 
-const getAuthHeaders = (): HeadersInit => {
-    const password = localStorage.getItem(SYNC_PASSWORD_KEY);
-    return {
-        'Content-Type': 'application/json',
-        ...(password ? { 'X-Sync-Password': password } : {})
-    };
+const sanitizeAiConfigForCloud = (config?: AIConfig): AIConfig | undefined => {
+  if (!config) return undefined;
+  return { ...config, apiKey: '' };
 };
 
 export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngineReturn {
-    const { onConflict, onSyncComplete, onError } = options;
+  const { onConflict, onSyncComplete, onError } = options;
+  const { t } = useI18n();
 
-    // 状态
-    const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
-    const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
-    const [currentConflict, setCurrentConflict] = useState<SyncConflict | null>(null);
+  // 状态
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const [currentConflict, setCurrentConflict] = useState<SyncConflict | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [lastErrorKind, setLastErrorKind] = useState<SyncErrorKind | null>(null);
 
-    // Refs for debounce
-    const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-    const pendingData = useRef<Omit<YNavSyncData, 'meta'> | null>(null);
+  // Refs for debounce
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const pendingData = useRef<Omit<NavHubSyncData, 'meta'> | null>(null);
+  const pushChainRef = useRef<Promise<void>>(Promise.resolve());
 
-    // 从云端拉取数据
-    const pullFromCloud = useCallback(async (): Promise<YNavSyncData | null> => {
-        setSyncStatus('syncing');
+  const emitSyncError = useCallback(
+    (message: string, kind: SyncErrorKind = 'unknown'): void => {
+      setSyncStatus('error');
+      setLastError(message);
+      setLastErrorKind(kind);
+      callSyncEngineCallback('onError', onError, message);
+    },
+    [onError],
+  );
 
-        try {
-            const response = await fetch(SYNC_API_ENDPOINT, {
-                headers: getAuthHeaders()
-            });
-            const result = await response.json();
+  // 从云端拉取数据
+  const pullFromCloud = useCallback(async (): Promise<NavHubSyncData | null> => {
+    setSyncStatus('syncing');
 
-            if (!result.success) {
-                setSyncStatus('error');
-                onError?.(result.error || '拉取失败');
-                return null;
-            }
+    try {
+      const response = await fetch(`${SYNC_API_ENDPOINT}?t=${Date.now()}`, {
+        headers: getSyncAuthHeaders(),
+        cache: 'no-store',
+      });
+      const result = (await response.json()) as SyncGetResponse;
 
-            if (!result.data) {
-                // 云端无数据
-                setSyncStatus('idle');
-                return null;
-            }
+      if (result.success === false) {
+        emitSyncError(result.error || t('errors.pullFailed'), 'server');
+        return null;
+      }
 
-            setSyncStatus('synced');
-            setLastSyncTime(result.data.meta.updatedAt);
+      if (!result.data) {
+        // 云端无数据
+        setSyncStatus('idle');
+        return null;
+      }
 
-            // 保存云端的 meta 到本地
-            saveLocalSyncMeta(result.data.meta);
+      const normalized = normalizeNavHubSyncData(result.data);
+      if (!normalized) {
+        emitSyncError(t('errors.invalidDataFormat'), 'server');
+        return null;
+      }
 
-            return result.data;
-        } catch (error: any) {
-            setSyncStatus('error');
-            onError?.(error.message || '网络错误');
-            return null;
-        }
-    }, [onError]);
+      setSyncStatus('synced');
+      setLastSyncTime(normalized.meta.updatedAt);
 
-    // 推送数据到云端
-    const pushToCloud = useCallback(async (
-        data: Omit<YNavSyncData, 'meta'>,
-        force: boolean = false
+      // 保存云端的 meta 到本地
+      saveLocalSyncMeta(normalized.meta);
+
+      return normalized;
+    } catch (error: unknown) {
+      emitSyncError(getSyncNetworkErrorMessage(error, t), 'network');
+      return null;
+    }
+  }, [emitSyncError, t]);
+
+  const checkAuth = useCallback(async (): Promise<SyncAuthState> => {
+    try {
+      const response = await fetch(`${SYNC_API_ENDPOINT}?action=auth&t=${Date.now()}`, {
+        headers: getSyncAuthHeaders(),
+        cache: 'no-store',
+      });
+      const result = (await response.json()) as SyncAuthResponse;
+
+      if (!result?.success) {
+        return { protected: true, role: 'user', canWrite: false };
+      }
+
+      const role: SyncRole = result.role === 'admin' ? 'admin' : 'user';
+      return {
+        protected: !!result.protected,
+        role,
+        canWrite: !!result.canWrite,
+      };
+    } catch {
+      return { protected: true, role: 'user', canWrite: false };
+    }
+  }, []);
+
+  // 实际执行推送（不做并发控制）
+  const doPushToCloud = useCallback(
+    async (
+      data: Omit<NavHubSyncData, 'meta'>,
+      force: boolean = false,
+      syncKind: 'auto' | 'manual' = 'auto',
+      options?: PushToCloudOptions,
     ): Promise<boolean> => {
-        setSyncStatus('syncing');
+      setSyncStatus('syncing');
+
+      try {
+        // Safari 私密模式等场景下 localStorage 可能“存在但不可写”。
+        // 同步逻辑依赖本地保存的 meta/version，因此这里提前探测可写性，避免出现“看起来同步成功但 version 丢失”。
+        const storageProbeKey = '__ynav_storage_probe__';
+        if (!safeLocalStorageSetItem(storageProbeKey, '1')) {
+          emitSyncError(t('errors.storageUnavailable'), 'storage');
+          return false;
+        }
+        safeLocalStorageRemoveItem(storageProbeKey);
 
         const localMeta = getLocalSyncMeta();
         const deviceId = getDeviceId();
+        const deviceInfo = getDeviceInfo();
+
+        // Never send plaintext apiKey to the cloud; use encryptedSensitiveConfig instead.
+        const sanitizedPayload = {
+          ...data,
+          schemaVersion: ensureNavHubSyncDataSchemaVersion(
+            (data as { schemaVersion?: unknown }).schemaVersion,
+          ),
+          aiConfig: sanitizeAiConfigForCloud(data.aiConfig),
+        };
 
         // 构建完整的同步数据
-        const syncData: YNavSyncData = {
-            ...data,
-            meta: {
-                updatedAt: Date.now(),
-                deviceId,
-                version: localMeta?.version || 0
-            }
+        const now = Date.now();
+        const syncData: NavHubSyncData = {
+          ...sanitizedPayload,
+          meta: {
+            updatedAt: now,
+            deviceId,
+            // 客户端这里携带的是“已知的云端版本号”。
+            // 服务端会在写入时把 version 自增，并把最新 version 返回给客户端保存。
+            // 配合 expectedVersion（见下）实现乐观锁：并发写入时能够检测冲突并提示用户选择保留本地/云端。
+            version: localMeta?.version ?? 0,
+            browser: deviceInfo?.browser,
+            os: deviceInfo?.os,
+            syncKind,
+          },
         };
 
-        try {
-            const response = await fetch(SYNC_API_ENDPOINT, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({
-                    data: syncData,
-                    expectedVersion: force ? undefined : localMeta?.version
-                })
-            });
+        // 默认策略：auto 同步不写入“同步记录”(history snapshot)，避免高频同步刷屏 & KV 写放大。
+        // manual 同步则默认写入（除非显式 options.skipHistory=true）。
+        const shouldSkipHistory = options?.skipHistory ?? syncKind !== 'manual';
 
-            const result = await response.json();
+        const requestBody = JSON.stringify({
+          data: syncData,
+          // force=true => 不携带 expectedVersion，等价于“放弃乐观锁，允许 last-write-wins”。
+          // 主要用于冲突解决选择“保留本地版本”时的强制覆盖。
+          expectedVersion: force ? undefined : (localMeta?.version ?? 0),
+          syncKind,
+          ...(shouldSkipHistory ? { skipHistory: true } : {}),
+        });
 
-            // 处理冲突
-            if (result.conflict && result.data) {
-                setSyncStatus('conflict');
-                const conflict: SyncConflict = {
-                    localData: syncData,
-                    remoteData: result.data
-                };
-                setCurrentConflict(conflict);
-                onConflict?.(conflict);
-                return false;
+        const keepaliveRequested = options?.keepalive === true;
+        const keepalive = keepaliveRequested && isKeepaliveBodyWithinLimit(requestBody);
+        // keepaliveRequested=true 但 body 超限时，会自动降级为 keepalive=false。
+        // 这是一个权衡：宁可让请求在卸载阶段不一定送达，也要避免请求被浏览器直接抛弃（或抛异常）。
+
+        const response = await fetch(SYNC_API_ENDPOINT, {
+          method: 'POST',
+          headers: getSyncAuthHeaders(),
+          keepalive,
+          body: requestBody,
+        });
+
+        const result = (await response.json()) as SyncPostResponse;
+
+        if (result.success !== true) {
+          // 处理冲突
+          if (result.conflict && result.data) {
+            const remoteData = normalizeNavHubSyncData(result.data);
+            if (!remoteData) {
+              emitSyncError(t('errors.serverDataFormatError'), 'server');
+              return false;
             }
-
-            if (!result.success) {
-                setSyncStatus('error');
-                onError?.(result.error || '推送失败');
-                return false;
-            }
-
-            // 成功，更新本地 meta
-            if (result.data?.meta) {
-                saveLocalSyncMeta(result.data.meta);
-                setLastSyncTime(result.data.meta.updatedAt);
-            }
-
-            setSyncStatus('synced');
-            onSyncComplete?.(result.data);
-            return true;
-        } catch (error: any) {
-            setSyncStatus('error');
-            onError?.(error.message || '网络错误');
+            // 服务端检测到 expectedVersion 与云端 version 不一致（或条件写失败），返回 409 + 最新云端数据。
+            // 这里将“本地待推送数据”与“云端最新数据”打包，交给上层 UI 决策如何合并/覆盖。
+            setSyncStatus('conflict');
+            const conflict: SyncConflict = {
+              localData: syncData,
+              remoteData,
+            };
+            setCurrentConflict(conflict);
+            callSyncEngineCallback('onConflict', onConflict, conflict);
             return false;
-        }
-    }, [onConflict, onSyncComplete, onError]);
+          }
 
-    // 带 debounce 的推送调度
-    const schedulePush = useCallback((data: Omit<YNavSyncData, 'meta'>) => {
-        // 存储待推送数据
-        pendingData.current = data;
-        setSyncStatus('pending');
-
-        // 清除之前的定时器
-        if (debounceTimer.current) {
-            clearTimeout(debounceTimer.current);
+          emitSyncError(result.error || t('errors.pushFailed'), 'server');
+          return false;
         }
 
-        // 设置新的定时器
-        debounceTimer.current = setTimeout(async () => {
-            if (pendingData.current) {
-                await pushToCloud(pendingData.current);
-                pendingData.current = null;
-            }
-        }, SYNC_DEBOUNCE_MS);
-    }, [pushToCloud]);
-
-    // 取消待处理的同步
-    const cancelPendingSync = useCallback(() => {
-        if (debounceTimer.current) {
-            clearTimeout(debounceTimer.current);
-            debounceTimer.current = null;
+        // 成功，更新本地 meta
+        if (result.data?.meta) {
+          saveLocalSyncMeta(result.data.meta);
+          setLastSyncTime(result.data.meta.updatedAt);
         }
-        pendingData.current = null;
-        setSyncStatus('idle');
-    }, []);
 
-    // 创建备份
-    const createBackup = useCallback(async (
-        data: Omit<YNavSyncData, 'meta'>
+        // 注意：这里不会调用 onSyncComplete 将 result.data 回写到业务状态。
+        // push 成功返回的数据会包含服务端生成的 meta（updatedAt/version），若回写会触发上层的 auto-sync effect，
+        // 导致“push → 回写 → 再 push”的循环同步。
+        // 业务数据的覆盖/合并应由 pull/restore/冲突解决流程处理；这里仅把 meta 持久化用于后续 expectedVersion。
+        setSyncStatus('synced');
+        return true;
+      } catch (error: unknown) {
+        emitSyncError(getSyncNetworkErrorMessage(error, t), 'network');
+        return false;
+      }
+    },
+    [onConflict, emitSyncError, t],
+  );
+
+  // 推送数据到云端（串行化，避免并发推送导致 expectedVersion 冲突/交错）
+  const pushToCloud = useCallback(
+    async (
+      data: Omit<NavHubSyncData, 'meta'>,
+      force: boolean = false,
+      syncKind: 'auto' | 'manual' = 'auto',
+      options?: PushToCloudOptions,
     ): Promise<boolean> => {
-        setSyncStatus('syncing');
+      // Promise chain：把每次 push 追加到上一次 push 的尾部，确保同一页面内 push 严格串行。
+      // - 使用 then(run, run) 确保“上一笔失败”也不会阻断后续 push。
+      // - pushChainRef 始终指向一个会 settle 的 Promise<void>，方便后续继续衔接。
+      const run = () => doPushToCloud(data, force, syncKind, options);
+      const resultPromise = pushChainRef.current.then(run, run);
+      pushChainRef.current = resultPromise.then(
+        () => undefined,
+        () => undefined,
+      );
+      return resultPromise;
+    },
+    [doPushToCloud],
+  );
 
-        const deviceId = getDeviceId();
-        const syncData: YNavSyncData = {
-            ...data,
-            meta: {
-                updatedAt: Date.now(),
-                deviceId,
-                version: getLocalSyncMeta()?.version || 0
-            }
-        };
+  // 带 debounce 的推送调度
+  const schedulePush = useCallback(
+    (data: Omit<NavHubSyncData, 'meta'>) => {
+      // 只保留“最后一次变更”的快照：在 debounce 窗口内发生多次变更时，最终只 push 一次最新数据。
+      pendingData.current = data;
+      setSyncStatus('pending');
 
-        try {
-            const response = await fetch(`${SYNC_API_ENDPOINT}?action=backup`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ data: syncData })
-            });
+      // 清除之前的定时器
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
 
-            const result = await response.json();
-
-            if (!result.success) {
-                setSyncStatus('error');
-                onError?.(result.error || '备份失败');
-                return false;
-            }
-
-            setSyncStatus('synced');
-            return true;
-        } catch (error: any) {
-            setSyncStatus('error');
-            onError?.(error.message || '网络错误');
-            return false;
+      // 设置新的定时器
+      debounceTimer.current = setTimeout(async () => {
+        if (pendingData.current) {
+          // 自动同步默认不写入“云端同步记录”(history snapshot)，以减少 KV 写放大。
+          await pushToCloud(pendingData.current, false, 'auto', { skipHistory: true });
+          pendingData.current = null;
         }
-    }, [onError]);
+      }, SYNC_DEBOUNCE_MS);
+    },
+    [pushToCloud],
+  );
 
-    // 从备份恢复（服务端会创建回滚点）
-    const restoreBackup = useCallback(async (backupKey: string): Promise<YNavSyncData | null> => {
-        setSyncStatus('syncing');
+  // 取消待处理的同步
+  const cancelPendingSync = useCallback(() => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    pendingData.current = null;
+    setSyncStatus('idle');
+  }, []);
 
-        try {
-            const response = await fetch(`${SYNC_API_ENDPOINT}?action=restore`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ backupKey, deviceId: getDeviceId() })
-            });
-            const result = await response.json();
+  const flushPendingSync = useCallback(
+    async (options?: { keepalive?: boolean }): Promise<boolean> => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
 
-            if (!result.success || !result.data) {
-                setSyncStatus('error');
-                onError?.(result.error || '恢复失败');
-                return null;
-            }
+      const pending = pendingData.current;
+      if (!pending) return false;
 
-            saveLocalSyncMeta(result.data.meta);
-            setLastSyncTime(result.data.meta.updatedAt);
-            setSyncStatus('synced');
+      pendingData.current = null;
+      // 用于“页面关闭/切后台”场景的兜底同步：调用方可以传 keepalive=true 提升送达概率（受 body 大小限制）。
+      return pushToCloud(pending, false, 'auto', {
+        skipHistory: true,
+        keepalive: options?.keepalive === true,
+      });
+    },
+    [pushToCloud],
+  );
 
-            return result.data;
-        } catch (error: any) {
-            setSyncStatus('error');
-            onError?.(error.message || '网络错误');
-            return null;
+  // 创建备份
+  const createBackup = useCallback(
+    async (data: Omit<NavHubSyncData, 'meta'>): Promise<boolean> => {
+      setSyncStatus('syncing');
+
+      const deviceId = getDeviceId();
+      const deviceInfo = getDeviceInfo();
+      const sanitizedPayload = {
+        ...data,
+        schemaVersion: ensureNavHubSyncDataSchemaVersion(
+          (data as { schemaVersion?: unknown }).schemaVersion,
+        ),
+        aiConfig: sanitizeAiConfigForCloud(data.aiConfig),
+      };
+      const syncData: NavHubSyncData = {
+        ...sanitizedPayload,
+        meta: {
+          updatedAt: Date.now(),
+          deviceId,
+          version: getLocalSyncMeta()?.version || 0,
+          browser: deviceInfo?.browser,
+          os: deviceInfo?.os,
+        },
+      };
+
+      try {
+        const response = await fetch(`${SYNC_API_ENDPOINT}?action=backup`, {
+          method: 'POST',
+          headers: getSyncAuthHeaders(),
+          body: JSON.stringify({ data: syncData }),
+        });
+
+        const result = (await response.json()) as SyncCreateBackupResponse;
+
+        if (result.success === false) {
+          emitSyncError(result.error || t('errors.backupFailed'), 'server');
+          return false;
         }
-    }, [onError]);
 
-    // 解决冲突
-    const resolveConflict = useCallback((choice: 'local' | 'remote') => {
-        if (!currentConflict) return;
+        setSyncStatus('synced');
+        return true;
+      } catch (error: unknown) {
+        emitSyncError(getSyncNetworkErrorMessage(error, t), 'network');
+        return false;
+      }
+    },
+    [emitSyncError, t],
+  );
 
-        if (choice === 'local') {
-            // 使用本地版本，强制推送
-            pushToCloud(currentConflict.localData, true);
-        } else {
-            // 使用云端版本
-            saveLocalSyncMeta(currentConflict.remoteData.meta);
-            setLastSyncTime(currentConflict.remoteData.meta.updatedAt);
-            onSyncComplete?.(currentConflict.remoteData);
-            setSyncStatus('synced');
+  // 从备份恢复（服务端会创建回滚点）
+  const restoreBackup = useCallback(
+    async (backupKey: string): Promise<NavHubSyncData | null> => {
+      setSyncStatus('syncing');
+
+      try {
+        const response = await fetch(`${SYNC_API_ENDPOINT}?action=restore`, {
+          method: 'POST',
+          headers: getSyncAuthHeaders(),
+          body: JSON.stringify({ backupKey, deviceId: getDeviceId() }),
+        });
+        const result = (await response.json()) as SyncRestoreBackupResponse;
+
+        if (result.success === false) {
+          emitSyncError(result.error || t('errors.restoreFailed'), 'server');
+          return null;
         }
 
-        setCurrentConflict(null);
-    }, [currentConflict, pushToCloud, onSyncComplete]);
+        if (!result.data) {
+          emitSyncError(t('errors.restoreFailed'), 'server');
+          return null;
+        }
 
-    // 清理定时器
-    useEffect(() => {
-        return () => {
-            if (debounceTimer.current) {
-                clearTimeout(debounceTimer.current);
-            }
-        };
-    }, []);
+        const normalized = normalizeNavHubSyncData(result.data);
+        if (!normalized) {
+          emitSyncError(t('errors.restoreDataFormatError'), 'server');
+          return null;
+        }
 
-    return {
-        syncStatus,
-        lastSyncTime,
-        pullFromCloud,
-        pushToCloud,
-        schedulePush,
-        createBackup,
-        restoreBackup,
-        resolveConflict,
-        currentConflict,
-        cancelPendingSync
+        saveLocalSyncMeta(normalized.meta);
+        setLastSyncTime(normalized.meta.updatedAt);
+        setSyncStatus('synced');
+
+        return normalized;
+      } catch (error: unknown) {
+        emitSyncError(getSyncNetworkErrorMessage(error, t), 'network');
+        return null;
+      }
+    },
+    [emitSyncError, t],
+  );
+
+  // 删除备份
+  const deleteBackup = useCallback(
+    async (backupKey: string): Promise<boolean> => {
+      try {
+        const response = await fetch(`${SYNC_API_ENDPOINT}?action=backup`, {
+          method: 'DELETE',
+          headers: getSyncAuthHeaders(),
+          body: JSON.stringify({ backupKey }),
+        });
+        const result = (await response.json()) as SyncDeleteBackupResponse;
+
+        if (result.success === false) {
+          callSyncEngineCallback('onError', onError, result.error || t('errors.deleteFailed'));
+          return false;
+        }
+
+        return true;
+      } catch (error: unknown) {
+        callSyncEngineCallback(
+          'onError',
+          onError,
+          getErrorMessage(error, t('errors.networkError')),
+        );
+        return false;
+      }
+    },
+    [onError, t],
+  );
+
+  // 解决冲突
+  const resolveConflict = useCallback(
+    (choice: 'local' | 'remote') => {
+      if (!currentConflict) return;
+
+      if (choice === 'local') {
+        // 使用本地版本，强制推送
+        pushToCloud(currentConflict.localData, true, 'manual');
+      } else {
+        // 使用云端版本
+        // 云端数据应被视为“权威版本”：保存其 meta/version，避免下一次 push 继续用旧 version 触发冲突。
+        saveLocalSyncMeta(currentConflict.remoteData.meta);
+        setLastSyncTime(currentConflict.remoteData.meta.updatedAt);
+        callSyncEngineCallback('onSyncComplete', onSyncComplete, currentConflict.remoteData);
+        setSyncStatus('synced');
+      }
+
+      setCurrentConflict(null);
+    },
+    [currentConflict, pushToCloud, onSyncComplete],
+  );
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
     };
+  }, []);
+
+  return {
+    syncStatus,
+    lastSyncTime,
+    lastError,
+    lastErrorKind,
+    pullFromCloud,
+    pushToCloud,
+    schedulePush,
+    createBackup,
+    restoreBackup,
+    deleteBackup,
+    resolveConflict,
+    currentConflict,
+    cancelPendingSync,
+    flushPendingSync,
+    checkAuth,
+  };
 }
 
 // 辅助函数：构建同步数据对象
 export function buildSyncData(
-    links: LinkItem[],
-    categories: Category[],
-    searchConfig?: SearchConfig,
-    aiConfig?: AIConfig,
-    siteSettings?: SiteSettings,
-    privateVault?: string
-): Omit<YNavSyncData, 'meta'> {
-    return {
-        links,
-        categories,
-        searchConfig,
-        aiConfig,
-        siteSettings,
-        privateVault
-    };
+  links: LinkItem[],
+  categories: Category[],
+  searchConfig?: SearchConfig,
+  aiConfig?: AIConfig,
+  siteSettings?: SiteSettings,
+  privateVault?: string,
+  // 新增参数
+  privacyConfig?: PrivacyConfig,
+  themeMode?: ThemeMode,
+  encryptedSensitiveConfig?: string,
+  customFaviconCache?: CustomFaviconCache,
+): Omit<NavHubSyncData, 'meta'> {
+  return {
+    schemaVersion: NAVHUB_SYNC_DATA_SCHEMA_VERSION,
+    links,
+    categories,
+    searchConfig,
+    aiConfig,
+    siteSettings,
+    privateVault,
+    privacyConfig,
+    themeMode,
+    encryptedSensitiveConfig,
+    customFaviconCache,
+  };
 }

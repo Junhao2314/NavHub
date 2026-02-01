@@ -3,34 +3,208 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="https://lucide.dev/favicon.ico" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fafc" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#05070f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta id="apple-status-bar-style" name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NavHub" />
+  <link rel="icon" type="image/svg+xml" href="/pwa.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/pwa-180x180.png" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-640x1136-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-640x1136-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1136x640-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 568px) and (device-height: 320px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1136x640-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 568px) and (device-height: 320px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-750x1334-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-750x1334-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1334x750-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 667px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1334x750-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 667px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1080x2340-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1080x2340-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2340x1080-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 780px) and (device-height: 360px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2340x1080-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 780px) and (device-height: 360px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1125x2436-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1125x2436-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2436x1125-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 812px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2436x1125-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 812px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1170x2532-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1170x2532-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2532x1170-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 844px) and (device-height: 390px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2532x1170-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 844px) and (device-height: 390px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1179x2556-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1179x2556-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2556x1179-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 852px) and (device-height: 393px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2556x1179-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 852px) and (device-height: 393px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1242x2208-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1242x2208-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2208x1242-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 736px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2208x1242-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 736px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-828x1792-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-828x1792-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1792x828-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 896px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1792x828-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 896px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1242x2688-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1242x2688-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2688x1242-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 896px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2688x1242-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 896px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1284x2778-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1284x2778-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2778x1284-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 926px) and (device-height: 428px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2778x1284-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 926px) and (device-height: 428px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1290x2796-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1290x2796-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2796x1290-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 932px) and (device-height: 430px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2796x1290-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 932px) and (device-height: 430px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1536x2048-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1536x2048-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2048x1536-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 1024px) and (device-height: 768px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2048x1536-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 1024px) and (device-height: 768px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1668x2224-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1668x2224-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2224x1668-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 1112px) and (device-height: 834px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2224x1668-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 1112px) and (device-height: 834px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1668x2388-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-1668x2388-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2388x1668-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 1194px) and (device-height: 834px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2388x1668-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 1194px) and (device-height: 834px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2048x2732-dark-portrait.png" media="(prefers-color-scheme: dark) and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2048x2732-light-portrait.png" media="(prefers-color-scheme: light) and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2732x2048-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 1366px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+  <link rel="apple-touch-startup-image" href="/apple-launch-2732x2048-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 1366px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <style>
+    /* 加载动画样式 */
+    #app-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.3s ease-out;
+    }
+    #app-loader.light-mode {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+    #app-loader.dark-mode {
+      background: linear-gradient(135deg, #05070f 0%, #0f172a 100%);
+    }
+    .loader-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .loader-bar-container {
+      width: 200px;
+      height: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .light-mode .loader-bar-container {
+      background: #e2e8f0;
+    }
+    .dark-mode .loader-bar-container {
+      background: #1e293b;
+    }
+    .loader-bar {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+      animation: loading 1.5s ease-in-out infinite;
+      transform-origin: left;
+    }
+    .loader-text {
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0.7;
+    }
+    .light-mode .loader-text {
+      color: #64748b;
+    }
+    .dark-mode .loader-text {
+      color: #94a3b8;
+    }
+    @keyframes loading {
+      0% { transform: scaleX(0); }
+      50% { transform: scaleX(0.7); }
+      100% { transform: scaleX(1); }
+    }
+    #app-loader.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
   <script>
     (function () {
       try {
         var stored = localStorage.getItem('theme');
-        var mode = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'dark';
+        var mode = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
         var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         var shouldDark = mode === 'dark' || (mode === 'system' && prefersDark);
         var root = document.documentElement;
+        window.__INITIAL_DARK_MODE__ = shouldDark;
+        
+        var statusBarMeta = document.getElementById('apple-status-bar-style');
+        if (statusBarMeta) {
+          statusBarMeta.setAttribute('content', shouldDark ? 'black-translucent' : 'default');
+        }
+
         if (shouldDark) {
           root.classList.add('dark');
           root.style.backgroundColor = '#05070f';
-          document.body.style.backgroundColor = '#05070f';
         } else {
           root.classList.remove('dark');
           root.style.backgroundColor = '#f8fafc';
-          document.body.style.backgroundColor = '#f8fafc';
         }
       } catch (e) {
         // Ignore and fall back to default styling.
       }
     })();
   </script>
-  <title>元启 Y-Nav</title>
+  <title>NavHub</title>
 </head>
 
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+  <!-- 加载动画 -->
+  <div id="app-loader">
+    <div class="loader-content">
+      <div class="loader-bar-container">
+        <div class="loader-bar"></div>
+      </div>
+      <div class="loader-text">Loading...</div>
+    </div>
+  </div>
+  <script>
+    // 根据主题设置加载器样式
+    (function() {
+      var loader = document.getElementById('app-loader');
+      if (loader) {
+        loader.className = window.__INITIAL_DARK_MODE__ ? 'dark-mode' : 'light-mode';
+      }
+    })();
+  </script>
+  <script>
+    // 根据语言设置加载器文字 / Set loader text by language
+    (function() {
+      var el = document.querySelector('#app-loader .loader-text');
+      if (!el) return;
+
+      var lang = '';
+      try {
+        lang = localStorage.getItem('navhub-language') || '';
+      } catch (e) {
+        // Ignore
+      }
+
+      if (!lang && typeof navigator !== 'undefined') {
+        lang = navigator.language || '';
+      }
+
+      var isZh = String(lang).toLowerCase().indexOf('zh') === 0;
+      el.textContent = isZh ? '加载中...' : 'Loading...';
+    })();
+  </script>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
