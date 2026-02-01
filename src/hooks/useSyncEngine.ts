@@ -82,10 +82,19 @@ const readWindowSearchParam = (key: string): string => {
 const resolveSyncDebugFlags = (): { enabled: boolean; dump: boolean } => {
   const globalDebug = (globalThis as unknown as { __YNAV_SYNC_DEBUG__?: unknown })
     .__YNAV_SYNC_DEBUG__;
-  if (typeof globalDebug === 'boolean') {
-    const globalDump = (globalThis as unknown as { __YNAV_SYNC_DEBUG_DUMP__?: unknown })
-      .__YNAV_SYNC_DEBUG_DUMP__;
-    return { enabled: globalDebug, dump: globalDebug && globalDump === true };
+  if (globalDebug !== undefined) {
+    const enabled =
+      globalDebug === true || globalDebug === 1 || globalDebug === '1' || globalDebug === 'true';
+    const disabled =
+      globalDebug === false || globalDebug === 0 || globalDebug === '0' || globalDebug === 'false';
+
+    if (enabled || disabled) {
+      const globalDump = (globalThis as unknown as { __YNAV_SYNC_DEBUG_DUMP__?: unknown })
+        .__YNAV_SYNC_DEBUG_DUMP__;
+      const dumpEnabled =
+        globalDump === true || globalDump === 1 || globalDump === '1' || globalDump === 'true';
+      return { enabled, dump: enabled && dumpEnabled };
+    }
   }
 
   const debug = readWindowSearchParam('debug');
@@ -131,6 +140,15 @@ const summarizeSyncDataForDebug = (
       customFaviconCache: !!data.customFaviconCache,
     },
   };
+};
+
+const getResponseHeader = (response: unknown, name: string): string | undefined => {
+  const headers = (response as { headers?: unknown })?.headers as { get?: unknown } | undefined;
+  if (!headers) return undefined;
+  const getter = headers.get;
+  if (typeof getter !== 'function') return undefined;
+  const value = getter.call(headers, name) as unknown;
+  return typeof value === 'string' && value ? value : undefined;
 };
 
 const redactSyncDataForDebug = (data: NavHubSyncData): NavHubSyncData => {
@@ -310,7 +328,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         console.info('[sync] pull:response', {
           status: response.status,
           ok: response.ok,
-          cfRay: response.headers.get('cf-ray') || undefined,
+          cfRay: getResponseHeader(response, 'cf-ray'),
           success: result?.success,
           role: (result as { role?: unknown })?.role,
           hasData:
@@ -414,7 +432,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         console.info('[sync] auth:response', {
           status: response.status,
           ok: response.ok,
-          cfRay: response.headers.get('cf-ray') || undefined,
+          cfRay: getResponseHeader(response, 'cf-ray'),
           ...result,
         });
       }
@@ -535,7 +553,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
           console.info('[sync] push:response', {
             status: response.status,
             ok: response.ok,
-            cfRay: response.headers.get('cf-ray') || undefined,
+            cfRay: getResponseHeader(response, 'cf-ray'),
             success: result?.success,
             conflict: (result as { conflict?: unknown })?.conflict,
             historyKey: (result as { historyKey?: unknown })?.historyKey,
