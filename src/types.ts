@@ -302,10 +302,7 @@ export interface SyncMetadata {
 // Main sync data structure
 export interface NavHubSyncData {
   /**
-   * 数据结构版本号（用于结构演进 / 兼容旧数据）。
-   *
-   * - `undefined` 视为旧版本（v0，历史数据未写入该字段）
-   * - 新版本客户端/服务端应写入当前版本号，并在读取时做迁移
+   * 数据结构版本号（用于结构演进）。
    */
   schemaVersion?: number;
   links: LinkItem[];

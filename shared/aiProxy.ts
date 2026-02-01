@@ -1,6 +1,6 @@
 /**
- * OpenAI Compatible Proxy Handler
- * OpenAI 兼容代理处理器
+ * OpenAI API Proxy Handler
+ * OpenAI API 代理处理器
  *
  * Shared by / 共享于:
  * - Cloudflare Worker (/worker/index.ts)
@@ -31,8 +31,8 @@ export const AI_CORS_HEADERS: Record<string, string> = {
 };
 
 /**
- * OpenAI compatible endpoint URLs
- * OpenAI 兼容端点 URL
+ * OpenAI API endpoint URLs
+ * OpenAI API 端点 URL
  */
 type OpenAICompatibleUrls = {
   chatCompletionsUrl: string;

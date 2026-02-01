@@ -8,8 +8,6 @@
  * Security design / 安全设计:
  * - Passwords stored in sessionStorage (cleared on tab close)
  *   密码存储在 sessionStorage（关闭标签页时清除）
- * - Automatic migration from localStorage to sessionStorage
- *   自动从 localStorage 迁移到 sessionStorage
  * - Fallback to localStorage if sessionStorage unavailable
  *   sessionStorage 不可用时回退到 localStorage
  */
@@ -25,42 +23,35 @@ import {
 } from './storage';
 
 /**
- * Get value from sessionStorage with legacy localStorage migration
- * 从 sessionStorage 获取值，并处理旧版 localStorage 迁移
+ * Read secret value with storage fallback
+ * 读取密钥（带存储回退）
  *
- * Migration flow / 迁移流程:
- * 1. Check sessionStorage first / 首先检查 sessionStorage
- * 2. If not found, check localStorage (legacy) / 如果没找到，检查 localStorage（旧版）
- * 3. Migrate legacy value to sessionStorage / 将旧版值迁移到 sessionStorage
- * 4. Remove from localStorage after migration / 迁移后从 localStorage 删除
- *
- * @param key - Storage key / 存储键名
- * @returns Value or empty string / 值或空字符串
+ * Policy / 策略:
+ * - Prefer sessionStorage (cleared on tab close) / 优先 sessionStorage
+ * - Fall back to localStorage only when sessionStorage is not writable / 仅在 sessionStorage 不可写时回退到 localStorage
  */
-const getSessionValueWithLegacyLocalMigration = (key: string): string => {
-  // Check sessionStorage first / 首先检查 sessionStorage
-  const sessionValue = safeSessionStorageGetItem(key);
-  if (sessionValue !== null) {
-    // Clean up any legacy localStorage value / 清理任何旧版 localStorage 值
-    safeLocalStorageRemoveItem(key);
-    return sessionValue;
+const SESSION_STORAGE_PROBE_KEY = '__navhub_session_storage_probe__';
+let cachedSessionStorageWritable: boolean | null = null;
+
+const isSessionStorageWritable = (): boolean => {
+  if (cachedSessionStorageWritable !== null) return cachedSessionStorageWritable;
+  const written = safeSessionStorageSetItem(SESSION_STORAGE_PROBE_KEY, '1');
+  if (written) {
+    safeSessionStorageRemoveItem(SESSION_STORAGE_PROBE_KEY);
   }
+  cachedSessionStorageWritable = written;
+  return written;
+};
 
-  // Check for legacy localStorage value / 检查旧版 localStorage 值
-  const legacyValue = safeLocalStorageGetItem(key);
-  if (legacyValue === null) return '';
+const getSecretValue = (key: string): string => {
+  const sessionValue = safeSessionStorageGetItem(key);
+  if (sessionValue !== null) return sessionValue;
 
-  if (!legacyValue) {
-    safeLocalStorageRemoveItem(key);
+  if (isSessionStorageWritable()) {
     return '';
   }
 
-  // Migrate to sessionStorage / 迁移到 sessionStorage
-  const written = safeSessionStorageSetItem(key, legacyValue);
-  if (written) {
-    safeLocalStorageRemoveItem(key);
-  }
-  return legacyValue;
+  return safeLocalStorageGetItem(key) || '';
 };
 
 // ============ Sync Password / 同步密码 ============
@@ -69,8 +60,7 @@ const getSessionValueWithLegacyLocalMigration = (key: string): string => {
  * Get sync password
  * 获取同步密码
  */
-export const getSyncPassword = (): string =>
-  getSessionValueWithLegacyLocalMigration(SYNC_PASSWORD_KEY);
+export const getSyncPassword = (): string => getSecretValue(SYNC_PASSWORD_KEY);
 
 /**
  * Set sync password
@@ -111,7 +101,7 @@ export const clearSyncPassword = (): void => {
  * 检查当前会话是否为管理员
  */
 export const isSyncAdminSession = (): boolean =>
-  getSessionValueWithLegacyLocalMigration(SYNC_ADMIN_SESSION_KEY) === '1';
+  getSecretValue(SYNC_ADMIN_SESSION_KEY) === '1';
 
 /**
  * Set admin session status
@@ -144,8 +134,7 @@ export const clearSyncAdminSession = (): void => {
  * Get privacy vault password
  * 获取隐私保险库密码
  */
-export const getPrivacyPassword = (): string =>
-  getSessionValueWithLegacyLocalMigration(PRIVACY_PASSWORD_KEY);
+export const getPrivacyPassword = (): string => getSecretValue(PRIVACY_PASSWORD_KEY);
 
 /**
  * Set privacy vault password

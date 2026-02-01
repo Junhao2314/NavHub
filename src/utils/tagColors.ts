@@ -102,9 +102,3 @@ export function getTagColorStyle(tag: string, isDark: boolean): React.CSSPropert
     borderColor: `rgb(${borderR}, ${borderG}, ${borderB})`,
   };
 }
-
-// 保留旧函数以兼容，但标记为废弃
-/** @deprecated 使用 getTagColorStyle 代替 */
-export function getTagColorClasses(_tag: string): string {
-  return '';
-}

@@ -1,4 +1,4 @@
-import { isLucideIconName, LEGACY_ICON_ALIASES } from '../components/ui/lucideIconMap';
+import { isLucideIconName } from '../components/ui/lucideIconMap';
 import { detectUserLanguage } from '../config/i18n';
 import { buildSeedLinks } from '../config/seedData';
 import type { Category, LinkItem } from '../types';
@@ -14,13 +14,6 @@ export const isTextIconName = (rawName: string): boolean => {
 
 const hasLucideIcon = (name: string): boolean => isLucideIconName(name);
 
-const normalizeLegacyAliasKey = (value: string): string => value.trim().toLowerCase();
-
-export const resolveLegacyIconAlias = (value: string): string | null => {
-  const alias = LEGACY_ICON_ALIASES[normalizeLegacyAliasKey(value)];
-  return alias ?? null;
-};
-
 export const kebabToPascal = (kebabName: string): string =>
   kebabName
     .split('-')
@@ -34,9 +27,6 @@ export const normalizeCategoryIcon = (rawIcon: unknown): string => {
   if (!trimmed) return CATEGORY_ICON_FALLBACK;
 
   if (isTextIconName(trimmed)) return trimmed;
-
-  const legacyAlias = resolveLegacyIconAlias(trimmed);
-  if (legacyAlias) return legacyAlias;
 
   if (trimmed.includes('-')) {
     return kebabToPascal(trimmed);

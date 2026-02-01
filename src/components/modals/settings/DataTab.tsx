@@ -50,7 +50,7 @@ interface DataTabProps {
   syncRole: SyncRole;
   isSyncProtected: boolean;
   useSeparatePrivacyPassword: boolean;
-  onMigratePrivacyMode: (payload: {
+  onSwitchPrivacyMode: (payload: {
     useSeparatePassword: boolean;
     oldPassword: string;
     newPassword: string;
@@ -99,7 +99,7 @@ const DataTab: React.FC<DataTabProps> = ({
   syncRole,
   isSyncProtected,
   useSeparatePrivacyPassword,
-  onMigratePrivacyMode,
+  onSwitchPrivacyMode,
   privacyGroupEnabled,
   onTogglePrivacyGroup,
   privacyPasswordEnabled,
@@ -134,7 +134,7 @@ const DataTab: React.FC<DataTabProps> = ({
   const [showPrivacyOldPassword, setShowPrivacyOldPassword] = useState(false);
   const [showPrivacyNewPassword, setShowPrivacyNewPassword] = useState(false);
   const [privacyError, setPrivacyError] = useState<string | null>(null);
-  const [isMigrating, setIsMigrating] = useState(false);
+  const [isSwitchingPrivacyMode, setIsSwitchingPrivacyMode] = useState(false);
 
   useEffect(() => {
     setPassword(getSyncPassword());
@@ -295,8 +295,8 @@ const DataTab: React.FC<DataTabProps> = ({
           return;
         }
 
-        const keySuffix = backup.key.startsWith('ynav:backup:')
-          ? backup.key.replace('ynav:backup:', '')
+        const keySuffix = backup.key.startsWith('navhub:backup:')
+          ? backup.key.replace('navhub:backup:', '')
           : `${Date.now()}`;
         downloadJsonFile(result.data, `navhub_backup_${keySuffix}.json`);
       } catch (error: unknown) {
@@ -370,7 +370,7 @@ const DataTab: React.FC<DataTabProps> = ({
     ? t('settings.data.separatePassword')
     : t('settings.data.syncPassword');
 
-  const resetPrivacyMigration = useCallback(() => {
+  const resetPrivacySwitch = useCallback(() => {
     setPrivacyTarget(null);
     setPrivacyOldPassword('');
     setPrivacyNewPassword('');
@@ -379,37 +379,37 @@ const DataTab: React.FC<DataTabProps> = ({
     setShowPrivacyNewPassword(false);
   }, []);
 
-  const handleStartPrivacyMigration = (target: 'sync' | 'separate') => {
+  const handleStartPrivacySwitch = (target: 'sync' | 'separate') => {
     setPrivacyTarget(target);
     setPrivacyOldPassword('');
     setPrivacyNewPassword('');
     setPrivacyError(null);
   };
 
-  const handleConfirmPrivacyMigration = useCallback(async () => {
+  const handleConfirmPrivacySwitch = useCallback(async () => {
     if (!privacyTarget) return;
-    setIsMigrating(true);
+    setIsSwitchingPrivacyMode(true);
     setPrivacyError(null);
     try {
-      const success = await onMigratePrivacyMode({
+      const success = await onSwitchPrivacyMode({
         useSeparatePassword: privacyTarget === 'separate',
         oldPassword: privacyOldPassword,
         newPassword: privacyNewPassword,
       });
       if (!success) {
-        setPrivacyError(t('settings.data.migrationFailed'));
+        setPrivacyError(t('settings.data.switchFailed'));
         return;
       }
-      resetPrivacyMigration();
+      resetPrivacySwitch();
     } finally {
-      setIsMigrating(false);
+      setIsSwitchingPrivacyMode(false);
     }
   }, [
     privacyTarget,
     privacyOldPassword,
     privacyNewPassword,
-    onMigratePrivacyMode,
-    resetPrivacyMigration,
+    onSwitchPrivacyMode,
+    resetPrivacySwitch,
     t,
   ]);
 
@@ -637,7 +637,7 @@ const DataTab: React.FC<DataTabProps> = ({
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => handleStartPrivacyMigration('separate')}
+                    onClick={() => handleStartPrivacySwitch('separate')}
                     disabled={
                       isTogglingPrivacyPassword ||
                       useSeparatePrivacyPassword ||
@@ -649,7 +649,7 @@ const DataTab: React.FC<DataTabProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleStartPrivacyMigration('sync')}
+                    onClick={() => handleStartPrivacySwitch('sync')}
                     disabled={isTogglingPrivacyPassword || !useSeparatePrivacyPassword}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -668,7 +668,7 @@ const DataTab: React.FC<DataTabProps> = ({
             {privacyPasswordEnabled && privacyTarget && (
               <div className="mt-4 space-y-3">
                 <div className="text-xs text-slate-600 dark:text-slate-300">
-                  {t('settings.data.enterPasswordsToMigrate')}
+                  {t('settings.data.enterPasswordsToSwitch')}
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
@@ -724,17 +724,19 @@ const DataTab: React.FC<DataTabProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleConfirmPrivacyMigration}
-                    disabled={isMigrating || (privacyTarget === 'separate' && !isSyncPasswordReady)}
+                    onClick={handleConfirmPrivacySwitch}
+                    disabled={
+                      isSwitchingPrivacyMode || (privacyTarget === 'separate' && !isSyncPasswordReady)
+                    }
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isMigrating
-                      ? t('settings.data.migrating')
-                      : t('settings.data.confirmMigration')}
+                    {isSwitchingPrivacyMode
+                      ? t('settings.data.switching')
+                      : t('settings.data.confirmSwitch')}
                   </button>
                   <button
                     type="button"
-                    onClick={resetPrivacyMigration}
+                    onClick={resetPrivacySwitch}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white"
                   >
                     {t('common.cancel')}

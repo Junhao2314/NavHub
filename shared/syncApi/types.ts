@@ -62,24 +62,24 @@ export interface R2BucketInterface {
 }
 
 // KV 绑定说明:
-// - Cloudflare Pages Functions: 绑定名 `YNAV_KV`
-// - Cloudflare Workers (wrangler.toml): 绑定名 `YNAV_WORKER_KV`
-// 为了复用同一份实现，这里同时兼容两种绑定名。
+// - Cloudflare Pages Functions: 绑定名 `NAVHUB_KV`
+// - Cloudflare Workers (wrangler.toml): 绑定名 `NAVHUB_WORKER_KV`
+// 为了复用同一份实现，这里同时支持两种绑定名。
 export type SyncApiEnv = {
   SYNC_PASSWORD?: string; // 可选的同步密码
-  // R2 绑定（可选，推荐用于避免 KV 25MB 限制 + 最终一致性导致的“读旧版本”问题）
-  // - Cloudflare Pages Functions: 绑定名 `YNAV_R2`
-  // - Cloudflare Workers (wrangler.toml): 绑定名 `YNAV_WORKER_R2`
-  YNAV_R2?: R2BucketInterface;
-  YNAV_WORKER_R2?: R2BucketInterface;
+  // R2 绑定（可选，推荐用于避免 KV 25MB 限制 + 最终一致性导致的"读到旧值"问题）
+  // - Cloudflare Pages Functions: 绑定名 `NAVHUB_R2`
+  // - Cloudflare Workers (wrangler.toml): 绑定名 `NAVHUB_WORKER_R2`
+  NAVHUB_R2?: R2BucketInterface;
+  NAVHUB_WORKER_R2?: R2BucketInterface;
 } & (
-  | { YNAV_KV: KVNamespaceInterface; YNAV_WORKER_KV?: KVNamespaceInterface }
-  | { YNAV_WORKER_KV: KVNamespaceInterface; YNAV_KV?: KVNamespaceInterface }
+  | { NAVHUB_KV: KVNamespaceInterface; NAVHUB_WORKER_KV?: KVNamespaceInterface }
+  | { NAVHUB_WORKER_KV: KVNamespaceInterface; NAVHUB_KV?: KVNamespaceInterface }
 );
 
 export type Env = {
-  YNAV_KV: KVNamespaceInterface;
-  YNAV_R2?: R2BucketInterface;
+  NAVHUB_KV: KVNamespaceInterface;
+  NAVHUB_R2?: R2BucketInterface;
   SYNC_PASSWORD?: string;
 };
 
@@ -93,7 +93,6 @@ export interface SyncHistoryIndexItem {
 export interface SyncHistoryIndex {
   version: number;
   items: SyncHistoryIndexItem[];
-  sources?: string[];
 }
 
 export type PrivacyConfig = FrontendPrivacyConfig;

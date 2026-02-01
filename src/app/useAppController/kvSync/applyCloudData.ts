@@ -137,8 +137,8 @@ export const applyCloudDataToLocalState = (args: {
           args.setPrivateLinks([]);
           safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
         } else {
-          // Password is disabled, but the vault may still be encrypted from older deployments.
-          // Unlock/migration should happen only after we confirm plaintext is available.
+          // Password is disabled, but the vault may still be encrypted from a previous configuration.
+          // Unlock/conversion should happen only after we confirm plaintext is available.
           args.setPrivateVaultPassword(null);
         }
       }
@@ -224,8 +224,7 @@ export const applyCloudDataToLocalState = (args: {
           safeSessionStorageSetItem(PRIVACY_SESSION_UNLOCKED_KEY, '1');
         }
       } else {
-        // 兼容：云端数据仍是加密格式，但配置已关闭密码保护（旧版本/切换过程中可能出现）
-        // 此时不要标记为已解锁，避免后续保存/同步用空数据覆盖掉原有加密数据
+        // Vault is encrypted while password protection is disabled: keep locked and avoid accidental overwrite.
         args.setPrivateLinks([]);
         args.setIsPrivateUnlocked(false);
         safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);

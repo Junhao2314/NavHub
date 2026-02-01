@@ -136,8 +136,6 @@ export function useTheme() {
    *
    * Only respond to system preference changes in system mode.
    * 仅在 system 模式下响应系统偏好变化。
-   * Compatible with older browsers' addListener/removeListener API.
-   * 兼容旧版浏览器的 addListener/removeListener API。
    */
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -148,18 +146,10 @@ export function useTheme() {
       }
     };
 
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleChange);
-    } else {
-      mediaQuery.addListener(handleChange);
-    }
+    mediaQuery.addEventListener('change', handleChange);
 
     return () => {
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', handleChange);
-      } else {
-        mediaQuery.removeListener(handleChange);
-      }
+      mediaQuery.removeEventListener('change', handleChange);
     };
   }, [themeMode, applyThemeMode]);
 

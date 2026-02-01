@@ -5,7 +5,6 @@ import {
   type R2BucketInterface,
   type SyncApiEnv,
 } from '../../shared/syncApi';
-import { getMainData, KV_MAIN_DATA_KEY } from '../../shared/syncApi/kv';
 import {
   NAVHUB_SYNC_DATA_SCHEMA_VERSION,
   normalizeNavHubSyncData,
@@ -72,37 +71,6 @@ class MemoryKV implements KVNamespaceInterface {
   }
 }
 
-class CountingKV extends MemoryKV {
-  readonly getCalls: string[] = [];
-  readonly putCalls: string[] = [];
-  readonly failPutsForKeys = new Set<string>();
-
-  override async get(
-    key: string,
-    typeOrOptions:
-      | 'text'
-      | 'json'
-      | 'arrayBuffer'
-      | 'stream'
-      | { type: 'text' | 'json' | 'arrayBuffer' | 'stream'; cacheTtl?: number } = 'text',
-  ): Promise<any> {
-    this.getCalls.push(key);
-    return super.get(key, typeOrOptions);
-  }
-
-  override async put(
-    key: string,
-    value: string,
-    _options?: { expirationTtl?: number },
-  ): Promise<void> {
-    this.putCalls.push(key);
-    if (this.failPutsForKeys.has(key)) {
-      throw new Error(`Simulated KV.put failure for ${key}`);
-    }
-    return super.put(key, value, _options);
-  }
-}
-
 type R2PutOptionsLike = {
   onlyIf?: { etagMatches?: string; etagDoesNotMatch?: string } | Headers;
 };
@@ -161,7 +129,7 @@ class MemoryR2 implements R2BucketInterface {
   }
 }
 
-describe('navHubSyncData schema migration', () => {
+describe('navHubSyncData schema normalization', () => {
   it('adds schemaVersion when missing', () => {
     const input = {
       links: [],
@@ -187,7 +155,7 @@ describe('navHubSyncData schema migration', () => {
 describe('syncApi history keys', () => {
   it('generates unique history keys even when Date.now is identical', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const fixedNow = 1710000000000;
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNow);
@@ -214,7 +182,7 @@ describe('syncApi history keys', () => {
     expect(json2.success).toBe(true);
 
     const timestamp = new Date(fixedNow).toISOString().replace(/[:.]/g, '-');
-    const expectedPrefix = `ynav:backup:history-${timestamp}_`;
+    const expectedPrefix = `navhub:backup:history-${timestamp}_`;
 
     expect(String(json1.historyKey).startsWith(expectedPrefix)).toBe(true);
     expect(String(json2.historyKey).startsWith(expectedPrefix)).toBe(true);
@@ -228,7 +196,7 @@ describe('syncApi history keys', () => {
 
   it('falls back to Math.random-derived bytes when crypto is unavailable', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const fixedNow = 1710000000000;
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNow);
@@ -254,7 +222,7 @@ describe('syncApi history keys', () => {
     expect(json.success).toBe(true);
 
     const timestamp = new Date(fixedNow).toISOString().replace(/[:.]/g, '-');
-    const expectedPrefix = `ynav:backup:history-${timestamp}_`;
+    const expectedPrefix = `navhub:backup:history-${timestamp}_`;
     expect(json.historyKey).toBe(`${expectedPrefix}80808080`);
     expect(kv.has(json.historyKey)).toBe(true);
 
@@ -265,7 +233,7 @@ describe('syncApi history keys', () => {
 
   it('skips sync history snapshots for auto sync by default', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const fixedNow = 1710000000000;
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNow);
@@ -287,9 +255,9 @@ describe('syncApi history keys', () => {
 
     expect(json.success).toBe(true);
     expect(json.historyKey).toBe(null);
-    expect(kv.has('ynav:sync_history_index')).toBe(false);
+    expect(kv.has('navhub:sync_history_index')).toBe(false);
 
-    const historyList = await kv.list({ prefix: 'ynav:backup:history-' });
+    const historyList = await kv.list({ prefix: 'navhub:backup:history-' });
     expect(historyList.keys).toHaveLength(0);
 
     nowSpy.mockRestore();
@@ -297,10 +265,10 @@ describe('syncApi history keys', () => {
 
   it('avoids KV.list when sync history index is complete', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
-    const olderKey = 'ynav:backup:history-2024-01-01T00-00-00-000Z_aaaaaaaa';
-    const newerKey = 'ynav:backup:history-2024-01-02T00-00-00-000Z_bbbbbbbb';
+    const olderKey = 'navhub:backup:history-2024-01-01T00-00-00-000Z_aaaaaaaa';
+    const newerKey = 'navhub:backup:history-2024-01-02T00-00-00-000Z_bbbbbbbb';
 
     await kv.put(
       olderKey,
@@ -321,14 +289,14 @@ describe('syncApi history keys', () => {
 
     // Complete index: should serve as listing source-of-truth without extra KV.list calls.
     await kv.put(
-      'ynav:sync_history_index',
+      'navhub:sync_history_index',
       JSON.stringify({
         version: 1,
         items: [
           { key: newerKey, meta: { updatedAt: 2, deviceId: 'd2', version: 2 } },
           { key: olderKey, meta: { updatedAt: 1, deviceId: 'd1', version: 1 } },
         ],
-        sources: ['ynav', 'navhub'],
+        sources: ['navhub'],
       }),
     );
 
@@ -347,21 +315,21 @@ describe('syncApi history keys', () => {
     expect(timestamps.every((value) => !value.includes('_'))).toBe(true);
   });
 
-  it('prunes legacy sync history keys when rotating history during sync', async () => {
+  it('prunes oldest sync history keys when rotating history during sync', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
-    const makeLegacyKey = (day: number) => {
+    const makeHistoryKey = (day: number) => {
       const dd = String(day).padStart(2, '0');
       const suffix = String(day).padStart(8, '0');
       return `navhub:backup:history-2024-01-${dd}T00-00-00-000Z_${suffix}`;
     };
 
-    const legacyKeys = Array.from({ length: 20 }, (_, index) => makeLegacyKey(index + 1));
-    for (let index = 0; index < legacyKeys.length; index += 1) {
+    const historyKeys = Array.from({ length: 20 }, (_, index) => makeHistoryKey(index + 1));
+    for (let index = 0; index < historyKeys.length; index += 1) {
       const day = index + 1;
       await kv.put(
-        legacyKeys[index],
+        historyKeys[index],
         JSON.stringify({
           links: [],
           categories: [],
@@ -371,14 +339,14 @@ describe('syncApi history keys', () => {
     }
 
     await kv.put(
-      'ynav:sync_history_index',
+      'navhub:sync_history_index',
       JSON.stringify({
         version: 1,
-        items: legacyKeys.map((key, index) => {
+        items: historyKeys.map((key, index) => {
           const day = index + 1;
           return { key, meta: { updatedAt: day, deviceId: `d${day}`, version: day } };
         }),
-        sources: ['ynav', 'navhub'],
+        sources: ['navhub'],
       }),
     );
 
@@ -404,30 +372,30 @@ describe('syncApi history keys', () => {
     expect(typeof json.historyKey).toBe('string');
     expect(kv.has(json.historyKey)).toBe(true);
 
-    expect(kv.has(legacyKeys[0])).toBe(false);
-    expect(kv.has(legacyKeys[1])).toBe(true);
+    expect(kv.has(historyKeys[0])).toBe(false);
+    expect(kv.has(historyKeys[1])).toBe(true);
 
-    const legacyList = await kv.list({ prefix: 'navhub:backup:history-' });
-    expect(legacyList.keys).toHaveLength(19);
+    const historyList = await kv.list({ prefix: 'navhub:backup:history-' });
+    expect(historyList.keys).toHaveLength(20);
 
     nowSpy.mockRestore();
   });
 
-  it('prunes legacy sync history keys when rebuilding index for backups listing', async () => {
+  it('prunes oldest sync history keys when rebuilding index for backups listing', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
-    const makeLegacyKey = (day: number) => {
+    const makeHistoryKey = (day: number) => {
       const dd = String(day).padStart(2, '0');
       const suffix = String(day).padStart(8, '0');
       return `navhub:backup:history-2024-01-${dd}T00-00-00-000Z_${suffix}`;
     };
 
-    const legacyKeys = Array.from({ length: 25 }, (_, index) => makeLegacyKey(index + 1));
-    for (let index = 0; index < legacyKeys.length; index += 1) {
+    const historyKeys = Array.from({ length: 25 }, (_, index) => makeHistoryKey(index + 1));
+    for (let index = 0; index < historyKeys.length; index += 1) {
       const day = index + 1;
       await kv.put(
-        legacyKeys[index],
+        historyKeys[index],
         JSON.stringify({
           links: [],
           categories: [],
@@ -444,22 +412,22 @@ describe('syncApi history keys', () => {
     expect(json.backups).toHaveLength(20);
 
     for (let index = 0; index < 5; index += 1) {
-      expect(kv.has(legacyKeys[index])).toBe(false);
+      expect(kv.has(historyKeys[index])).toBe(false);
     }
-    for (let index = 5; index < legacyKeys.length; index += 1) {
-      expect(kv.has(legacyKeys[index])).toBe(true);
+    for (let index = 5; index < historyKeys.length; index += 1) {
+      expect(kv.has(historyKeys[index])).toBe(true);
     }
 
-    const legacyList = await kv.list({ prefix: 'navhub:backup:history-' });
-    expect(legacyList.keys).toHaveLength(20);
+    const historyList = await kv.list({ prefix: 'navhub:backup:history-' });
+    expect(historyList.keys).toHaveLength(20);
 
-    const updatedIndex = (await kv.get('ynav:sync_history_index', 'json')) as any;
+    const updatedIndex = (await kv.get('navhub:sync_history_index', 'json')) as any;
     expect(updatedIndex.items).toHaveLength(20);
   });
 
   it('handles KV cursor pagination when rebuilding index for backups listing', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const baseTime = new Date('2024-01-01T00:00:00.000Z').getTime();
     const totalKeys = 1001;
@@ -467,7 +435,7 @@ describe('syncApi history keys', () => {
     for (let index = 0; index < totalKeys; index += 1) {
       const timestamp = new Date(baseTime + index * 1000).toISOString().replace(/[:.]/g, '-');
       const suffix = String(index).padStart(8, '0');
-      const key = `ynav:backup:history-${timestamp}_${suffix}`;
+      const key = `navhub:backup:history-${timestamp}_${suffix}`;
       keys.push(key);
       await kv.put(
         key,
@@ -491,57 +459,16 @@ describe('syncApi history keys', () => {
     const returnedKeys = (json.backups as Array<{ key: string }>).map((item) => item.key);
     expect(returnedKeys).toContain(newestKey);
 
-    const remaining = await kv.list({ prefix: 'ynav:backup:history-' });
+    const remaining = await kv.list({ prefix: 'navhub:backup:history-' });
     expect(remaining.keys).toHaveLength(20);
     expect(remaining.keys.map((item) => item.name)).toContain(newestKey);
   });
 });
 
-describe('syncApi legacy main-data migration', () => {
-  it('caches legacy misses to avoid repeated reads', async () => {
-    const kv = new CountingKV();
-    const env = { YNAV_KV: kv } as any;
-
-    expect(await getMainData(env)).toBe(null);
-    expect(await getMainData(env)).toBe(null);
-
-    expect(kv.getCalls.filter((key) => key === 'navhub:data')).toHaveLength(1);
-    expect(kv.getCalls.filter((key) => key === KV_MAIN_DATA_KEY)).toHaveLength(2);
-  });
-
-  it('caches legacy value and avoids repeated write-through attempts when KV.put fails', async () => {
-    const kv = new CountingKV();
-    kv.failPutsForKeys.add(KV_MAIN_DATA_KEY);
-
-    const legacy = {
-      links: [],
-      categories: [],
-      meta: {
-        updatedAt: 1,
-        deviceId: 'legacy-device',
-        version: 1,
-        browser: undefined,
-        os: undefined,
-        syncKind: 'auto',
-      },
-    };
-    await kv.put('navhub:data', JSON.stringify(legacy));
-
-    const env = { YNAV_KV: kv } as any;
-
-    const expected = { ...legacy, schemaVersion: NAVHUB_SYNC_DATA_SCHEMA_VERSION };
-    expect(await getMainData(env)).toEqual(expected);
-    expect(await getMainData(env)).toEqual(expected);
-
-    expect(kv.getCalls.filter((key) => key === 'navhub:data')).toHaveLength(1);
-    expect(kv.putCalls.filter((key) => key === KV_MAIN_DATA_KEY)).toHaveLength(1);
-  });
-});
-
 describe('syncApi env bindings', () => {
-  it('accepts YNAV_WORKER_KV binding (alias)', async () => {
+  it('accepts NAVHUB_WORKER_KV binding', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_WORKER_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_WORKER_KV: kv };
 
     const request = new Request('http://localhost/api/sync', { method: 'GET' });
     const response = await handleApiSyncRequest(request, env);
@@ -556,7 +483,7 @@ describe('syncApi R2 main-data store', () => {
   it('detects race via R2 etag conditional write (returns conflict)', async () => {
     const kv = new MemoryKV();
     const r2 = new MemoryR2();
-    const env: SyncApiEnv = { YNAV_KV: kv, YNAV_R2: r2 };
+    const env: SyncApiEnv = { NAVHUB_KV: kv, NAVHUB_R2: r2 };
 
     const baseDataV1 = {
       links: [],
@@ -609,7 +536,7 @@ describe('syncApi R2 main-data store', () => {
 describe('syncApi auth + public sanitization', () => {
   it('treats X-Sync-Password with whitespace as admin', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+    const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const baseData = {
       links: [],
@@ -643,7 +570,7 @@ describe('syncApi auth + public sanitization', () => {
 
   it('removes privateVault and encryptedSensitiveConfig for public reads', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+    const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const baseData = {
       links: [],
@@ -698,10 +625,10 @@ describe('syncApi auth attempts', () => {
 
   it('clears failed attempt counter after a successful login', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+    const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const clientIp = '1.2.3.4';
-    const attemptKey = `ynav:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
+    const attemptKey = `navhub:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
 
     const wrongLoginRequest = new Request('http://localhost/api/sync?action=login', {
       method: 'POST',
@@ -752,10 +679,10 @@ describe('syncApi auth attempts', () => {
 
   it('clears failed attempt counter after a successful auth check', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+    const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const clientIp = '3.4.5.6';
-    const attemptKey = `ynav:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
+    const attemptKey = `navhub:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
 
     const wrongAuthRequest = new Request('http://localhost/api/sync?action=auth', {
       method: 'GET',
@@ -798,82 +725,12 @@ describe('syncApi auth attempts', () => {
     expect(wrongAgainJson.remainingAttempts).toBe(4);
   });
 
-  it('clears legacy auth attempt records after a successful login', async () => {
-    const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
-
-    const clientIp = '2.3.4.5';
-    const rawAttemptKey = `ynav:auth_attempt:${clientIp}`;
-    const rawLegacyAttemptKey = `navhub:auth_attempt:${clientIp}`;
-
-    const now = Date.now();
-    await kv.put(rawAttemptKey, JSON.stringify({ failedCount: 3, lockedUntil: 0, updatedAt: now }));
-    await kv.put(
-      rawLegacyAttemptKey,
-      JSON.stringify({ failedCount: 2, lockedUntil: 0, updatedAt: now }),
-    );
-
-    const successfulLoginRequest = new Request('http://localhost/api/sync?action=login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Sync-Password': 'secret',
-        'X-Forwarded-For': clientIp,
-      },
-      body: JSON.stringify({ deviceId: 'device-1' }),
-    });
-    const successfulLoginResponse = await handleApiSyncRequest(successfulLoginRequest, env);
-    const successfulLoginJson = (await successfulLoginResponse.json()) as any;
-
-    expect(successfulLoginJson.success).toBe(true);
-    expect(kv.has(rawAttemptKey)).toBe(false);
-    expect(kv.has(rawLegacyAttemptKey)).toBe(false);
-  });
-
-  it('migrates legacy lockout records to the new attempt key (avoids repeated legacy reads)', async () => {
-    const kv = new CountingKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
-
-    const clientIp = '9.9.9.9';
-    const attemptKey = `ynav:auth_attempt:sha256:${await sha256Hex(clientIp)}`;
-    const rawLegacyAttemptKey = `navhub:auth_attempt:${clientIp}`;
-
-    const now = Date.now();
-    await kv.put(
-      rawLegacyAttemptKey,
-      JSON.stringify({
-        failedCount: 5,
-        lockedUntil: now + 60 * 1000,
-        updatedAt: now,
-      }),
-    );
-
-    const makeWrongLogin = () =>
-      new Request('http://localhost/api/sync?action=login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Sync-Password': 'wrong',
-          'X-Forwarded-For': clientIp,
-        },
-        body: JSON.stringify({ deviceId: 'device-1' }),
-      });
-
-    const firstResponse = await handleApiSyncRequest(makeWrongLogin(), env);
-    expect(firstResponse.status).toBe(429);
-    expect(kv.has(attemptKey)).toBe(true);
-
-    const secondResponse = await handleApiSyncRequest(makeWrongLogin(), env);
-    expect(secondResponse.status).toBe(429);
-
-    expect(kv.getCalls.filter((key) => key === rawLegacyAttemptKey)).toHaveLength(1);
-  });
 });
 
 describe('syncApi invalid JSON bodies', () => {
   it('returns 400 for invalid JSON in POST /api/sync', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+    const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const request = new Request('http://localhost/api/sync', {
       method: 'POST',
@@ -891,7 +748,7 @@ describe('syncApi invalid JSON bodies', () => {
 
   it('returns 400 for invalid JSON in POST /api/sync?action=backup', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv, SYNC_PASSWORD: 'secret' };
+    const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
 
     const request = new Request('http://localhost/api/sync?action=backup', {
       method: 'POST',

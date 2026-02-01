@@ -9,7 +9,6 @@
  * 安全设计:
  *   - API Key 存储在 sessionStorage（关闭标签页后清除）
  *   - localStorage 中不保存明文 API Key
- *   - 兼容旧版本的 API Key 迁移逻辑
  */
 
 import { useCallback, useEffect } from 'react';
@@ -55,12 +54,11 @@ const persistAIConfigToStorage = (config: AIConfig): void => {
 };
 
 /**
- * 从存储加载 AI 配置，并处理旧版本 API Key 迁移
+ * 从存储加载 AI 配置
  *
  * 加载顺序：
  * 1. 从 sessionStorage 读取 API Key
  * 2. 从 localStorage 读取其他配置
- * 3. 处理旧版本的 API Key 迁移（localStorage → sessionStorage）
  */
 const loadAIConfigFromStorage = (): AIConfig => {
   const sessionApiKey = safeSessionStorageGetItem(AI_API_KEY_SESSION_KEY) || '';
@@ -68,23 +66,11 @@ const loadAIConfigFromStorage = (): AIConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved) as Partial<AIConfig>;
-      const legacyApiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : '';
-
-      if (legacyApiKey) {
-        if (sessionApiKey) {
-          safeLocalStorageSetItem(AI_CONFIG_KEY, JSON.stringify({ ...parsed, apiKey: '' }));
-        } else {
-          const written = safeSessionStorageSetItem(AI_API_KEY_SESSION_KEY, legacyApiKey);
-          if (written) {
-            safeLocalStorageSetItem(AI_CONFIG_KEY, JSON.stringify({ ...parsed, apiKey: '' }));
-          }
-        }
-      }
 
       return {
         ...DEFAULT_AI_CONFIG,
         ...parsed,
-        apiKey: sessionApiKey || legacyApiKey || '',
+        apiKey: sessionApiKey || (typeof parsed.apiKey === 'string' ? parsed.apiKey : '') || '',
       } satisfies AIConfig;
     } catch (error) {
       console.warn('[useConfig] Failed to parse AI config from localStorage; resetting.', error);
@@ -98,25 +84,14 @@ const loadAIConfigFromStorage = (): AIConfig => {
 const loadSiteSettingsFromStorage = (): SiteSettings => {
   const locale = detectUserLanguage();
   const defaultSiteSettings = buildDefaultSiteSettings(locale);
-  const legacySiteSettings = buildDefaultSiteSettings(locale.startsWith('zh') ? 'en-US' : 'zh-CN');
   const saved = safeLocalStorageGetItem(SITE_SETTINGS_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved) as Partial<SiteSettings>;
 
-      // Migration: if user still has the old default title from the other locale, update it.
-      const nextParsed: Partial<SiteSettings> = { ...parsed };
-      if (
-        typeof parsed.title === 'string' &&
-        parsed.title === legacySiteSettings.title &&
-        legacySiteSettings.title !== defaultSiteSettings.title
-      ) {
-        nextParsed.title = defaultSiteSettings.title;
-      }
-
       return {
         ...defaultSiteSettings,
-        ...nextParsed,
+        ...parsed,
       } satisfies SiteSettings;
     } catch (error) {
       console.warn(

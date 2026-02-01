@@ -142,7 +142,7 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
      */
     expectedVersion?: unknown;
     syncKind?: unknown;
-    skipHistory?: unknown; // 纯统计同步：仍写入主数据/版本号，但不写入 ynav:backup:history-* 同步记录（避免刷屏）
+    skipHistory?: unknown; // 纯统计同步：仍写入主数据/版本号，但不写入 navhub:backup:history-* 同步记录（避免刷屏）
   };
   try {
     body = (await request.json()) as typeof body;
@@ -205,7 +205,7 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
     }
 
     // R2 + expectedVersion: 必须要有 etag 才能做条件写（否则会退化成 last-write-wins）。
-    if (env.YNAV_R2 && expectedVersion !== undefined && existingData && !existingEtag) {
+    if (env.NAVHUB_R2 && expectedVersion !== undefined && existingData && !existingEtag) {
       // 理论上 r2.get 应该会返回 etag；这里做一次兜底刷新，避免极端情况下“误以为没法条件写”。
       existing = await getMainDataWithEtag(env);
       existingData = existing.data;
@@ -239,14 +239,14 @@ export async function handlePost(request: Request, env: Env): Promise<Response> 
       },
     });
 
-    if (!env.YNAV_R2) {
+    if (!env.NAVHUB_R2) {
       const encodedBytes = getUtf8ByteLength(JSON.stringify(dataToSave));
       if (encodedBytes > KV_VALUE_MAX_BYTES) {
         return new Response(
           JSON.stringify({
             success: false,
             error:
-              '数据过大，超过 Cloudflare KV 25MB 限制。建议绑定 R2（YNAV_R2 / YNAV_WORKER_R2）作为主同步存储。',
+              '数据过大，超过 Cloudflare KV 25MB 限制。建议绑定 R2（NAVHUB_R2 / NAVHUB_WORKER_R2）作为主同步存储。',
           }),
           {
             status: 413,
@@ -386,7 +386,7 @@ export async function handleBackup(request: Request, env: Env): Promise<Response
     }
 
     // 写入备份
-    await env.YNAV_KV.put(backupKey, JSON.stringify(dataToSave), {
+    await env.NAVHUB_KV.put(backupKey, JSON.stringify(dataToSave), {
       // 备份保留 30 天
       expirationTtl: BACKUP_TTL_SECONDS,
     });
@@ -451,7 +451,7 @@ export async function handleRestoreBackup(request: Request, env: Env): Promise<R
       );
     }
 
-    const backupRaw = (await env.YNAV_KV.get(backupKey, 'json')) as unknown;
+    const backupRaw = (await env.NAVHUB_KV.get(backupKey, 'json')) as unknown;
     const backupData = normalizeNavHubSyncData(backupRaw);
     if (!backupData) {
       return new Response(
@@ -487,7 +487,7 @@ export async function handleRestoreBackup(request: Request, env: Env): Promise<R
         if (encodedBytes > KV_VALUE_MAX_BYTES) {
           rollbackKey = null;
         } else {
-          await env.YNAV_KV.put(rollbackKey, JSON.stringify(rollbackData), {
+          await env.NAVHUB_KV.put(rollbackKey, JSON.stringify(rollbackData), {
             expirationTtl: BACKUP_TTL_SECONDS,
           });
         }
@@ -509,14 +509,14 @@ export async function handleRestoreBackup(request: Request, env: Env): Promise<R
       },
     });
 
-    if (!env.YNAV_R2) {
+    if (!env.NAVHUB_R2) {
       const encodedBytes = getUtf8ByteLength(JSON.stringify(restoredData));
       if (encodedBytes > KV_VALUE_MAX_BYTES) {
         return new Response(
           JSON.stringify({
             success: false,
             error:
-              '数据过大，超过 Cloudflare KV 25MB 限制。建议绑定 R2（YNAV_R2 / YNAV_WORKER_R2）作为主同步存储。',
+              '数据过大，超过 Cloudflare KV 25MB 限制。建议绑定 R2（NAVHUB_R2 / NAVHUB_WORKER_R2）作为主同步存储。',
           }),
           {
             status: 413,
@@ -564,7 +564,7 @@ export async function handleGetBackup(request: Request, env: Env): Promise<Respo
   if (authError) return authError;
 
   const url = new URL(request.url);
-  const backupKey = url.searchParams.get('backupKey') || url.searchParams.get('key');
+  const backupKey = url.searchParams.get('backupKey');
 
   if (!backupKey || !isBackupKey(backupKey)) {
     return new Response(
@@ -580,7 +580,7 @@ export async function handleGetBackup(request: Request, env: Env): Promise<Respo
   }
 
   try {
-    const backupRaw = (await env.YNAV_KV.get(backupKey, 'json')) as unknown;
+    const backupRaw = (await env.NAVHUB_KV.get(backupKey, 'json')) as unknown;
     const backupData = normalizeNavHubSyncData(backupRaw);
     if (!backupData) {
       return new Response(
@@ -720,7 +720,7 @@ export async function handleDeleteBackup(request: Request, env: Env): Promise<Re
 
     // 非同步历史记录：删除操作可幂等，避免为了“是否存在”多一次 KV.get（Read）。
     if (!isHistoryKey) {
-      await env.YNAV_KV.delete(backupKey);
+      await env.NAVHUB_KV.delete(backupKey);
       return new Response(
         JSON.stringify({
           success: true,
@@ -762,7 +762,7 @@ export async function handleDeleteBackup(request: Request, env: Env): Promise<Re
       // index 缺失/未命中时，回退读取备份本体做版本校验（保持历史行为，尤其是 index 未建立/损坏时）。
       if (typeof indexedVersion !== 'number') {
         try {
-          const backupRaw = (await env.YNAV_KV.get(backupKey, 'json')) as unknown;
+          const backupRaw = (await env.NAVHUB_KV.get(backupKey, 'json')) as unknown;
           const backupData = normalizeNavHubSyncData(backupRaw);
           const backupVersion = backupData?.meta?.version;
           if (typeof backupVersion === 'number' && backupVersion === currentVersion) {
@@ -784,7 +784,7 @@ export async function handleDeleteBackup(request: Request, env: Env): Promise<Re
     }
 
     // 删除备份（幂等）
-    await env.YNAV_KV.delete(backupKey);
+    await env.NAVHUB_KV.delete(backupKey);
     if (index) {
       try {
         await removeFromSyncHistoryIndexWithIndex(env, backupKey, index);

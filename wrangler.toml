@@ -21,16 +21,16 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
 # KV 命名空间绑定 (Workers 专用)
-# 若需创建新的 KV: wrangler kv:namespace create YNAV_WORKER_KV
+# 若需创建新的 KV: wrangler kv:namespace create NAVHUB_WORKER_KV
 [[kv_namespaces]]
-binding = "YNAV_WORKER_KV"
-id = "ae3dd5e1875547948cb013180e2e4e3b"
+binding = "NAVHUB_WORKER_KV"
+id = "95c81d887bd34118bacadb5aa8ec311a"
 # preview_id = ""  # 本地预览时使用的 KV ID (可选)
 
 # R2 Bucket 绑定（可选，推荐：用于存储主同步数据，避免 KV 的 25MB 限制与最终一致性）
 # 若需创建新的 R2: wrangler r2 bucket create navhub-sync
 # [[r2_buckets]]
-# binding = "YNAV_WORKER_R2"
+# binding = "NAVHUB_WORKER_R2"
 # bucket_name = "navhub-sync"
 
 # 环境变量 (也可以在 Cloudflare Dashboard 中设置)
@@ -50,8 +50,8 @@ id = "ae3dd5e1875547948cb013180e2e4e3b"
 
 # ============================================
 # 部署步骤:
-# 1. npm run build 
-# 2. wrangler kv:namespace create YNAV_WORKER_KV
+# 1. npm run build
+# 2. wrangler kv:namespace create NAVHUB_WORKER_KV
 # 3. 将返回的 id 填入上方 kv_namespaces.id
 # 4. wrangler deploy
 # ============================================

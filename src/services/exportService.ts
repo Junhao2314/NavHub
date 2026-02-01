@@ -7,7 +7,7 @@
  *
  * Supported formats / 支持的格式:
  * - HTML (Netscape Bookmark format) - Compatible with all browsers
- *   HTML（Netscape 书签格式）- 兼容所有浏览器
+ *   HTML（Netscape 书签格式）- 适用于所有主流浏览器
  * - JSON - For backup and data transfer
  *   JSON - 用于备份和数据传输
  */
@@ -18,8 +18,8 @@ import { Category, LinkItem } from '../types';
  * Generate Netscape Bookmark HTML string
  * 生成 Netscape 书签格式的 HTML 字符串
  *
- * Creates a bookmark file compatible with Chrome, Edge, Firefox, Safari import.
- * 创建与 Chrome、Edge、Firefox、Safari 导入兼容的书签文件。
+ * Creates a bookmark file that can be imported by Chrome, Edge, Firefox, Safari.
+ * 创建可被 Chrome、Edge、Firefox、Safari 导入的书签文件。
  *
  * @param links - Array of links to export / 要导出的链接数组
  * @param categories - Array of categories / 分类数组
@@ -29,8 +29,8 @@ export const generateBookmarkHtml = (links: LinkItem[], categories: Category[]):
   // Current timestamp in seconds / 当前时间戳（秒）
   const now = Math.floor(Date.now() / 1000);
 
-  // HTML header (required for browser compatibility)
-  // HTML 头部（浏览器兼容性所需）
+  // HTML header (required for browser import)
+  // HTML 头部（浏览器导入所需）
   let html = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!-- This is an automatically generated file.
      It will be read and overwritten.

@@ -11,7 +11,6 @@ import {
   SyncRole,
   VerifySyncPasswordResult,
 } from '../../types';
-import LanguageSwitcher from '../ui/LanguageSwitcher';
 import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
 import DataTab from './settings/DataTab';
@@ -36,7 +35,7 @@ interface SettingsModalProps {
   syncRole: SyncRole;
   isSyncProtected: boolean;
   useSeparatePrivacyPassword: boolean;
-  onMigratePrivacyMode: (payload: {
+  onSwitchPrivacyMode: (payload: {
     useSeparatePassword: boolean;
     oldPassword: string;
     newPassword: string;
@@ -70,7 +69,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   syncRole,
   isSyncProtected,
   useSeparatePrivacyPassword,
-  onMigratePrivacyMode,
+  onSwitchPrivacyMode,
   privacyGroupEnabled,
   onTogglePrivacyGroup,
   privacyPasswordEnabled,
@@ -230,7 +229,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               syncRole={syncRole}
               isSyncProtected={isSyncProtected}
               useSeparatePrivacyPassword={useSeparatePrivacyPassword}
-              onMigratePrivacyMode={onMigratePrivacyMode}
+              onSwitchPrivacyMode={onSwitchPrivacyMode}
               privacyGroupEnabled={privacyGroupEnabled}
               onTogglePrivacyGroup={onTogglePrivacyGroup}
               privacyPasswordEnabled={privacyPasswordEnabled}
@@ -248,10 +247,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Footer */}
         <div className="p-6 pt-2 border-t border-transparent shrink-0">
-          {/* Language Switcher */}
-          <div className="mb-4">
-            <LanguageSwitcher />
-          </div>
           <button
             onClick={handleSave}
             disabled={syncRole !== 'admin'}

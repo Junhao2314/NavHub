@@ -27,7 +27,7 @@ interface HitokotoPayload {
   from_who?: string | null;
 }
 
-const HITOKOTO_CACHE_KEY = 'ynav_hitokoto_cache_v1';
+const HITOKOTO_CACHE_KEY = 'navhub_hitokoto_cache_v1';
 
 const getTodayKey = () => {
   return new Date().toLocaleDateString('sv-SE');

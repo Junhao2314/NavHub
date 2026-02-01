@@ -6,7 +6,7 @@
 - AI 代理：`/api/ai`
 - KV 指标与降本建议：`docs/kv-cost-optimization.md`
 
-实现与类型（可作为“权威来源”）：
+实现与类型（可作为"权威来源"）：
 
 - `/api/sync`：`shared/syncApi.ts`、`shared/syncApi/handlers.ts`，数据结构见 `src/types.ts`（`NavHubSyncData`、`Sync*Response` 等）
 - `/api/ai`：`shared/aiProxy.ts`
@@ -14,7 +14,7 @@
 ## 通用约定
 
 - 数据格式：JSON（请求与响应通常为 `application/json`）
-- 失败响应：一般为 `{ "success": false, "error": "..." }`（`/api/ai` 在“代理成功”时会直透上游响应，见下文）
+- 失败响应：一般为 `{ "success": false, "error": "..." }`（`/api/ai` 在"代理成功"时会直透上游响应，见下文）
 - 时间戳：毫秒（例如 `meta.updatedAt`）
 
 ---
@@ -54,7 +54,7 @@
 }
 ```
 
-> IP 获取优先级：`CF-Connecting-IP` → `X-Forwarded-For` → `unknown`。本地/非 Cloudflare 环境建议补齐 `X-Forwarded-For`，避免出现“多个请求共享同一把锁”的现象。
+> IP 获取优先级：`CF-Connecting-IP` → `X-Forwarded-For` → `unknown`。本地/非 Cloudflare 环境建议补齐 `X-Forwarded-For`，避免出现"多个请求共享同一把锁"的现象。
 
 ### 脱敏规则（非常重要）
 
@@ -71,7 +71,7 @@
 | POST | `/api/sync` |  | 写入云端数据（带版本校验） |
 | POST | `/api/sync` | `backup` | 创建快照备份 |
 | GET | `/api/sync` | `backup` | 获取备份数据（用于导出） |
-| GET | `/api/sync` | `backups` | 获取备份列表 |
+| GET | `/api/sync` | `backups` | 获取同步历史列表（不含手动备份） |
 | POST | `/api/sync` | `restore` | 从备份恢复（并创建回滚点） |
 | DELETE | `/api/sync` | `backup` | 删除指定备份 |
 
@@ -125,7 +125,7 @@ curl -s -H "X-Sync-Password: <password>" "https://<your-domain>/api/sync?action=
 响应：
 
 - `200`：登录成功，返回 `role=admin`、`canWrite=true`
-- `401/429`：密码错误/锁定（见“防爆破”）
+- `401/429`：密码错误/锁定（见"防爆破"）
 
 示例：
 
@@ -145,9 +145,12 @@ curl -s -X POST "https://<your-domain>/api/sync?action=login" \
 请求体：
 
 - `data`：完整同步数据（`NavHubSyncData`）
-- `expectedVersion?`：乐观锁校验（客户端期望的“当前云端 version”）
+- `expectedVersion?`：乐观锁校验（客户端期望的"当前云端 version"）
 - `syncKind?`：`"auto" | "manual"`（服务端会归一化）
-- `skipHistory?`：`true` 时不写入同步历史记录（适合高频“统计同步”）
+- `skipHistory?`：是否跳过写入同步历史记录
+  - `auto` 同步：默认 `true`（不写入历史），除非显式设为 `false`
+  - `manual` 同步：默认 `false`（写入历史），除非显式设为 `true`
+  - 适用于高频"统计同步"等场景，避免刷屏
 
 关键行为：
 
@@ -157,7 +160,7 @@ curl -s -X POST "https://<your-domain>/api/sync?action=login" \
 成功响应（200）：
 
 ```json
-{ "success": true, "data": { "...": "..." }, "historyKey": "ynav:backup:history-...", "message": "同步成功" }
+{ "success": true, "data": { "...": "..." }, "historyKey": "navhub:backup:history-...", "message": "同步成功" }
 ```
 
 冲突响应（409）：
@@ -185,7 +188,7 @@ curl -s -X POST "https://<your-domain>/api/sync" \
 
 响应（200）：
 
-- `backupKey`：形如 `ynav:backup:2025-01-01T00-00-00-000Z`
+- `backupKey`：形如 `navhub:backup:2025-01-01T00-00-00-000Z`
 
 示例：
 
@@ -202,17 +205,19 @@ curl -s -X POST "https://<your-domain>/api/sync?action=backup" \
 
 查询参数：
 
-- `backupKey`：备份 key（也兼容 `key` 参数名）
+- `backupKey`：备份 key
 
 示例：
 
 ```bash
-curl -s "https://<your-domain>/api/sync?action=backup&backupKey=ynav%3Abackup%3A2025-01-01T00-00-00-000Z"
+curl -s "https://<your-domain>/api/sync?action=backup&backupKey=navhub%3Abackup%3A2025-01-01T00-00-00-000Z"
 ```
 
 ---
 
-### `GET /api/sync?action=backups` 获取备份列表
+### `GET /api/sync?action=backups` 获取同步历史列表
+
+> 注意：此接口仅返回**同步历史记录**（`navhub:backup:history-*`），不包含手动创建的快照备份（`navhub:backup:TIMESTAMP`）。
 
 响应（200）：
 
@@ -232,11 +237,11 @@ curl -s "https://<your-domain>/api/sync?action=backups"
 请求体：
 
 - `backupKey`：要恢复的备份 key
-- `deviceId?`：用于写回 `meta.deviceId`（便于标记“由哪个设备触发恢复”）
+- `deviceId?`：用于写回 `meta.deviceId`（便于标记"由哪个设备触发恢复"）
 
 响应（200）：
 
-- `data`：恢复后的主数据（版本号会在“当前主数据版本”基础上 +1）
+- `data`：恢复后的主数据（版本号会在"当前主数据版本"基础上 +1）
 - `rollbackKey?`：回滚点 key（如果创建失败则可能为 `null/undefined`）
 
 示例：
@@ -245,7 +250,7 @@ curl -s "https://<your-domain>/api/sync?action=backups"
 curl -s -X POST "https://<your-domain>/api/sync?action=restore" \
   -H "X-Sync-Password: <password>" \
   -H "Content-Type: application/json" \
-  -d "{\"backupKey\": \"ynav:backup:2025-01-01T00-00-00-000Z\", \"deviceId\": \"dev-restore\"}"
+  -d "{\"backupKey\": \"navhub:backup:2025-01-01T00-00-00-000Z\", \"deviceId\": \"dev-restore\"}"
 ```
 
 ---
@@ -258,7 +263,7 @@ curl -s -X POST "https://<your-domain>/api/sync?action=restore" \
 
 注意：
 
-- 不允许删除“当前版本对应的同步历史记录”（会返回 400）。
+- 不允许删除"当前版本对应的同步历史记录"（会返回 400）。
 
 示例：
 
@@ -266,7 +271,7 @@ curl -s -X POST "https://<your-domain>/api/sync?action=restore" \
 curl -s -X DELETE "https://<your-domain>/api/sync?action=backup" \
   -H "X-Sync-Password: <password>" \
   -H "Content-Type: application/json" \
-  -d "{\"backupKey\": \"ynav:backup:2025-01-01T00-00-00-000Z\"}"
+  -d "{\"backupKey\": \"navhub:backup:2025-01-01T00-00-00-000Z\"}"
 ```
 
 ---

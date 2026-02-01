@@ -1,37 +1,37 @@
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from './storage';
 
 // Local Storage Keys
-export const LOCAL_STORAGE_KEY = 'ynav_data_cache_v2';
-export const AI_CONFIG_KEY = 'ynav_ai_config';
-export const AI_API_KEY_SESSION_KEY = 'ynav_ai_api_key_session';
-export const SEARCH_CONFIG_KEY = 'ynav_search_config';
-export const FAVICON_CACHE_KEY = 'ynav_favicon_cache';
-export const FAVICON_CUSTOM_KEY = 'ynav_favicon_custom'; // List of hostnames with user-customized icons
-export const FAVICON_CUSTOM_META_KEY = 'ynav_favicon_custom_meta'; // Record<string, number> hostname -> updatedAt
-export const SITE_SETTINGS_KEY = 'ynav_site_settings';
+export const LOCAL_STORAGE_KEY = 'navhub_data_cache_v2';
+export const AI_CONFIG_KEY = 'navhub_ai_config';
+export const AI_API_KEY_SESSION_KEY = 'navhub_ai_api_key_session';
+export const SEARCH_CONFIG_KEY = 'navhub_search_config';
+export const FAVICON_CACHE_KEY = 'navhub_favicon_cache';
+export const FAVICON_CUSTOM_KEY = 'navhub_favicon_custom'; // List of hostnames with user-customized icons
+export const FAVICON_CUSTOM_META_KEY = 'navhub_favicon_custom_meta'; // Record<string, number> hostname -> updatedAt
+export const SITE_SETTINGS_KEY = 'navhub_site_settings';
 export const THEME_KEY = 'theme';
 
 // Sync System Keys
-export const DEVICE_ID_KEY = 'ynav_device_id';
-export const DEVICE_INFO_KEY = 'ynav_device_info';
-export const SYNC_META_KEY = 'ynav_sync_meta';
-export const SYNC_PASSWORD_KEY = 'ynav_sync_password';
-export const LAST_SYNC_KEY = 'ynav_last_sync';
-export const SYNC_ADMIN_SESSION_KEY = 'ynav_sync_admin_session';
-export const SYNC_PASSWORD_LOCK_UNTIL_KEY = 'ynav_sync_password_lock_until';
+export const DEVICE_ID_KEY = 'navhub_device_id';
+export const DEVICE_INFO_KEY = 'navhub_device_info';
+export const SYNC_META_KEY = 'navhub_sync_meta';
+export const SYNC_PASSWORD_KEY = 'navhub_sync_password';
+export const LAST_SYNC_KEY = 'navhub_last_sync';
+export const SYNC_ADMIN_SESSION_KEY = 'navhub_sync_admin_session';
+export const SYNC_PASSWORD_LOCK_UNTIL_KEY = 'navhub_sync_password_lock_until';
 
 // Sync Auth Security (brute-force protection)
 export const SYNC_PASSWORD_MAX_ATTEMPTS = 5;
 export const SYNC_PASSWORD_LOCKOUT_MS = 60 * 60 * 1000; // 1 hour
 
 // Privacy Vault Keys
-export const PRIVATE_VAULT_KEY = 'ynav_private_vault_v1';
-export const PRIVACY_PASSWORD_KEY = 'ynav_privacy_password';
-export const PRIVACY_USE_SEPARATE_PASSWORD_KEY = 'ynav_privacy_use_separate_password';
-export const PRIVACY_GROUP_ENABLED_KEY = 'ynav_privacy_group_enabled';
-export const PRIVACY_PASSWORD_ENABLED_KEY = 'ynav_privacy_password_enabled';
-export const PRIVACY_AUTO_UNLOCK_KEY = 'ynav_privacy_auto_unlock';
-export const PRIVACY_SESSION_UNLOCKED_KEY = 'ynav_privacy_session_unlocked';
+export const PRIVATE_VAULT_KEY = 'navhub_private_vault_v1';
+export const PRIVACY_PASSWORD_KEY = 'navhub_privacy_password';
+export const PRIVACY_USE_SEPARATE_PASSWORD_KEY = 'navhub_privacy_use_separate_password';
+export const PRIVACY_GROUP_ENABLED_KEY = 'navhub_privacy_group_enabled';
+export const PRIVACY_PASSWORD_ENABLED_KEY = 'navhub_privacy_password_enabled';
+export const PRIVACY_AUTO_UNLOCK_KEY = 'navhub_privacy_auto_unlock';
+export const PRIVACY_SESSION_UNLOCKED_KEY = 'navhub_privacy_session_unlocked';
 export const COMMON_CATEGORY_ID = 'common';
 export const PRIVATE_CATEGORY_ID = '__private__';
 
@@ -84,7 +84,7 @@ export const getDeviceId = (): string => {
   if (storedDeviceId) {
     cachedDeviceId = storedDeviceId;
 
-    // 如果是旧版本的设备ID,补充设备信息
+    // Ensure device info exists for the stored deviceId / 确保设备信息存在
     const existingInfo = safeLocalStorageGetItem(DEVICE_INFO_KEY);
     if (!existingInfo) {
       const deviceInfo: DeviceInfo = {

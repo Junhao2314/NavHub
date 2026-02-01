@@ -3,8 +3,7 @@ import type { Env } from './types';
 // Auth Security (brute-force protection)
 const AUTH_MAX_FAILED_ATTEMPTS = 5;
 const AUTH_LOCKOUT_SECONDS = 60 * 60; // 1 hour
-const KV_AUTH_ATTEMPT_PREFIX = 'ynav:auth_attempt:';
-const LEGACY_KV_AUTH_ATTEMPT_PREFIX = 'navhub:auth_attempt:';
+const KV_AUTH_ATTEMPT_PREFIX = 'navhub:auth_attempt:';
 const AUTH_ATTEMPT_HASH_PREFIX = 'sha256:';
 const CLIENT_KEY_SEED_MAX_LENGTH = 256;
 
@@ -81,7 +80,7 @@ export const isSyncProtected = (env: Env): boolean => {
 
 // 获取客户端 IP（用于按 IP 记录管理员密码错误次数，防止爆破）。
 // 注意：本地/非 Cloudflare 环境可能取不到 IP（无 `CF-Connecting-IP` / `X-Forwarded-For`）会回退为 `unknown`，
-// 从而导致所有请求共享同一个限速/锁定键（看起来像“全局锁”）。建议在反代/本地调试时补齐 `X-Forwarded-For`。
+// 从而导致所有请求共享同一个限速/锁定键（看起来像"全局锁"）。建议在反代/本地调试时补齐 `X-Forwarded-For`。
 const getClientKeySeed = (request: Request): string => {
   const cfIp = request.headers.get('CF-Connecting-IP');
   if (cfIp) return normalizeClientKeySeed(cfIp);
@@ -92,45 +91,10 @@ const getClientKeySeed = (request: Request): string => {
   return 'unknown';
 };
 
-const resolveAuthAttemptKeys = async (
-  request: Request,
-): Promise<{
-  attemptKey: string;
-  legacyAttemptKey: string;
-  rawAttemptKey: string;
-  rawLegacyAttemptKey: string;
-}> => {
+const resolveAuthAttemptKey = async (request: Request): Promise<string> => {
   const seed = getClientKeySeed(request);
   const hash = await hashKeySeedSha256Hex(seed);
-  const hashedSuffix = `${AUTH_ATTEMPT_HASH_PREFIX}${hash}`;
-  return {
-    attemptKey: `${KV_AUTH_ATTEMPT_PREFIX}${hashedSuffix}`,
-    legacyAttemptKey: `${LEGACY_KV_AUTH_ATTEMPT_PREFIX}${hashedSuffix}`,
-    rawAttemptKey: `${KV_AUTH_ATTEMPT_PREFIX}${seed}`,
-    rawLegacyAttemptKey: `${LEGACY_KV_AUTH_ATTEMPT_PREFIX}${seed}`,
-  };
-};
-
-const getAuthAttemptExpirationTtlSeconds = (
-  record: AuthAttemptRecord | null,
-  now: number,
-): number => {
-  // Preserve the original expiry window (best-effort) when migrating legacy records.
-  const updatedAt =
-    typeof record?.updatedAt === 'number' && Number.isFinite(record.updatedAt)
-      ? record.updatedAt
-      : 0;
-  if (updatedAt > 0) {
-    const expiresAt = updatedAt + AUTH_LOCKOUT_SECONDS * 1000;
-    const remainingMs = expiresAt - now;
-    if (Number.isFinite(remainingMs)) {
-      const remainingSeconds = Math.ceil(remainingMs / 1000);
-      if (remainingSeconds > 0) {
-        return Math.min(AUTH_LOCKOUT_SECONDS, remainingSeconds);
-      }
-    }
-  }
-  return AUTH_LOCKOUT_SECONDS;
+  return `${KV_AUTH_ATTEMPT_PREFIX}${AUTH_ATTEMPT_HASH_PREFIX}${hash}`;
 };
 
 const buildLockoutResponse = (lockedUntil: number, now: number): Response => {
@@ -163,10 +127,9 @@ export const requireAdminAccess = async (
     return null;
   }
 
-  const { attemptKey, legacyAttemptKey, rawAttemptKey, rawLegacyAttemptKey } =
-    await resolveAuthAttemptKeys(request);
-
+  const attemptKey = await resolveAuthAttemptKey(request);
   const providedPassword = (request.headers.get('X-Sync-Password') || '').trim();
+
   if (!providedPassword) {
     return new Response(
       JSON.stringify({
@@ -189,12 +152,7 @@ export const requireAdminAccess = async (
 
     if (shouldClear) {
       try {
-        await Promise.all([
-          env.YNAV_KV.delete(attemptKey),
-          env.YNAV_KV.delete(legacyAttemptKey),
-          env.YNAV_KV.delete(rawAttemptKey),
-          env.YNAV_KV.delete(rawLegacyAttemptKey),
-        ]);
+        await env.NAVHUB_KV.delete(attemptKey);
       } catch {
         // Ignore KV deletion failures and still allow admin access.
       }
@@ -203,35 +161,10 @@ export const requireAdminAccess = async (
   }
 
   const now = Date.now();
-  let recordKey: string | null = null;
-  let record = (await env.YNAV_KV.get(attemptKey, 'json')) as AuthAttemptRecord | null;
-  if (record) recordKey = attemptKey;
-  if (!record) {
-    record = (await env.YNAV_KV.get(rawAttemptKey, 'json')) as AuthAttemptRecord | null;
-    if (record) recordKey = rawAttemptKey;
-  }
-  if (!record) {
-    record = (await env.YNAV_KV.get(legacyAttemptKey, 'json')) as AuthAttemptRecord | null;
-    if (record) recordKey = legacyAttemptKey;
-  }
-  if (!record) {
-    record = (await env.YNAV_KV.get(rawLegacyAttemptKey, 'json')) as AuthAttemptRecord | null;
-    if (record) recordKey = rawLegacyAttemptKey;
-  }
+  const record = (await env.NAVHUB_KV.get(attemptKey, 'json')) as AuthAttemptRecord | null;
 
   if (record) {
     noteRecentAuthAttemptKey(attemptKey, now);
-
-    // Write-through migration for legacy/raw lockout records so we don't repeatedly read old keys while locked.
-    if (recordKey !== attemptKey && record.lockedUntil && now < record.lockedUntil) {
-      try {
-        await env.YNAV_KV.put(attemptKey, JSON.stringify(record), {
-          expirationTtl: getAuthAttemptExpirationTtlSeconds(record, now),
-        });
-      } catch {
-        // ignore migration failures
-      }
-    }
   }
 
   if (record?.lockedUntil && now < record.lockedUntil) {
@@ -249,7 +182,7 @@ export const requireAdminAccess = async (
     updatedAt: now,
   };
 
-  await env.YNAV_KV.put(attemptKey, JSON.stringify(nextRecord), {
+  await env.NAVHUB_KV.put(attemptKey, JSON.stringify(nextRecord), {
     expirationTtl: AUTH_LOCKOUT_SECONDS,
   });
   noteRecentAuthAttemptKey(attemptKey, now);
@@ -269,7 +202,7 @@ export const requireAdminAccess = async (
   );
 };
 
-// 辅助函数：验证管理员密码（允许“公开读 + 管理员写”模式）
+// 辅助函数：验证管理员密码（允许"公开读 + 管理员写"模式）
 export const isAdminRequest = (request: Request, env: Env): boolean => {
   // 未设置服务端密码时，默认所有请求均为管理员
   if (!isSyncProtected(env)) {

@@ -1,79 +1,14 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
-
-const mockApiPlugin = (): Plugin => ({
-  name: 'navhub-mock-api',
-  apply: 'serve',
-  configureServer(server) {
-    server.middlewares.use((req, res, next) => {
-      const rawUrl = req.url || '';
-      if (!rawUrl.startsWith('/api')) return next();
-
-      const requestUrl = new URL(rawUrl, 'http://localhost');
-      const pathname = requestUrl.pathname;
-      const action = requestUrl.searchParams.get('action') ?? '';
-      const method = (req.method ?? 'GET').toUpperCase();
-
-      const sendJson = (statusCode: number, body: unknown) => {
-        res.statusCode = statusCode;
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Cache-Control', 'no-store');
-        res.end(JSON.stringify(body));
-      };
-
-      // Sync API: for frontend-only dev, return an empty payload on GET /api/sync to avoid noisy errors.
-      if (pathname === '/api/sync' && method === 'GET' && !action) {
-        sendJson(200, { success: true, data: null });
-        return;
-      }
-
-      // Auth check is often used for UI gating; return a deterministic "unavailable" response.
-      if (pathname === '/api/sync' && method === 'GET' && action === 'auth') {
-        sendJson(200, {
-          success: false,
-          error:
-            'Sync API is unavailable in Vite dev. Use `npm run dev:workers` or `npm run dev:pages`.',
-        });
-        return;
-      }
-
-      // AI proxy is only available when deployed via Workers/Pages.
-      if (pathname === '/api/ai') {
-        sendJson(501, {
-          success: false,
-          error:
-            'AI proxy is unavailable in Vite dev. Use `npm run dev:workers` or `npm run dev:pages`.',
-        });
-        return;
-      }
-
-      sendJson(501, {
-        success: false,
-        error:
-          'API is unavailable in Vite dev. Set `VITE_MOCK_API=false` to disable the mock, or use `npm run dev:workers`/`npm run dev:pages`.',
-      });
-    });
-  },
-});
-
-const isTruthyEnv = (value: string | undefined): boolean => {
-  const normalized = (value ?? '').trim().toLowerCase();
-  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
-};
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim();
-  // Default to enabling API mock for `npm run dev` (frontend-only).
-  // Disable explicitly for local API integration by setting `VITE_MOCK_API=false`.
-  const shouldMockApi =
-    command === 'serve' &&
-    (env.VITE_MOCK_API === undefined ? mode === 'development' : isTruthyEnv(env.VITE_MOCK_API));
   const proxy =
-    command === 'serve' && apiProxyTarget && !shouldMockApi
+    command === 'serve' && apiProxyTarget
       ? {
           '/api': {
             target: apiProxyTarget,
@@ -88,7 +23,6 @@ export default defineConfig(({ command, mode }) => {
       proxy,
     },
     plugins: [
-      shouldMockApi && mockApiPlugin(),
       react(),
       tailwindcss(),
       VitePWA({

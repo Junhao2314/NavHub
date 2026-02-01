@@ -2,17 +2,17 @@
 
 <div align="center">
 
+**[English](./README.en.md) | 简体中文**
+
 ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?style=flat-square&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=flat-square&logo=tailwindcss)
 ![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%7C%20Pages-orange?style=flat-square&logo=cloudflare)
 
-**极简、隐私、智能。**  
+**极简、隐私、智能。**
 **基于 Local-First 架构，配合 Cloudflare KV 实现无感多端同步。**
 
-本项目 Fork 自 [Y-Nav](https://github.com/yml2213/Y-Nav)，并在其基础上进行修改与扩展。  
-
-[在线演示](https://nav.yml.qzz.io) · [快速部署](#-快速部署)
+[快速部署](#-快速部署)
 
 </div>
 
@@ -46,12 +46,19 @@
 
 ### 部署方式对比
 
-| 对比项       | Cloudflare Workers | Cloudflare Pages         |
-| ------------ | ------------------ | ------------------------ |
-| **国内访问** | ⭐⭐⭐ 支持优选 IP | ⭐⭐ 一般                |
-| **配置难度** | 中等               | 简单                     |
-| **自动部署** | GitHub Actions     | Cloudflare 原生 Git 集成 |
-| **适合人群** | 追求速度的国内用户 | 快速体验 / 海外用户      |
+| 对比项           | Cloudflare Pages           | Cloudflare Workers               |
+| ---------------- | -------------------------- | -------------------------------- |
+| **配置难度**     | 简单（一键部署）           | 中等（需配置 Secrets + KV ID）   |
+| **自动部署**     | 原生 Git 集成，推送即部署  | 通过 GitHub Actions              |
+| **国内访问速度** | 一般                       | 支持自定义域名 + 优选 IP，更快   |
+| **跨域访问**     | 仅同源                     | 支持配置 CORS 允许跨域调用 API   |
+| **静态资源**     | 由 Pages CDN 托管          | Workers Assets 托管，不占 KV 指标 |
+| **适合人群**     | 快速体验 / 海外用户        | 追求速度和灵活性的国内用户       |
+
+**选择建议**：
+- 想最快跑起来 → **Pages**（点几下按钮就行）
+- 国内用户追求访问速度 → **Workers**（绑定域名 + 优选 IP）
+- 需要从其他域名/客户端调用同步 API → **Workers**（Pages 部署的 `/api/sync` 不支持跨域）
 
 ---
 
@@ -71,22 +78,22 @@
 ### 2. 绑定 KV（必须）
 
 1. Cloudflare Dashboard → **Workers & Pages** → **KV** → **Create a namespace**
-2. 命名：`YNAV_DB`（任意名称均可）
+2. 命名：`NAVHUB_DB`（任意名称均可）
 3. 打开 Pages 项目 → **Settings** → **Functions** → **KV namespace bindings**
 4. 新增绑定：
-   - Variable name: `YNAV_KV`（必须一致）
+   - Variable name: `NAVHUB_KV`（必须一致）
    - KV namespace: 选择刚创建的 KV
 5. 保存后 **重新部署**
 
 ### 2.1 绑定 R2（可选，推荐）
 
-> 推荐开启：主同步数据会优先存到 R2，避免 KV 的 **25MB 单值限制** 与 **最终一致性**导致的“读旧版本/冲突体验”。  
-> 说明：当前版本仅将**主同步数据**写入 R2；**备份/历史仍在 KV**（一般数据量不大无需迁移到 R2）。
+> 推荐开启：主同步数据会优先存到 R2，避免 KV 的 **25MB 单值限制** 与 **最终一致性**导致的"读到旧值/冲突体验"。
+> 说明：当前版本仅将**主同步数据**写入 R2；**备份/历史仍在 KV**（一般数据量不大无需转存到 R2）。
 
 1. Cloudflare Dashboard → **R2** → **Create bucket**
 2. 打开 Pages 项目 → **Settings** → **Functions** → **R2 bucket bindings**
 3. 新增绑定：
-   - Variable name: `YNAV_R2`
+   - Variable name: `NAVHUB_R2`
    - R2 bucket: 选择刚创建的 Bucket
 4. 保存后 **重新部署**
 
@@ -186,13 +193,13 @@ jobs:
 
 1. 在 Cloudflare Dashboard 进入 **Workers & Pages** → **KV**
 2. 点击 **Create a namespace**
-3. 名称填入：`YNAV_WORKER_KV`
+3. 名称填入：`NAVHUB_WORKER_KV`
 4. 创建后，**复制 Namespace ID**
 
 ### 步骤 5.1：创建 R2 Bucket（可选，推荐）
 
-> 推荐开启：主同步数据会优先存到 R2，避免 KV 的 **25MB 单值限制** 与 **最终一致性**导致的“读旧版本/冲突体验”。  
-> 说明：当前版本仅将**主同步数据**写入 R2；**备份/历史仍在 KV**（一般数据量不大无需迁移到 R2）。
+> 推荐开启：主同步数据会优先存到 R2，避免 KV 的 **25MB 单值限制** 与 **最终一致性**导致的"读到旧值/冲突体验"。
+> 说明：当前版本仅将**主同步数据**写入 R2；**备份/历史仍在 KV**（一般数据量不大无需转存到 R2）。
 
 1. Cloudflare Dashboard → **R2** → **Create bucket**
 2. Bucket 名称示例：`navhub-sync`
@@ -203,7 +210,7 @@ jobs:
 
 ```toml
 [[kv_namespaces]]
-binding = "YNAV_WORKER_KV"
+binding = "NAVHUB_WORKER_KV"
 id = "你的 Namespace ID"  # ← 替换这里
 ```
 
@@ -211,7 +218,7 @@ id = "你的 Namespace ID"  # ← 替换这里
 
 ```toml
 [[r2_buckets]]
-binding = "YNAV_WORKER_R2"
+binding = "NAVHUB_WORKER_R2"
 bucket_name = "navhub-sync"
 ```
 
@@ -227,7 +234,7 @@ bucket_name = "navhub-sync"
 - `AI_PROXY_ALLOWED_ORIGINS`: `/api/ai` 允许的跨域 Origin（逗号分隔，默认仅同源）
 - `AI_PROXY_ALLOW_INSECURE_HTTP`: 设为 `true` 可允许 `http:` 上游（不推荐）
 
-本地调试（`npm run dev:workers`）可在项目根目录创建 `.dev.vars` 注入变量（已在 `.gitignore` 中忽略）：  
+本地调试（`npm run dev:workers`）可在项目根目录创建 `.dev.vars` 注入变量（已在 `.gitignore` 中忽略）：
 
 ```bash
 SYNC_PASSWORD=your-password
@@ -272,7 +279,7 @@ Workers 部署默认仅允许同源请求访问 `/api/sync`（更安全，避免
 
 - `SYNC_CORS_ALLOWED_ORIGINS`: 允许的 Origin 列表（逗号分隔，填写完整 Origin，例如 `https://your-domain.com`）；可设为 `*` 允许任意 Origin（不推荐）
 
-> 说明：管理员密码接口带有按 IP 的错误次数限制（防爆破）。在本地/非 Cloudflare 环境若无法获取客户端 IP（缺少 `CF-Connecting-IP` / `X-Forwarded-For`），会回退为 `unknown`，导致多个请求共享同一限速键（看起来像“全局锁”）。建议在反代/本地调试时补齐 `X-Forwarded-For`。
+> 说明：管理员密码接口带有按 IP 的错误次数限制（防爆破）。在本地/非 Cloudflare 环境若无法获取客户端 IP（缺少 `CF-Connecting-IP` / `X-Forwarded-For`），会回退为 `unknown`，导致多个请求共享同一限速键（看起来像"全局锁"）。建议在反代/本地调试时补齐 `X-Forwarded-For`。
 
 ### 管理员与用户模式
 
@@ -341,15 +348,10 @@ npm install
 # 启动开发服务器
 npm run dev
 
-# 默认会在 Vite Dev Server 下对 `/api/*` 做轻量 mock（便于“只跑前端”）；如需本地联调后端可关闭：
-# - Bash:  VITE_MOCK_API=false npm run dev
-# - PowerShell:  $env:VITE_MOCK_API='false'; npm run dev
-# 如需在 Vite 下把 `/api/*` 代理到本地 Worker（例如 wrangler dev 默认的 8787 端口）：
-# - Bash:  VITE_MOCK_API=false VITE_API_PROXY_TARGET=http://127.0.0.1:8787 npm run dev
-# - PowerShell:  $env:VITE_MOCK_API='false'; $env:VITE_API_PROXY_TARGET='http://127.0.0.1:8787'; npm run dev
-
-# 运行测试
-npm run test
+# Vite dev server 不包含 `/api/*`（Workers/Pages Functions 不会在 Vite 下运行）。
+# 如需联调同步/AI 接口，可在 Vite 下把 `/api/*` 代理到本地/远端 Worker（例如 wrangler dev 默认的 8787 端口）：
+# - Bash:  VITE_API_PROXY_TARGET=http://127.0.0.1:8787 npm run dev
+# - PowerShell:  $env:VITE_API_PROXY_TARGET='http://127.0.0.1:8787'; npm run dev
 
 # 启动 Workers 模拟环境（需要先 wrangler login）
 npm run dev:workers
@@ -374,7 +376,7 @@ npm run doctor
 
 ## 🪟 Windows 构建失败（spawn EPERM）排障
 
-部分 Windows 环境（安全软件/受控文件夹/网盘同步目录/企业策略等）可能会阻止 `esbuild.exe` 以“管道通信”方式启动，
+部分 Windows 环境（安全软件/受控文件夹/网盘同步目录/企业策略等）可能会阻止 `esbuild.exe` 以"管道通信"方式启动，
 从而导致 Vite 在加载 `vite.config.ts` 时失败，典型报错类似：
 
 > failed to load config ... Error: spawn EPERM
@@ -473,7 +475,6 @@ NavHub/
 | 后端      | Cloudflare Workers / Pages Functions + KV（可选 R2） |
 | AI        | Google Generative AI SDK (@google/genai)            |
 | 加密      | Web Crypto API (AES-GCM, PBKDF2)                    |
-| 测试      | Vitest 4, fast-check (属性测试)                     |
 
 ---
 
@@ -533,8 +534,9 @@ interface SiteSettings {
 
 ## 🙏 鸣谢
 
-本项目基于以下开源项目重构：
+本项目基于以下开源项目：
 
+- [Y-Nav](https://github.com/yml2213/Y-Nav) by yml2213
 - [CloudNav-abcd](https://github.com/aabacada/CloudNav-abcd) by aabacada
 - [CloudNav](https://github.com/sese972010/CloudNav-) by sese972010
 

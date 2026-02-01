@@ -2,10 +2,9 @@ import { normalizeSyncMeta } from './normalize';
 import type { NavHubSyncData } from './types';
 
 /**
- * NavHubSyncData 的数据结构版本号。
+ * NavHubSyncData schema version.
  *
- * - v0：历史数据（未写入 schemaVersion）
- * - v1：引入 schemaVersion 字段（当前）
+ * Bump this value when the persisted sync payload structure changes.
  */
 export const NAVHUB_SYNC_DATA_SCHEMA_VERSION = 1;
 
@@ -21,30 +20,16 @@ export const ensureNavHubSyncDataSchemaVersion = (value: unknown): number => {
   return Math.max(normalizeSchemaVersion(value), NAVHUB_SYNC_DATA_SCHEMA_VERSION);
 };
 
-const migrateNavHubSyncDataRecord = (value: UnknownRecord): UnknownRecord => {
-  const fromVersion = normalizeSchemaVersion(value.schemaVersion);
-  if (fromVersion >= NAVHUB_SYNC_DATA_SCHEMA_VERSION) return value;
-
-  let migrated: UnknownRecord = { ...value };
-
-  // v0 -> v1: 写入 schemaVersion 字段。
-  if (fromVersion < 1) {
-    migrated = { ...migrated, schemaVersion: 1 };
-  }
-
-  return migrated;
-};
-
 export const normalizeNavHubSyncData = (value: unknown): NavHubSyncData | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
 
-  const migrated = migrateNavHubSyncDataRecord(value as UnknownRecord);
-  const meta = normalizeSyncMeta((migrated as { meta?: unknown }).meta);
+  const record = value as UnknownRecord;
+  const meta = normalizeSyncMeta((record as { meta?: unknown }).meta);
 
   return {
-    ...migrated,
+    ...record,
     schemaVersion: ensureNavHubSyncDataSchemaVersion(
-      (migrated as { schemaVersion?: unknown }).schemaVersion,
+      (record as { schemaVersion?: unknown }).schemaVersion,
     ),
     meta,
   } as NavHubSyncData;

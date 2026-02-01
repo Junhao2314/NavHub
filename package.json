@@ -5,7 +5,7 @@
     "url": "https://github.com/Junhao2314/NavHub"
   },
   "private": true,
-  "version": "0.1.6",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "doctor": "node scripts/doctor.mjs",
@@ -17,21 +17,15 @@
     "format": "biome format --write .",
     "check": "biome check .",
     "check:fix": "biome check --write .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
     "eol:check": "git ls-files --eol | node scripts/eol.mjs check",
     "eol:fix": "git ls-files --eol | node scripts/eol.mjs fix",
     "deploy:workers": "npm run build && wrangler deploy",
     "deploy:pages": "npm run build && wrangler pages deploy dist --project-name=navhub",
-    "kv:create": "wrangler kv:namespace create YNAV_WORKER_KV",
+    "kv:create": "wrangler kv:namespace create NAVHUB_WORKER_KV",
     "dev:workers": "npm run build && wrangler dev",
     "dev:pages": "npm run build && wrangler pages dev dist --compatibility-date=2024-01-01"
   },
   "dependencies": {
-    "@cloudflare/kv-asset-handler": "^0.3.4",
     "@dnd-kit/core": "^6.1.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -50,22 +44,17 @@
   "devDependencies": {
     "@biomejs/biome": "^2.3.13",
     "@cloudflare/workers-types": "^4.20241230.0",
-    "@playwright/test": "^1.58.0",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
-    "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.23",
-    "fast-check": "^4.5.3",
-    "jsdom": "^27.4.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-pwa": "^1.2.0",
-    "vitest": "^4.0.18",
     "wrangler": "^4.61.0"
   }
 }

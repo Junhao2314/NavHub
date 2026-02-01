@@ -9,7 +9,7 @@
  *
  * 设计要点:
  *   - 数据校验：加载时对链接 URL 和分类图标进行校验，移除无效数据并提示用户。
- *   - 分类兜底：当链接所属分类被删除时，自动迁移到"常用推荐"或第一个分类。
+ *   - 分类兜底：当链接所属分类被删除时，自动移动到"常用推荐"或第一个分类。
  *   - 排序逻辑：置顶链接优先显示，普通链接按 order 字段排序（支持拖拽调整）。
  *   - 图标缓存：从 localStorage 加载已缓存的 favicon，避免重复请求。
  */
@@ -94,7 +94,7 @@ export const useDataStore = () => {
    * 1. 解析存储的 JSON 数据
    * 2. 确保"常用推荐"分类始终在第一位
    * 3. 校验分类图标和链接 URL 的合法性
-   * 4. 将孤儿链接（分类已删除）迁移到兜底分类
+   * 4. 将孤儿链接（分类已删除）移动到兜底分类
    * 5. 加载 favicon 缓存
    * 6. 如有数据修正，重新持久化
    */
@@ -129,22 +129,6 @@ export const useDataStore = () => {
         let categoriesChanged = categoriesChangedRaw;
         loadedCategories = sanitizedCategories;
 
-        // Seed data migration: if user still has the old built-in category names from the other
-        // locale (e.g. they upgraded and switched language), upgrade them to current locale labels.
-        const legacyLocale = seedLocale.startsWith('zh') ? 'en-US' : 'zh-CN';
-        const legacySeedCategories = buildSeedCategories(legacyLocale);
-        const seedCategoryById = new Map(seedCategories.map((c) => [c.id, c] as const));
-        const legacyCategoryById = new Map(legacySeedCategories.map((c) => [c.id, c] as const));
-        loadedCategories = loadedCategories.map((cat: Category) => {
-          const currentSeed = seedCategoryById.get(cat.id);
-          const legacySeed = legacyCategoryById.get(cat.id);
-          if (!currentSeed || !legacySeed) return cat;
-          if (cat.name !== legacySeed.name) return cat;
-          if (currentSeed.name === legacySeed.name) return cat;
-          categoriesChanged = true;
-          return { ...cat, name: currentSeed.name };
-        });
-
         // 检查是否有链接的categoryId不存在于当前分类中，将这些链接移动到默认分类
         const validCategoryIds = new Set(loadedCategories.map((c: Category) => c.id));
         const fallbackCategoryId =
@@ -158,21 +142,6 @@ export const useDataStore = () => {
         let urlsChanged = urlsChangedRaw;
         loadedLinks = sanitizedLinks;
         let linksChanged = false;
-
-        // Seed data migration: upgrade built-in link descriptions from the other locale.
-        const legacySeedLinks = buildSeedLinks(legacyLocale);
-        const seedLinkById = new Map(seedLinks.map((l) => [l.id, l] as const));
-        const legacyLinkById = new Map(legacySeedLinks.map((l) => [l.id, l] as const));
-        loadedLinks = loadedLinks.map((link: LinkItem) => {
-          const currentSeed = seedLinkById.get(link.id);
-          const legacySeed = legacyLinkById.get(link.id);
-          if (!currentSeed || !legacySeed) return link;
-          if (link.title !== legacySeed.title || link.url !== legacySeed.url) return link;
-          if (link.description !== legacySeed.description) return link;
-          if (currentSeed.description === legacySeed.description) return link;
-          linksChanged = true;
-          return { ...link, description: currentSeed.description };
-        });
         if (fallbackCategoryId) {
           loadedLinks = loadedLinks.map((link: LinkItem) => {
             if (!validCategoryIds.has(link.categoryId)) {
@@ -547,7 +516,7 @@ export const useDataStore = () => {
   /**
    * 删除分类
    *
-   * 删除后将该分类下的所有链接迁移到"常用推荐"或第一个分类。
+   * 删除后将该分类下的所有链接移动到"常用推荐"或第一个分类。
    * 至少保留一个分类，防止数据孤立。
    */
   const deleteCategory = useCallback(

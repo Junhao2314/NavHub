@@ -26,38 +26,37 @@
 
 ### 2.1 主同步数据（可能在 KV 或 R2）
 
-- 新 key：`ynav:data`
-- 兼容旧 key：`navhub:data`
+- KV key：`navhub:data`
+- R2 object key：`navhub/data.json`（启用 R2 时）
 
-> **建议启用 R2**：主数据会优先写入/读取 R2（避免 KV 25MB 限制 + 最终一致性带来的“读旧版本”体验），KV 仅作为兼容兜底与迁移来源。
+> **建议启用 R2**：主数据会优先写入/读取 R2（避免 KV 25MB 限制 + 最终一致性带来的延迟问题）。
 
 ### 2.2 备份/同步历史（KV + TTL）
 
-- 备份前缀：`ynav:backup:*`（兼容 `navhub:backup:*`）
-- 同步历史前缀：`ynav:backup:history-*`（兼容 `navhub:backup:history-*`）
-- 同步历史索引：`ynav:sync_history_index`（兼容 `navhub:sync_history_index`）
+- 备份前缀：`navhub:backup:`
+- 同步历史前缀：`navhub:backup:history-`
+- 同步历史索引：`navhub:sync_history_index`
 
-同步历史与快照会设置 TTL（默认 30 天）以便自动过期，降低 **Storage (current)**，也避免“删除失败导致残留”。
+同步历史与快照会设置 TTL（默认 30 天）以便自动过期，降低 **Storage (current)**，也避免"删除失败导致残留"。
 
 ### 2.3 管理员密码防爆破（KV + TTL）
 
 当配置了 `SYNC_PASSWORD` 且密码错误时，会按客户端 IP 写入失败次数/锁定信息：
 
-- 新 key 前缀：`ynav:auth_attempt:sha256:<hash>`
-- 兼容旧 key 前缀：`ynav:auth_attempt:<ip>`、`navhub:auth_attempt:<ip>`
+- Key 前缀：`navhub:auth_attempt:sha256:<hash>`（IP 经 SHA256 哈希）
 - TTL：默认 1 小时（锁定窗口）
 
 ---
 
 ## 3. 哪些请求会触发 KV 操作（按接口）
 
-> 下表仅描述“典型情况”。如果你启用了 R2，则主数据读写基本不走 KV（大幅降低 Read/Write）。
+> 下表仅描述"典型情况"。如果你启用了 R2，则主数据读写基本不走 KV（大幅降低 Read/Write）。
 
 | 接口 | 可能触发的 KV 操作 | 说明 |
 | --- | --- | --- |
 | `GET /api/sync` | `get` | 读取主同步数据；若 R2 未启用则走 KV。 |
 | `GET /api/sync?action=auth` | `get/put/delete`（少量） | 当提供 `X-Sync-Password` 时会触发鉴权与失败次数逻辑；成功时会清理失败记录。 |
-| `POST /api/sync?action=login` | `get/put/delete`（少量） | 同上；这是“强制清理失败记录”的入口之一。 |
+| `POST /api/sync?action=login` | `get/put/delete`（少量） | 同上；这是"强制清理失败记录"的入口之一。 |
 | `POST /api/sync` | `get/put/delete` | 写入主数据；可选写入同步历史并维护索引；历史超过上限会裁剪删除旧 key。 |
 | `POST /api/sync?action=backup` | `put` | 创建快照备份（带 TTL）。 |
 | `GET /api/sync?action=backup&backupKey=...` | `get` | 导出指定备份内容。 |
@@ -67,7 +66,7 @@
 
 ---
 
-## 4. 本仓库已做的“降 KV 指标”优化
+## 4. 本仓库已做的"降 KV 指标"优化
 
 ### 4.1 Workers 静态资源不再占用 KV 指标（最重要）
 
@@ -83,13 +82,13 @@
 
 ### 4.2 避免不必要的 `KV.list`
 
-备份列表优先读 `ynav:sync_history_index`；当索引已经存在且完整时直接返回，不再因为“列表为空”而每次触发 `KV.list`。
+备份列表优先读 `navhub:sync_history_index`；当索引已经存在且完整时直接返回，不再因为"列表为空"而每次触发 `KV.list`。
 
 ### 4.3 同步历史默认带 TTL（降低 Storage）
 
-同步历史（`ynav:backup:history-*`）写入时增加 TTL（默认 30 天），避免历史数据无限增长。
+同步历史（`navhub:backup:history-*`）写入时增加 TTL（默认 30 天），避免历史数据无限增长。
 
-### 4.4 避免“每次成功鉴权都 KV.delete”
+### 4.4 避免"每次成功鉴权都 KV.delete"
 
 管理员密码正确时，不再对每个请求都执行 `KV.delete` 清理失败次数记录；只在：
 
@@ -107,13 +106,13 @@
 启用后：
 
 - 主数据读写走 R2（更强一致性 + 支持 ETag 条件写）
-- KV 主要只承担“备份/历史/鉴权计数”等小对象
+- KV 主要只承担"备份/历史/鉴权计数"等小对象
 
 `wrangler.toml` 示例（Workers）：
 
 ```toml
 [[r2_buckets]]
-binding = "YNAV_WORKER_R2"
+binding = "NAVHUB_WORKER_R2"
 bucket_name = "navhub-sync"
 ```
 
@@ -121,28 +120,15 @@ bucket_name = "navhub-sync"
 
 同步 API 支持 `skipHistory`：
 
-- 高并发/高频（例如“统计同步”）建议客户端传 `skipHistory: true`
-- 只在必要时（例如手动同步/关键修改）写入历史
+- `auto` 同步**默认不写入**同步记录（除非显式 `skipHistory=false`）
+- `manual` 同步**默认写入**同步记录（除非显式 `skipHistory=true`）
+- 高并发/高频（例如"统计同步"）使用默认的 `auto` 即可自动跳过历史
 
-### 5.3 理解“删除 vs 存储”的权衡
+### 5.3 理解"删除 vs 存储"的权衡
 
 当前实现会把同步历史保持在最多 20 条（`MAX_SYNC_HISTORY=20`），并对超出的旧 key 做删除裁剪：
 
 - 优点：更快降低 **Storage (current)**、避免历史堆积
 - 代价：会产生一定 **Delete operations**
 
-如果你更在意 Delete operations（而不是存储），可以考虑改成“只维护 index + 只依赖 TTL 自动过期”。目前仓库未提供开关，如需要我可以加一个可配置选项。
-
----
-
-## 6. 从旧部署升级的注意事项
-
-### 6.1 从 Workers Sites 切换到 Workers Assets
-
-重新部署后，旧的 `__STATIC_CONTENT` KV（如果存在）不会再被使用。
-
-- 建议：在 Cloudflare Dashboard 确认 Worker 已正常提供静态资源后，再手动清理不再使用的旧 KV namespace（用于立刻降低 Storage）。
-
-### 6.2 Pages 部署说明
-
-Cloudflare Pages 的静态资源不依赖 Workers KV，因此“静态资源占用 KV 指标”的问题主要发生在 **Workers Sites** 部署方式上。
+如果你更在意 Delete operations（而不是存储），可以考虑改成"只维护 index + 只依赖 TTL 自动过期"。目前仓库未提供开关，如需要可以加一个可配置选项。

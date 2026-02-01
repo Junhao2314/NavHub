@@ -87,7 +87,7 @@ describe('syncApi backup endpoints', () => {
     vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const createRequest = new Request('http://localhost/api/sync?action=backup', {
       method: 'POST',
@@ -107,7 +107,7 @@ describe('syncApi backup endpoints', () => {
 
     expect(createResponse.status).toBe(200);
     expect(createJson.success).toBe(true);
-    expect(createJson.backupKey).toBe('ynav:backup:2025-01-01T00-00-00-000Z');
+    expect(createJson.backupKey).toBe('navhub:backup:2025-01-01T00-00-00-000Z');
 
     const getRequest = new Request(
       `http://localhost/api/sync?action=backup&backupKey=${encodeURIComponent(createJson.backupKey)}`,
@@ -126,7 +126,7 @@ describe('syncApi backup endpoints', () => {
 
   it('returns 400 when creating backup without data', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const request = new Request('http://localhost/api/sync?action=backup', {
       method: 'POST',
@@ -146,7 +146,7 @@ describe('syncApi backup endpoints', () => {
     vi.setSystemTime(new Date('2025-02-01T12:00:00.000Z'));
 
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const existing = {
       links: [{ id: 'a', title: 'old', url: 'https://old.example', categoryId: 'c', createdAt: 1 }],
@@ -156,7 +156,7 @@ describe('syncApi backup endpoints', () => {
     };
     await kv.put(KV_MAIN_DATA_KEY, JSON.stringify(existing));
 
-    const backupKey = 'ynav:backup:2025-01-15T00-00-00-000Z';
+    const backupKey = 'navhub:backup:2025-01-15T00-00-00-000Z';
     const backupData = {
       links: [{ id: 'b', title: 'new', url: 'https://new.example', categoryId: 'c', createdAt: 2 }],
       categories: [{ id: 'c', name: 'Cat', icon: 'Folder' }],
@@ -181,7 +181,7 @@ describe('syncApi backup endpoints', () => {
 
     expect(restoreResponse.status).toBe(200);
     expect(restoreJson.success).toBe(true);
-    expect(restoreJson.rollbackKey).toBe('ynav:backup:rollback-2025-02-01T12-00-00-000Z');
+    expect(restoreJson.rollbackKey).toBe('navhub:backup:rollback-2025-02-01T12-00-00-000Z');
     expect(restoreJson.data.meta.deviceId).toBe('restore-device');
     expect(restoreJson.data.meta.updatedAt).toBe(new Date('2025-02-01T12:00:00.000Z').getTime());
     expect(restoreJson.data.meta.version).toBe(6);
@@ -189,7 +189,7 @@ describe('syncApi backup endpoints', () => {
     expect(restoreJson.data.aiConfig.apiKey).toBe('');
 
     const rollbackGet = new Request(
-      `http://localhost/api/sync?action=backup&key=${encodeURIComponent(restoreJson.rollbackKey)}`,
+      `http://localhost/api/sync?action=backup&backupKey=${encodeURIComponent(restoreJson.rollbackKey)}`,
     );
     const rollbackResponse = await handleApiSyncRequest(rollbackGet, env);
     const rollbackJson = (await rollbackResponse.json()) as any;
@@ -211,7 +211,7 @@ describe('syncApi backup endpoints', () => {
 
   it('prevents deleting current sync-history record', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const current = {
       links: [],
@@ -220,7 +220,7 @@ describe('syncApi backup endpoints', () => {
     };
     await kv.put(KV_MAIN_DATA_KEY, JSON.stringify(current));
 
-    const historyKey = 'ynav:backup:history-2025-01-01T00-00-00-000Z_deadbeef';
+    const historyKey = 'navhub:backup:history-2025-01-01T00-00-00-000Z_deadbeef';
     await kv.put(
       historyKey,
       JSON.stringify({
@@ -246,7 +246,7 @@ describe('syncApi backup endpoints', () => {
 
   it('deletes a sync-history record using index without reading the record body', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     await kv.put(
       KV_MAIN_DATA_KEY,
@@ -257,7 +257,7 @@ describe('syncApi backup endpoints', () => {
       }),
     );
 
-    const historyKey = 'ynav:backup:history-2025-01-01T00-00-00-000Z_deadbeef';
+    const historyKey = 'navhub:backup:history-2025-01-01T00-00-00-000Z_deadbeef';
     await kv.put(
       historyKey,
       JSON.stringify({
@@ -268,10 +268,9 @@ describe('syncApi backup endpoints', () => {
     );
 
     await kv.put(
-      'ynav:sync_history_index',
+      'navhub:sync_history_index',
       JSON.stringify({
         version: SYNC_HISTORY_INDEX_VERSION,
-        sources: ['ynav', 'navhub'],
         items: [{ key: historyKey, meta: { updatedAt: 1, deviceId: 'device-1', version: 4 } }],
       }),
     );
@@ -290,7 +289,7 @@ describe('syncApi backup endpoints', () => {
     expect(kv.has(historyKey)).toBe(false);
     expect(kv.stats.reads).toBe(2);
 
-    const storedIndexRaw = kv.getStoredValue('ynav:sync_history_index');
+    const storedIndexRaw = kv.getStoredValue('navhub:sync_history_index');
     expect(storedIndexRaw).toBeTruthy();
     const storedIndex = JSON.parse(storedIndexRaw as string) as any;
     expect(storedIndex.items).toEqual([]);
@@ -298,9 +297,9 @@ describe('syncApi backup endpoints', () => {
 
   it('deletes a non-history backup record', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
-    const backupKey = 'ynav:backup:2025-01-02T00-00-00-000Z';
+    const backupKey = 'navhub:backup:2025-01-02T00-00-00-000Z';
     await kv.put(
       backupKey,
       JSON.stringify({
@@ -327,7 +326,7 @@ describe('syncApi backup endpoints', () => {
 
   it('returns 400 for invalid backupKey in get-backup', async () => {
     const kv = new MemoryKV();
-    const env: SyncApiEnv = { YNAV_KV: kv };
+    const env: SyncApiEnv = { NAVHUB_KV: kv };
 
     const request = new Request(
       'http://localhost/api/sync?action=backup&backupKey=not-a-backup-key',

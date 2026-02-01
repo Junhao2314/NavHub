@@ -48,6 +48,8 @@ import {
   getDeviceInfo,
   SYNC_API_ENDPOINT,
   SYNC_DEBOUNCE_MS,
+  SYNC_DEBUG_DUMP_KEY,
+  SYNC_DEBUG_KEY,
   SYNC_META_KEY,
 } from '../utils/constants';
 import { getErrorMessage } from '../utils/error';
@@ -66,6 +68,102 @@ const keepaliveBodyEncoder = new TextEncoder();
 
 const isKeepaliveBodyWithinLimit = (body: string): boolean => {
   return keepaliveBodyEncoder.encode(body).length <= KEEPALIVE_BODY_LIMIT_BYTES;
+};
+
+const readWindowSearchParam = (key: string): string => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return new URLSearchParams(window.location.search).get(key) || '';
+  } catch {
+    return '';
+  }
+};
+
+const resolveSyncDebugFlags = (): { enabled: boolean; dump: boolean } => {
+  const globalDebug = (globalThis as unknown as { __YNAV_SYNC_DEBUG__?: unknown })
+    .__YNAV_SYNC_DEBUG__;
+  if (globalDebug !== undefined) {
+    const enabled =
+      globalDebug === true || globalDebug === 1 || globalDebug === '1' || globalDebug === 'true';
+    const disabled =
+      globalDebug === false || globalDebug === 0 || globalDebug === '0' || globalDebug === 'false';
+
+    if (enabled || disabled) {
+      const globalDump = (globalThis as unknown as { __YNAV_SYNC_DEBUG_DUMP__?: unknown })
+        .__YNAV_SYNC_DEBUG_DUMP__;
+      const dumpEnabled =
+        globalDump === true || globalDump === 1 || globalDump === '1' || globalDump === 'true';
+      return { enabled, dump: enabled && dumpEnabled };
+    }
+  }
+
+  const debug = readWindowSearchParam('debug');
+  const debugSyncParam = readWindowSearchParam('debugSync');
+  if (debugSyncParam === '0') return { enabled: false, dump: false };
+
+  const localDebug = safeLocalStorageGetItem(SYNC_DEBUG_KEY);
+  const enabled =
+    debugSyncParam === '1' || debug === 'sync' || localDebug === '1' || localDebug !== '0';
+
+  const dump =
+    enabled &&
+    (readWindowSearchParam('debugSyncDump') === '1' ||
+      safeLocalStorageGetItem(SYNC_DEBUG_DUMP_KEY) === '1');
+
+  return { enabled, dump };
+};
+
+const summarizeSyncDataForDebug = (
+  data: NavHubSyncData,
+): {
+  schemaVersion: NavHubSyncData['schemaVersion'];
+  meta: NavHubSyncData['meta'];
+  counts: { links: number; categories: number };
+  has: {
+    privateVault: boolean;
+    encryptedSensitiveConfig: boolean;
+    privacyConfig: boolean;
+    customFaviconCache: boolean;
+  };
+} => {
+  return {
+    schemaVersion: data.schemaVersion,
+    meta: data.meta,
+    counts: {
+      links: Array.isArray(data.links) ? data.links.length : 0,
+      categories: Array.isArray(data.categories) ? data.categories.length : 0,
+    },
+    has: {
+      privateVault: !!data.privateVault,
+      encryptedSensitiveConfig: !!data.encryptedSensitiveConfig,
+      privacyConfig: !!data.privacyConfig,
+      customFaviconCache: !!data.customFaviconCache,
+    },
+  };
+};
+
+const getResponseHeader = (response: unknown, name: string): string | undefined => {
+  const headers = (response as { headers?: unknown })?.headers as { get?: unknown } | undefined;
+  if (!headers) return undefined;
+  const getter = headers.get;
+  if (typeof getter !== 'function') return undefined;
+  const value = getter.call(headers, name) as unknown;
+  return typeof value === 'string' && value ? value : undefined;
+};
+
+const redactSyncDataForDebug = (data: NavHubSyncData): NavHubSyncData => {
+  const aiConfig =
+    data.aiConfig && typeof data.aiConfig === 'object'
+      ? { ...data.aiConfig, apiKey: '[REDACTED]' }
+      : data.aiConfig;
+  return {
+    ...data,
+    aiConfig,
+    privateVault: data.privateVault ? '[REDACTED]' : data.privateVault,
+    encryptedSensitiveConfig: data.encryptedSensitiveConfig
+      ? '[REDACTED]'
+      : data.encryptedSensitiveConfig,
+  };
 };
 
 const getSyncNetworkErrorMessage = (error: unknown, t: (key: string) => string): string => {
@@ -210,12 +308,34 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
   const pullFromCloud = useCallback(async (): Promise<NavHubSyncData | null> => {
     setSyncStatus('syncing');
 
+    const debug = resolveSyncDebugFlags();
     try {
-      const response = await fetch(`${SYNC_API_ENDPOINT}?t=${Date.now()}`, {
-        headers: getSyncAuthHeaders(),
+      const url = `${SYNC_API_ENDPOINT}?t=${Date.now()}`;
+      const headers = getSyncAuthHeaders();
+      const hasPasswordHeader = 'X-Sync-Password' in (headers as Record<string, unknown>);
+
+      if (debug.enabled) {
+        console.info('[sync] pull:start', { url, hasPasswordHeader });
+      }
+
+      const response = await fetch(url, {
+        headers,
         cache: 'no-store',
       });
       const result = (await response.json()) as SyncGetResponse;
+
+      if (debug.enabled) {
+        console.info('[sync] pull:response', {
+          status: response.status,
+          ok: response.ok,
+          cfRay: getResponseHeader(response, 'cf-ray'),
+          success: result?.success,
+          role: (result as { role?: unknown })?.role,
+          hasData:
+            'data' in (result as Record<string, unknown>) && !!(result as { data?: unknown })?.data,
+          message: (result as { message?: unknown })?.message,
+        });
+      }
 
       if (result.success === false) {
         emitSyncError(result.error || t('errors.pullFailed'), 'server');
@@ -224,6 +344,40 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
       if (!result.data) {
         // 云端无数据
+        if (debug.enabled) {
+          console.info('[sync] pull:empty', {
+            message: (result as { message?: unknown })?.message,
+          });
+        }
+
+        // Debug helper: if we are in an admin session, try listing backups to detect "history exists but main-data is missing".
+        if (debug.enabled && hasPasswordHeader) {
+          try {
+            const backupsResponse = await fetch(
+              `${SYNC_API_ENDPOINT}?action=backups&t=${Date.now()}`,
+              {
+                headers,
+                cache: 'no-store',
+              },
+            );
+            const backupsJson = (await backupsResponse.json()) as unknown;
+            const backupsCount = Array.isArray((backupsJson as { backups?: unknown })?.backups)
+              ? (backupsJson as { backups: unknown[] }).backups.length
+              : null;
+            console.info('[sync] pull:backups', {
+              status: backupsResponse.status,
+              ok: backupsResponse.ok,
+              backupsCount,
+              result: backupsJson,
+            });
+          } catch (error: unknown) {
+            console.warn(
+              '[sync] pull:backups:error',
+              getErrorMessage(error, 'list backups failed'),
+            );
+          }
+        }
+
         setSyncStatus('idle');
         return null;
       }
@@ -234,6 +388,13 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         return null;
       }
 
+      if (debug.enabled) {
+        console.info('[sync] pull:data', summarizeSyncDataForDebug(normalized));
+        if (debug.dump) {
+          console.debug('[sync] pull:dump', redactSyncDataForDebug(normalized));
+        }
+      }
+
       setSyncStatus('synced');
       setLastSyncTime(normalized.meta.updatedAt);
 
@@ -242,18 +403,39 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 
       return normalized;
     } catch (error: unknown) {
+      if (debug.enabled) {
+        console.warn('[sync] pull:error', getErrorMessage(error, 'pull failed'));
+      }
       emitSyncError(getSyncNetworkErrorMessage(error, t), 'network');
       return null;
     }
   }, [emitSyncError, t]);
 
   const checkAuth = useCallback(async (): Promise<SyncAuthState> => {
+    const debug = resolveSyncDebugFlags();
     try {
-      const response = await fetch(`${SYNC_API_ENDPOINT}?action=auth&t=${Date.now()}`, {
-        headers: getSyncAuthHeaders(),
+      const url = `${SYNC_API_ENDPOINT}?action=auth&t=${Date.now()}`;
+      const headers = getSyncAuthHeaders();
+      const hasPasswordHeader = 'X-Sync-Password' in (headers as Record<string, unknown>);
+
+      if (debug.enabled) {
+        console.info('[sync] auth:start', { url, hasPasswordHeader });
+      }
+
+      const response = await fetch(url, {
+        headers,
         cache: 'no-store',
       });
       const result = (await response.json()) as SyncAuthResponse;
+
+      if (debug.enabled) {
+        console.info('[sync] auth:response', {
+          status: response.status,
+          ok: response.ok,
+          cfRay: getResponseHeader(response, 'cf-ray'),
+          ...result,
+        });
+      }
 
       if (!result?.success) {
         return { protected: true, role: 'user', canWrite: false };
@@ -280,10 +462,11 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
     ): Promise<boolean> => {
       setSyncStatus('syncing');
 
+      const debug = resolveSyncDebugFlags();
       try {
         // Safari 私密模式等场景下 localStorage 可能“存在但不可写”。
         // 同步逻辑依赖本地保存的 meta/version，因此这里提前探测可写性，避免出现“看起来同步成功但 version 丢失”。
-        const storageProbeKey = '__ynav_storage_probe__';
+        const storageProbeKey = '__navhub_storage_probe__';
         if (!safeLocalStorageSetItem(storageProbeKey, '1')) {
           emitSyncError(t('errors.storageUnavailable'), 'storage');
           return false;
@@ -323,12 +506,13 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         // 默认策略：auto 同步不写入“同步记录”(history snapshot)，避免高频同步刷屏 & KV 写放大。
         // manual 同步则默认写入（除非显式 options.skipHistory=true）。
         const shouldSkipHistory = options?.skipHistory ?? syncKind !== 'manual';
+        const expectedVersion = force ? undefined : (localMeta?.version ?? 0);
 
         const requestBody = JSON.stringify({
           data: syncData,
           // force=true => 不携带 expectedVersion，等价于“放弃乐观锁，允许 last-write-wins”。
           // 主要用于冲突解决选择“保留本地版本”时的强制覆盖。
-          expectedVersion: force ? undefined : (localMeta?.version ?? 0),
+          expectedVersion,
           syncKind,
           ...(shouldSkipHistory ? { skipHistory: true } : {}),
         });
@@ -338,14 +522,45 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         // keepaliveRequested=true 但 body 超限时，会自动降级为 keepalive=false。
         // 这是一个权衡：宁可让请求在卸载阶段不一定送达，也要避免请求被浏览器直接抛弃（或抛异常）。
 
+        const headers = getSyncAuthHeaders();
+        const hasPasswordHeader = 'X-Sync-Password' in (headers as Record<string, unknown>);
+
+        if (debug.enabled) {
+          console.info('[sync] push:start', {
+            syncKind,
+            force,
+            expectedVersion,
+            shouldSkipHistory,
+            keepaliveRequested,
+            keepalive,
+            hasPasswordHeader,
+          });
+          if (debug.dump) {
+            console.debug('[sync] push:dump', redactSyncDataForDebug(syncData));
+          }
+        }
+
         const response = await fetch(SYNC_API_ENDPOINT, {
           method: 'POST',
-          headers: getSyncAuthHeaders(),
+          headers,
           keepalive,
           body: requestBody,
         });
 
         const result = (await response.json()) as SyncPostResponse;
+
+        if (debug.enabled) {
+          console.info('[sync] push:response', {
+            status: response.status,
+            ok: response.ok,
+            cfRay: getResponseHeader(response, 'cf-ray'),
+            success: result?.success,
+            conflict: (result as { conflict?: unknown })?.conflict,
+            historyKey: (result as { historyKey?: unknown })?.historyKey,
+            error: (result as { error?: unknown })?.error,
+            data: result?.data ? summarizeSyncDataForDebug(result.data) : null,
+          });
+        }
 
         if (result.success !== true) {
           // 处理冲突
@@ -384,6 +599,9 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
         setSyncStatus('synced');
         return true;
       } catch (error: unknown) {
+        if (debug.enabled) {
+          console.warn('[sync] push:error', getErrorMessage(error, 'push failed'));
+        }
         emitSyncError(getSyncNetworkErrorMessage(error, t), 'network');
         return false;
       }

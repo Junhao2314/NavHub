@@ -127,9 +127,3 @@ export function getLucideIconLazy(name: LucideIconName): React.LazyExoticCompone
   lazyIconCache.set(name, LazyIcon);
   return LazyIcon;
 }
-
-// Legacy icon aliases from previous icon sets (extend as needed).
-export const LEGACY_ICON_ALIASES: Record<string, LucideIconName> = {
-  'folder-open': 'Folder',
-  folderopen: 'Folder',
-};

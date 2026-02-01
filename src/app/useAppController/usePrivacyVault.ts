@@ -62,8 +62,6 @@ export const usePrivacyVault = ({
   const [prefillPrivateLink, setPrefillPrivateLink] = useState<Partial<LinkItem> | null>(null);
 
   useEffect(() => {
-    // Migrate legacy secrets out of localStorage (session-only going forward)
-    getPrivacyPassword();
     setPrivateVaultCipher(safeLocalStorageGetItem(PRIVATE_VAULT_KEY));
     setUseSeparatePrivacyPassword(
       safeLocalStorageGetItem(PRIVACY_USE_SEPARATE_PASSWORD_KEY) === '1',
@@ -121,7 +119,7 @@ export const usePrivacyVault = ({
           return true;
         }
 
-        // Password is disabled but vault is still encrypted -> require a one-time migration using the old password.
+        // Password is disabled but vault is still encrypted -> require a one-time conversion using the old password.
         const candidates = [
           (input || '').trim(),
           getSyncPassword().trim(),
@@ -133,7 +131,7 @@ export const usePrivacyVault = ({
           setIsPrivateUnlocked(false);
           safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           if (input !== undefined) {
-            notify('云端隐私数据仍为加密格式，请输入旧密码迁移', 'warning');
+            notify('云端隐私数据仍为加密格式，请输入旧密码完成转换', 'warning');
           }
           return false;
         }
@@ -238,7 +236,7 @@ export const usePrivacyVault = ({
           privateVaultCipher.trim() &&
           !parsePlainPrivateVault(privateVaultCipher)
         ) {
-          notify('隐私分组需要先输入旧密码迁移后才能保存', 'warning');
+          notify('隐私分组需要先输入旧密码完成转换后才能保存', 'warning');
           return false;
         }
         safeLocalStorageSetItem(PRIVATE_VAULT_KEY, JSON.stringify({ links: nextLinks }));
@@ -281,7 +279,7 @@ export const usePrivacyVault = ({
     ],
   );
 
-  const handleMigratePrivacyMode = useCallback(
+  const handleSwitchPrivacyMode = useCallback(
     async (payload: { useSeparatePassword: boolean; oldPassword: string; newPassword: string }) => {
       const { useSeparatePassword, oldPassword, newPassword } = payload;
       const trimmedOld = oldPassword.trim();
@@ -343,7 +341,7 @@ export const usePrivacyVault = ({
       setPrivateLinks(nextLinks);
       setIsPrivateUnlocked(true);
       setPrivateVaultPassword(trimmedNew);
-      notify('隐私分组已完成迁移', 'success');
+      notify('隐私分组已完成转换', 'success');
       return true;
     },
     [notify, privateLinks, privateVaultCipher, useSeparatePrivacyPassword],
@@ -645,7 +643,7 @@ export const usePrivacyVault = ({
   }, [privateLinks]);
 
   const privateCount = privacyGroupEnabled && isPrivateUnlocked ? privateLinks.length : 0;
-  const privateVaultNeedsMigration = useMemo(() => {
+  const privateVaultNeedsConversion = useMemo(() => {
     if (!privacyGroupEnabled) return false;
     if (privacyPasswordEnabled) return false;
     if (!privateVaultCipher || !privateVaultCipher.trim()) return false;
@@ -653,15 +651,15 @@ export const usePrivacyVault = ({
   }, [privacyGroupEnabled, privacyPasswordEnabled, privateVaultCipher]);
 
   const privateUnlockHint = !privacyPasswordEnabled
-    ? privateVaultNeedsMigration
-      ? '隐私数据仍为加密格式，请输入旧密码迁移'
+    ? privateVaultNeedsConversion
+      ? '隐私数据仍为加密格式，请输入旧密码完成转换'
       : '隐私分组无需密码，点击解锁即可'
     : useSeparatePrivacyPassword
       ? '请输入独立密码解锁隐私分组'
       : '请输入同步密码解锁隐私分组';
   const privateUnlockSubHint = !privacyPasswordEnabled
-    ? privateVaultNeedsMigration
-      ? '迁移成功后会转换为明文（因为已关闭密码保护）'
+    ? privateVaultNeedsConversion
+      ? '转换成功后会保存为明文（因为已关闭密码保护）'
       : undefined
     : useSeparatePrivacyPassword
       ? '独立密码仅在当前会话缓存，关闭标签页/浏览器后需重新输入'
@@ -696,7 +694,7 @@ export const usePrivacyVault = ({
     privateUnlockHint,
     privateUnlockSubHint,
     privateCount,
-    privateVaultNeedsMigration,
+    privateVaultNeedsConversion,
     closePrivateModal,
     openPrivateAddModal,
     openPrivateEditModal,
@@ -704,7 +702,7 @@ export const usePrivacyVault = ({
     handlePrivateAddLink,
     handlePrivateEditLink,
     handlePrivateDeleteLink,
-    handleMigratePrivacyMode,
+    handleSwitchPrivacyMode,
     handleTogglePrivacyGroup,
     handleTogglePrivacyPassword,
     handleTogglePrivacyAutoUnlock,

@@ -74,7 +74,7 @@ export function AppTopOverlays({ controller }: AppOverlaysProps) {
             syncRole={sync.syncRole}
             isSyncProtected={sync.isSyncProtected}
             useSeparatePrivacyPassword={privacy.useSeparatePrivacyPassword}
-            onMigratePrivacyMode={privacy.handleMigratePrivacyMode}
+            onSwitchPrivacyMode={privacy.handleSwitchPrivacyMode}
             privacyGroupEnabled={privacy.privacyGroupEnabled}
             onTogglePrivacyGroup={privacy.handleTogglePrivacyGroup}
             privacyPasswordEnabled={privacy.privacyPasswordEnabled}
