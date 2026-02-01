@@ -212,6 +212,9 @@ export const useKvSyncStrategy = (args: {
         // 这种情况下本地通常只有默认示例数据，不需要让用户选择。
         if (localVersion === 0) {
           applyCloudData(cloudData, auth.role);
+          const { meta: _meta, ...cloudPayload } = cloudData;
+          prevBusinessSignatureRef.current = buildSyncBusinessSignature(cloudPayload);
+          prevFullSignatureRef.current = buildSyncFullSignature(cloudPayload);
           return;
         }
 
