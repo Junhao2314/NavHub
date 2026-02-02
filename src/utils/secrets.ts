@@ -100,8 +100,7 @@ export const clearSyncPassword = (): void => {
  * Check if current session is admin
  * 检查当前会话是否为管理员
  */
-export const isSyncAdminSession = (): boolean =>
-  getSecretValue(SYNC_ADMIN_SESSION_KEY) === '1';
+export const isSyncAdminSession = (): boolean => getSecretValue(SYNC_ADMIN_SESSION_KEY) === '1';
 
 /**
  * Set admin session status

@@ -726,7 +726,8 @@ const DataTab: React.FC<DataTabProps> = ({
                     type="button"
                     onClick={handleConfirmPrivacySwitch}
                     disabled={
-                      isSwitchingPrivacyMode || (privacyTarget === 'separate' && !isSyncPasswordReady)
+                      isSwitchingPrivacyMode ||
+                      (privacyTarget === 'separate' && !isSyncPasswordReady)
                     }
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
                   >

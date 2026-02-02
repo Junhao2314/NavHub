@@ -16,10 +16,11 @@
 
 import { arrayMove } from '@dnd-kit/sortable';
 import type { TOptions } from 'i18next';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
-import i18n, { detectUserLanguage } from '../config/i18n';
+import i18n, { APP_LANGUAGE, type SupportedLanguageCode } from '../config/i18n';
 import { buildSeedCategories, buildSeedLinks } from '../config/seedData';
+import { useAppStore } from '../stores/useAppStore';
 import type { Category, LinkItem } from '../types';
 import { COMMON_CATEGORY_ID, FAVICON_CACHE_KEY, LOCAL_STORAGE_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
@@ -45,6 +46,26 @@ export const useDataStore = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const { notify } = useDialog();
+  const currentLanguage = useAppStore((state) => state.currentLanguage);
+  const lastLanguageRef = useRef<SupportedLanguageCode | null>(null);
+
+  /**
+   * 更新数据并持久化
+   *
+   * 统一的数据更新入口，确保：
+   * - 数据经过校验（sanitize）
+   * - 同步写入 localStorage
+   */
+  const updateData = useCallback((newLinks: LinkItem[], newCategories: Category[]) => {
+    const { categories: sanitizedCategories } = sanitizeCategories(newCategories);
+    const { links: sanitizedLinks } = sanitizeLinks(newLinks);
+    setLinks(sanitizedLinks);
+    setCategories(sanitizedCategories);
+    safeLocalStorageSetItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({ links: sanitizedLinks, categories: sanitizedCategories }),
+    );
+  }, []);
 
   /**
    * 加载本地图标缓存
@@ -99,7 +120,7 @@ export const useDataStore = () => {
    * 6. 如有数据修正，重新持久化
    */
   useEffect(() => {
-    const seedLocale = detectUserLanguage();
+    const seedLocale = APP_LANGUAGE;
     const seedCategories = buildSeedCategories(seedLocale);
     const seedLinks = buildSeedLinks(seedLocale);
 
@@ -190,23 +211,71 @@ export const useDataStore = () => {
     setIsLoaded(true);
   }, [loadLinkIcons, notify]);
 
-  /**
-   * 更新数据并持久化
-   *
-   * 统一的数据更新入口，确保：
-   * - 数据经过校验（sanitize）
-   * - 同步写入 localStorage
-   */
-  const updateData = useCallback((newLinks: LinkItem[], newCategories: Category[]) => {
-    const { categories: sanitizedCategories } = sanitizeCategories(newCategories);
-    const { links: sanitizedLinks } = sanitizeLinks(newLinks);
-    setLinks(sanitizedLinks);
-    setCategories(sanitizedCategories);
-    safeLocalStorageSetItem(
-      LOCAL_STORAGE_KEY,
-      JSON.stringify({ links: sanitizedLinks, categories: sanitizedCategories }),
-    );
-  }, []);
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const previousLanguage = lastLanguageRef.current;
+    lastLanguageRef.current = currentLanguage as SupportedLanguageCode;
+
+    if (!previousLanguage || previousLanguage === currentLanguage) return;
+
+    const previousSeedCategories = buildSeedCategories(previousLanguage);
+    const nextSeedCategories = buildSeedCategories(currentLanguage);
+    const previousSeedLinks = buildSeedLinks(previousLanguage);
+    const nextSeedLinks = buildSeedLinks(currentLanguage);
+
+    const previousCategoryById = new Map(previousSeedCategories.map((cat) => [cat.id, cat]));
+    const nextCategoryById = new Map(nextSeedCategories.map((cat) => [cat.id, cat]));
+
+    const previousLinkById = new Map(previousSeedLinks.map((link) => [link.id, link]));
+    const nextLinkById = new Map(nextSeedLinks.map((link) => [link.id, link]));
+
+    let didChange = false;
+
+    const nextCategories = categories.map((category) => {
+      const previousSeed = previousCategoryById.get(category.id);
+      const nextSeed = nextCategoryById.get(category.id);
+      if (!previousSeed || !nextSeed) return category;
+      if (category.name !== previousSeed.name) return category;
+      if (category.name === nextSeed.name) return category;
+      didChange = true;
+      return { ...category, name: nextSeed.name };
+    });
+
+    const nextLinks = links.map((link) => {
+      const previousSeed = previousLinkById.get(link.id);
+      const nextSeed = nextLinkById.get(link.id);
+      if (!previousSeed || !nextSeed) return link;
+
+      let updated = link;
+      let updatedFlag = false;
+
+      if (
+        typeof link.description === 'string' &&
+        link.description === previousSeed.description &&
+        link.description !== nextSeed.description
+      ) {
+        updated = { ...updated, description: nextSeed.description };
+        updatedFlag = true;
+      }
+
+      if (link.title === previousSeed.title && link.title !== nextSeed.title) {
+        updated = { ...updated, title: nextSeed.title };
+        updatedFlag = true;
+      }
+
+      if (updatedFlag) {
+        didChange = true;
+        return updated;
+      }
+
+      return link;
+    });
+
+    if (didChange) {
+      updateData(nextLinks, nextCategories);
+    }
+  }, [categories, currentLanguage, isLoaded, links, updateData]);
 
   /**
    * 添加新链接

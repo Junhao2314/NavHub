@@ -1,5 +1,5 @@
 import { isLucideIconName } from '../components/ui/lucideIconMap';
-import { detectUserLanguage } from '../config/i18n';
+import { APP_LANGUAGE } from '../config/i18n';
 import { buildSeedLinks } from '../config/seedData';
 import type { Category, LinkItem } from '../types';
 import { normalizeHttpUrl } from './url';
@@ -84,7 +84,7 @@ export interface SanitizeLinksResult {
 
 export const sanitizeLinks = (input: unknown): SanitizeLinksResult => {
   if (!Array.isArray(input)) {
-    const locale = detectUserLanguage();
+    const locale = APP_LANGUAGE;
     return { links: buildSeedLinks(locale), didChange: true, dropped: 0, normalized: 0 };
   }
 

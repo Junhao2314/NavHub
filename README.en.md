@@ -111,6 +111,16 @@ By default, `/api/ai` only proxies to `api.openai.com` and only same-origin acce
 - `AI_PROXY_ALLOWED_ORIGINS`: Allowed CORS origins (comma-separated, full Origin like `https://your-domain.com`; default same-origin only)
 - `AI_PROXY_ALLOW_INSECURE_HTTP`: Set to `true` to allow `http:` upstream (not recommended)
 
+### 3.2 Configure UI Language (Optional)
+
+The UI language defaults to **Chinese**. To deploy an English version, in Pages project → **Settings** → **Environment variables** add:
+
+- `VITE_LANGUAGE`: `en-US`
+
+**Redeploy** after adding for changes to take effect.
+
+> Language is determined at build time and cannot be switched after deployment.
+
 ### 4. Auto-Update Notes
 
 - Pages automatically builds and updates **when your repo has new commits** (no manual action needed)
@@ -183,11 +193,12 @@ Go to your forked repo → **Settings** → **Secrets and variables** → **Acti
 
 Add these Secrets:
 
-| Secret Name             | Value                              |
-| ----------------------- | ---------------------------------- |
-| `CLOUDFLARE_API_TOKEN`  | Token created in Step 2            |
-| `CLOUDFLARE_ACCOUNT_ID` | Account ID from Step 3             |
-| `SYNC_PASSWORD`         | (Optional) Sync password for data protection |
+| Secret Name             | Value                                          |
+| ----------------------- | ---------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | Token created in Step 2                        |
+| `CLOUDFLARE_ACCOUNT_ID` | Account ID from Step 3                         |
+| `SYNC_PASSWORD`         | (Optional) Sync password for data protection   |
+| `VITE_LANGUAGE`         | (Optional) UI language, `en-US` or `zh-CN`, default Chinese |
 
 ### Step 5: Create KV Namespace
 

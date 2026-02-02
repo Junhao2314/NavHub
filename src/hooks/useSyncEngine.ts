@@ -48,8 +48,6 @@ import {
   getDeviceInfo,
   SYNC_API_ENDPOINT,
   SYNC_DEBOUNCE_MS,
-  SYNC_DEBUG_DUMP_KEY,
-  SYNC_DEBUG_KEY,
   SYNC_META_KEY,
 } from '../utils/constants';
 import { getErrorMessage } from '../utils/error';
@@ -80,35 +78,21 @@ const readWindowSearchParam = (key: string): string => {
 };
 
 const resolveSyncDebugFlags = (): { enabled: boolean; dump: boolean } => {
-  const globalDebug = (globalThis as unknown as { __YNAV_SYNC_DEBUG__?: unknown })
-    .__YNAV_SYNC_DEBUG__;
-  if (globalDebug !== undefined) {
-    const enabled =
-      globalDebug === true || globalDebug === 1 || globalDebug === '1' || globalDebug === 'true';
-    const disabled =
-      globalDebug === false || globalDebug === 0 || globalDebug === '0' || globalDebug === 'false';
+  // 开发环境默认启用 debug
+  const isDev = import.meta.env.DEV;
 
-    if (enabled || disabled) {
-      const globalDump = (globalThis as unknown as { __YNAV_SYNC_DEBUG_DUMP__?: unknown })
-        .__YNAV_SYNC_DEBUG_DUMP__;
-      const dumpEnabled =
-        globalDump === true || globalDump === 1 || globalDump === '1' || globalDump === 'true';
-      return { enabled, dump: enabled && dumpEnabled };
-    }
-  }
-
-  const debug = readWindowSearchParam('debug');
+  // URL 参数控制（生产环境唯一开关）
+  const debugParam = readWindowSearchParam('debug');
   const debugSyncParam = readWindowSearchParam('debugSync');
+
+  // 显式禁用
   if (debugSyncParam === '0') return { enabled: false, dump: false };
 
-  const localDebug = safeLocalStorageGetItem(SYNC_DEBUG_KEY);
-  const enabled =
-    debugSyncParam === '1' || debug === 'sync' || localDebug === '1' || localDebug !== '0';
+  // 启用条件：开发环境 或 URL 参数指定
+  const enabled = isDev || debugSyncParam === '1' || debugParam === 'sync';
 
-  const dump =
-    enabled &&
-    (readWindowSearchParam('debugSyncDump') === '1' ||
-      safeLocalStorageGetItem(SYNC_DEBUG_DUMP_KEY) === '1');
+  // Dump 模式：仅通过 URL 参数控制
+  const dump = enabled && readWindowSearchParam('debugSyncDump') === '1';
 
   return { enabled, dump };
 };

@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { buildDefaultSearchSources } from '../config/defaults';
 import { useAppStore } from '../stores/useAppStore';
-import { ExternalSearchSource, SearchConfig, SearchMode } from '../types';
+import { ExternalSearchSource, SearchConfig, SearchMode, TranslationLanguage } from '../types';
 import { SEARCH_CONFIG_KEY } from '../utils/constants';
 import {
   safeLocalStorageGetItem,
@@ -62,6 +62,7 @@ export function useSearch() {
   const setSelectedSearchSource = useAppStore((s) => s.setSelectedSearchSource);
   const hydrated = useAppStore((s) => s.__hydratedSearch);
   const setHydrated = useAppStore((s) => s.__setHydratedSearch);
+  const currentLanguage = useAppStore((s) => s.currentLanguage);
 
   // 搜索源弹窗相关状态
   const showSearchSourcePopup = useAppStore((s) => s.showSearchSourcePopup);
@@ -201,6 +202,60 @@ export function useSearch() {
       handleSearchModeChange('external');
     }
   }, [handleSearchModeChange, searchMode, setIsMobileSearchOpen]);
+
+  useEffect(() => {
+    if (!hydrated || externalSearchSources.length === 0) return;
+
+    const isZh = currentLanguage.toLowerCase().startsWith('zh');
+    const targetLang: TranslationLanguage = isZh ? 'zh-CHS' : 'en';
+    const defaultSources = buildDefaultSearchSources(currentLanguage);
+    const alternateSources = buildDefaultSearchSources(isZh ? 'en-US' : 'zh-CN');
+
+    const defaultNameById = new Map(defaultSources.map((source) => [source.id, source.name]));
+    const alternateNameById = new Map(alternateSources.map((source) => [source.id, source.name]));
+
+    const updatedAt = Date.now();
+    let changed = false;
+
+    const nextSources = externalSearchSources.map((source) => {
+      const defaultName = defaultNameById.get(source.id);
+      const alternateName = alternateNameById.get(source.id);
+      if (!defaultName || !alternateName) return source;
+
+      const matchesDefault = source.name === defaultName;
+      const matchesAlternate = source.name === alternateName;
+
+      if (!matchesDefault && !matchesAlternate) return source;
+
+      const nextName = defaultName;
+      const shouldUpdateName = source.name !== nextName;
+      const shouldUpdateMeta = source.translationMeta?.lang !== targetLang;
+
+      if (!shouldUpdateName && !shouldUpdateMeta) return source;
+
+      changed = true;
+      return {
+        ...source,
+        name: nextName,
+        translationMeta: {
+          ...source.translationMeta,
+          lang: targetLang,
+          updatedAt,
+        },
+      };
+    });
+
+    if (changed) {
+      saveSearchConfig(nextSources, searchMode, selectedSearchSource);
+    }
+  }, [
+    currentLanguage,
+    externalSearchSources,
+    hydrated,
+    saveSearchConfig,
+    searchMode,
+    selectedSearchSource,
+  ]);
 
   /**
    * 初始化：从 localStorage 加载搜索配置

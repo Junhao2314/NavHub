@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
 import {
   useBatchEdit,
@@ -11,7 +11,9 @@ import {
   useSorting,
   useTheme,
 } from '../hooks';
+import type { NavHubSyncData } from '../types';
 import { PRIVATE_CATEGORY_ID } from '../utils/constants';
+import { applyCloudDataToLocalState } from './useAppController/kvSync/applyCloudData';
 import { useAdminAccess } from './useAppController/useAdminAccess';
 import { useAppearance } from './useAppController/useAppearance';
 import { useBatchEditGuards } from './useAppController/useBatchEditGuards';
@@ -154,6 +156,9 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     toggleMobileSearch,
   } = useSearch();
 
+  const restoreSearchConfigRef = useRef<typeof restoreSearchConfig | null>(null);
+  restoreSearchConfigRef.current = restoreSearchConfig;
+
   // === Modals ===
   const {
     isModalOpen,
@@ -233,6 +238,67 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     notify,
     confirm,
   });
+
+  const handleImportBackupData = useCallback(
+    (data: Partial<NavHubSyncData>) => {
+      if (!data || Object.keys(data).length === 0) return;
+      applyCloudDataToLocalState({
+        data: data as NavHubSyncData,
+        role: 'admin',
+        updateData,
+        restoreSearchConfigRef,
+        restoreSiteSettings,
+        applyFromSync,
+        aiConfig,
+        restoreAIConfig,
+        selectedCategory,
+        setSelectedCategory,
+        privacyGroupEnabled,
+        setPrivacyGroupEnabled,
+        privacyPasswordEnabled,
+        setPrivacyPasswordEnabled,
+        privacyAutoUnlockEnabled,
+        setPrivacyAutoUnlockEnabled,
+        setUseSeparatePrivacyPassword,
+        setPrivateVaultCipher,
+        setPrivateLinks,
+        isPrivateUnlocked,
+        setIsPrivateUnlocked,
+        privateVaultPassword,
+        setPrivateVaultPassword,
+        setIsPrivateModalOpen,
+        setEditingPrivateLink,
+        setPrefillPrivateLink,
+        notify,
+      });
+    },
+    [
+      updateData,
+      restoreSiteSettings,
+      applyFromSync,
+      aiConfig,
+      restoreAIConfig,
+      selectedCategory,
+      setSelectedCategory,
+      privacyGroupEnabled,
+      setPrivacyGroupEnabled,
+      privacyPasswordEnabled,
+      setPrivacyPasswordEnabled,
+      privacyAutoUnlockEnabled,
+      setPrivacyAutoUnlockEnabled,
+      setUseSeparatePrivacyPassword,
+      setPrivateVaultCipher,
+      setPrivateLinks,
+      isPrivateUnlocked,
+      setIsPrivateUnlocked,
+      privateVaultPassword,
+      setPrivateVaultPassword,
+      setIsPrivateModalOpen,
+      setEditingPrivateLink,
+      setPrefillPrivateLink,
+      notify,
+    ],
+  );
 
   // === Computed: Displayed Links ===
   const { pinnedLinks, commonRecommendedLinks, displayedLinks, activeDisplayedLinks } =
@@ -589,6 +655,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       handleUpdateCategories,
       handleDeleteCategory,
       handleImportConfirm,
+      handleImportBackupData,
       handleAddLinkRequest,
       handleEditLink,
       handleAddLink,

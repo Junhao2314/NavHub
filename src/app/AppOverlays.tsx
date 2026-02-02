@@ -47,6 +47,7 @@ export function AppTopOverlays({ controller }: AppOverlaysProps) {
             onImport={actions.handleImportConfirm}
             onImportSearchConfig={search.restoreSearchConfig}
             onImportAIConfig={config.restoreAIConfig}
+            onImportBackupData={actions.handleImportBackupData}
             closeOnBackdrop={appearance.closeOnBackdrop}
           />
         )}

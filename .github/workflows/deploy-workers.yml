@@ -12,6 +12,7 @@
 #      - CLOUDFLARE_API_TOKEN: Cloudflare API Token (需要 Workers 权限)
 #      - CLOUDFLARE_ACCOUNT_ID: Cloudflare Account ID
 #      - SYNC_PASSWORD: (可选) 同步密码
+#      - VITE_LANGUAGE: (可选) 界面语言，en-US 或 zh-CN，默认 zh-CN
 # ============================================
 
 name: Deploy to Cloudflare Workers
@@ -51,6 +52,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_LANGUAGE: ${{ secrets.VITE_LANGUAGE }}
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3

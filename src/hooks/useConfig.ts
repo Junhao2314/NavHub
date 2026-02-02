@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { buildDefaultSiteSettings, DEFAULT_AI_CONFIG } from '../config/defaults';
-import { detectUserLanguage } from '../config/i18n';
+import { APP_LANGUAGE } from '../config/i18n';
 import { useAppStore } from '../stores/useAppStore';
 import type { AIConfig, SiteSettings } from '../types';
 import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
@@ -82,7 +82,7 @@ const loadAIConfigFromStorage = (): AIConfig => {
 
 /** 从存储加载站点设置 */
 const loadSiteSettingsFromStorage = (): SiteSettings => {
-  const locale = detectUserLanguage();
+  const locale = APP_LANGUAGE;
   const defaultSiteSettings = buildDefaultSiteSettings(locale);
   const saved = safeLocalStorageGetItem(SITE_SETTINGS_KEY);
   if (saved) {

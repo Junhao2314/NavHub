@@ -1,7 +1,6 @@
 import {
   CheckCircle,
   GripVertical,
-  Languages,
   LayoutGrid,
   List,
   Menu,
@@ -64,7 +63,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   onOpenSettings,
   onEditDisabled,
 }) => {
-  const { t, currentLanguage, changeLanguage, supportedLanguages } = useI18n();
+  const { t } = useI18n();
   const themeMode = useAppStore((s) => s.themeMode);
   const siteCardStyle = useAppStore((s) => s.siteSettings.cardStyle);
   const openSidebar = useAppStore((s) => s.openSidebar);
@@ -90,7 +89,6 @@ const MainHeader: React.FC<MainHeaderProps> = ({
   const activeSearchSource = hoveredSearchSource ?? selectedSearchSource;
 
   const [showThemeMenu, setShowThemeMenu] = useState(false);
-  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -382,42 +380,6 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           {/* Theme Toggle */}
           {/* Settings Group */}
           <div className="flex items-center gap-1 p-1 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 mr-2 backdrop-blur-sm">
-            {/* Language Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
-                title={t('header.switchLanguage')}
-              >
-                <Languages size={16} />
-              </button>
-
-              {showLanguageMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowLanguageMenu(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    {supportedLanguages.map((lang) => (
-                      <button
-                        key={lang.code}
-                        onClick={() => {
-                          changeLanguage(lang.code);
-                          setShowLanguageMenu(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
-                          currentLanguage === lang.code
-                            ? 'bg-accent/10 text-accent font-medium'
-                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        <span className="text-base">{lang.flag}</span>
-                        <span>{lang.nativeName}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
             {/* Theme Dropdown */}
             <div className="relative">
               <button

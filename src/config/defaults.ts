@@ -1,5 +1,5 @@
 import type { AIConfig, ExternalSearchSource, SiteSettings } from '../types';
-import { detectUserLanguage } from './i18n';
+import { APP_LANGUAGE } from './i18n';
 
 export const DEFAULT_AI_CONFIG: AIConfig = {
   provider: 'gemini',
@@ -10,7 +10,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
 
 const isZhLocale = (locale: string): boolean => locale.toLowerCase().startsWith('zh');
 
-export const buildDefaultSiteSettings = (locale: string = detectUserLanguage()): SiteSettings => ({
+export const buildDefaultSiteSettings = (locale: string = APP_LANGUAGE): SiteSettings => ({
   title: isZhLocale(locale) ? 'NavHub - AI 智能导航仪' : 'NavHub - AI Smart Navigator',
   navTitle: 'NavHub',
   favicon: '',
@@ -26,7 +26,7 @@ export const buildDefaultSiteSettings = (locale: string = detectUserLanguage()):
 export const DEFAULT_SITE_SETTINGS: SiteSettings = buildDefaultSiteSettings();
 
 export const buildDefaultSearchSources = (
-  locale: string = detectUserLanguage(),
+  locale: string = APP_LANGUAGE,
 ): ExternalSearchSource[] => {
   const now = Date.now();
   const isZh = isZhLocale(locale);

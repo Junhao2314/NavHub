@@ -77,6 +77,30 @@ const similarity = (s1: string, s2: string): number => {
   return (longer.length - costs[longer.length]) / longer.length;
 };
 
+// 计算词级别的 Jaccard 相似度
+// 用于避免"WONG Public Service Station"与"Huang Public Service Station"被误判为相似
+const wordJaccardSimilarity = (s1: string, s2: string): number => {
+  const words1 = new Set(s1.toLowerCase().split(/\s+/).filter(Boolean));
+  const words2 = new Set(s2.toLowerCase().split(/\s+/).filter(Boolean));
+  if (words1.size === 0 && words2.size === 0) return 1.0;
+  if (words1.size === 0 || words2.size === 0) return 0;
+
+  const intersection = new Set([...words1].filter((w) => words2.has(w)));
+  const union = new Set([...words1, ...words2]);
+  return intersection.size / union.size;
+};
+
+// 判断两个标题是否相似（需要同时满足字符级和词级相似度）
+const areTitlesSimilar = (t1: string, t2: string): boolean => {
+  // 完全相同
+  if (t1 === t2) return true;
+  // 字符级相似度 > 0.85 且词级相似度 > 0.75
+  // 提高阈值以减少误判
+  const charSim = similarity(t1, t2);
+  const wordSim = wordJaccardSimilarity(t1, t2);
+  return charSim > 0.85 && wordSim > 0.75;
+};
+
 const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
   links,
   categories,
@@ -180,7 +204,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
         if (link1.id === link2.id || processed.has(link2.id) || titleChecked.has(link2.id)) return;
         const t1 = link1.title.toLowerCase().trim();
         const t2 = link2.title.toLowerCase().trim();
-        if (t1 === t2 || similarity(t1, t2) > 0.8) {
+        if (areTitlesSimilar(t1, t2)) {
           const key = `similar-title-${link1.id}-${link2.id}`;
           if (
             !groups.some(

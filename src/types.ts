@@ -1,3 +1,10 @@
+export type TranslationLanguage = 'zh-CHS' | 'en';
+
+export interface TranslationMeta {
+  lang?: TranslationLanguage;
+  updatedAt?: number;
+}
+
 export interface LinkItem {
   id: string;
   title: string;
@@ -8,6 +15,7 @@ export interface LinkItem {
   tags?: string[];
   categoryId: string;
   createdAt: number;
+  translationMeta?: TranslationMeta;
   pinned?: boolean; // New field for pinning
   pinnedOrder?: number; // Field for pinned link sorting order
   order?: number; // Field for sorting order
@@ -22,6 +30,7 @@ export interface Category {
   name: string;
   icon: string; // Lucide icon name or emoji
   hidden?: boolean; // 是否隐藏（仅管理员可见）
+  translationMeta?: TranslationMeta;
 }
 
 export interface SiteSettings {
@@ -35,6 +44,7 @@ export interface SiteSettings {
   backgroundImage?: string; // Background image URL or data URL
   backgroundImageEnabled?: boolean; // Enable custom background image
   backgroundMotion?: boolean; // Enable background highlight motion
+  translationMeta?: TranslationMeta;
 }
 
 export type SiteSettingsChangeHandler = <K extends keyof SiteSettings>(
@@ -72,6 +82,7 @@ export interface ExternalSearchSource {
   icon?: string;
   enabled: boolean;
   createdAt: number;
+  translationMeta?: TranslationMeta;
 }
 
 // 搜索配置

@@ -111,6 +111,16 @@ Pages 项目 → **Settings** → **Environment variables** 添加：
 - `AI_PROXY_ALLOWED_ORIGINS`: 允许的跨域来源（逗号分隔，填写完整 Origin，例如 `https://your-domain.com`；默认仅同源）
 - `AI_PROXY_ALLOW_INSECURE_HTTP`: 设为 `true` 可允许 `http:` 上游（不推荐）
 
+### 3.2 配置界面语言（可选）
+
+界面语言默认为**中文**。如需部署英文版本，在 Pages 项目 → **Settings** → **Environment variables** 添加：
+
+- `VITE_LANGUAGE`: `en-US`
+
+添加后需 **重新部署** 生效。
+
+> 语言在构建时确定，部署后不可切换。
+
 ### 4. 自动更新说明
 
 - Pages 会在你的仓库 **有新提交时自动构建并更新**（无需手动操作）
@@ -183,11 +193,12 @@ jobs:
 
 添加以下 Secrets：
 
-| Secret 名称             | 值                             |
-| ----------------------- | ------------------------------ |
-| `CLOUDFLARE_API_TOKEN`  | 步骤 2 创建的 Token            |
-| `CLOUDFLARE_ACCOUNT_ID` | 步骤 3 获取的 Account ID       |
-| `SYNC_PASSWORD`         | （可选）同步密码，用于保护数据 |
+| Secret 名称             | 值                                       |
+| ----------------------- | ---------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | 步骤 2 创建的 Token                      |
+| `CLOUDFLARE_ACCOUNT_ID` | 步骤 3 获取的 Account ID                 |
+| `SYNC_PASSWORD`         | （可选）同步密码，用于保护数据           |
+| `VITE_LANGUAGE`         | （可选）界面语言，`en-US` 或 `zh-CN`，默认中文 |
 
 ### 步骤 5：创建 KV 命名空间
 

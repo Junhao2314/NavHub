@@ -23,7 +23,7 @@ export { useBatchEdit } from './useBatchEdit';
 export { useConfig } from './useConfig';
 export { useContextMenu } from './useContextMenu';
 export { useDataStore } from './useDataStore';
-export { type LanguageOption, type UseI18nReturn, useI18n } from './useI18n';
+export { type UseI18nReturn, useI18n } from './useI18n';
 export { useModals } from './useModals';
 export { useSearch } from './useSearch';
 export { useSidebar } from './useSidebar';

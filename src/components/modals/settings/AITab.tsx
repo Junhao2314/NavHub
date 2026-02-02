@@ -92,7 +92,7 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
       if (e instanceof AIServiceError) {
         notify(e.getUserMessage(), 'error');
       } else {
-        notify(t('settings.ai.noModelsFound'), 'error');
+        notify(t('common.failed'), 'error');
       }
     } finally {
       setFetchingModels(false);
@@ -100,8 +100,8 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
   };
 
   const handleBulkGenerate = async () => {
-    if (!config.apiKey) {
-      notify(t('settings.ai.configureAndSaveApiKeyFirst'), 'warning');
+    if (!config.apiKey.trim()) {
+      notify(t('settings.ai.configureApiKeyFirst'), 'warning');
       return;
     }
 

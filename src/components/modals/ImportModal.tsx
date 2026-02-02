@@ -11,7 +11,7 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../hooks/useI18n';
 import { parseBookmarks } from '../../services/bookmarkParser';
-import { AIConfig, Category, LinkItem, SearchConfig } from '../../types';
+import { AIConfig, Category, LinkItem, NavHubSyncData, SearchConfig } from '../../types';
 import { normalizeHttpUrl } from '../../utils/url';
 import { useDialog } from '../ui/DialogProvider';
 
@@ -23,6 +23,7 @@ interface ImportModalProps {
   onImport: (newLinks: LinkItem[], newCategories: Category[]) => void;
   onImportSearchConfig?: (searchConfig: SearchConfig) => void;
   onImportAIConfig?: (aiConfig: AIConfig) => void;
+  onImportBackupData?: (data: Partial<NavHubSyncData>) => void;
   closeOnBackdrop?: boolean;
 }
 
@@ -52,6 +53,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
   onImport,
   onImportSearchConfig,
   onImportAIConfig,
+  onImportBackupData,
   closeOnBackdrop = true,
 }) => {
   const { t } = useI18n();
@@ -65,6 +67,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
   const [parsedCategories, setParsedCategories] = useState<Category[]>([]);
   const [parsedSearchConfig, setParsedSearchConfig] = useState<SearchConfig | null>(null);
   const [parsedAIConfig, setParsedAIConfig] = useState<AIConfig | null>(null);
+  const [parsedBackupData, setParsedBackupData] = useState<Partial<NavHubSyncData> | null>(null);
 
   // Options
   const [importMode, setImportMode] = useState<'original' | 'merge'>('original');
@@ -179,6 +182,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
     categories: Category[];
     searchConfig?: SearchConfig;
     aiConfig?: AIConfig;
+    backupData?: Partial<NavHubSyncData>;
   }> => {
     const text = await file.text();
     const data = JSON.parse(text);
@@ -217,11 +221,21 @@ const ImportModal: React.FC<ImportModalProps> = ({
       notify(t('modals.import.filteredInvalidUrls', { count: dropped }), 'warning');
     }
 
+    const backupData: Partial<NavHubSyncData> = {
+      siteSettings: data.siteSettings,
+      privateVault: data.privateVault,
+      privacyConfig: data.privacyConfig,
+      themeMode: data.themeMode,
+      customFaviconCache: data.customFaviconCache,
+      encryptedSensitiveConfig: data.encryptedSensitiveConfig,
+    };
+
     return {
       links: sanitizedLinks,
       categories: data.categories,
       searchConfig: data.searchConfig,
       aiConfig: data.aiConfig,
+      backupData,
     };
   };
 
@@ -234,6 +248,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
     setParsedCategories([]);
     setParsedSearchConfig(null);
     setParsedAIConfig(null);
+    setParsedBackupData(null);
     setImportType('html');
     setSelectedFolderKeys(new Set());
   };
@@ -260,6 +275,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
         categories: Category[];
         searchConfig?: SearchConfig;
         aiConfig?: AIConfig;
+        backupData?: Partial<NavHubSyncData>;
       };
 
       if (type === 'html') {
@@ -283,6 +299,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
       setParsedCategories(result.categories);
       setParsedSearchConfig(result.searchConfig || null);
       setParsedAIConfig(result.aiConfig || null);
+      setParsedBackupData(result.backupData || null);
       setSelectedFolderKeys(new Set());
 
       setStep('preview');
@@ -365,6 +382,10 @@ const ImportModal: React.FC<ImportModalProps> = ({
     // Import AI config if available
     if (parsedAIConfig && onImportAIConfig) {
       onImportAIConfig(parsedAIConfig);
+    }
+
+    if (parsedBackupData && onImportBackupData) {
+      onImportBackupData(parsedBackupData);
     }
 
     handleClose();

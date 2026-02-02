@@ -10,9 +10,31 @@ import {
   normalizeNavHubSyncData,
 } from '../../shared/syncApi/navHubSyncData';
 
+type SyncApiResponse = { success: boolean } & Record<string, unknown>;
+
+const parseJson = async <T>(response: Response): Promise<T> => (await response.json()) as T;
+
 class MemoryKV implements KVNamespaceInterface {
   private readonly store = new Map<string, string>();
 
+  async get(key: string): Promise<string | null>;
+  async get(key: string, type: 'text'): Promise<string | null>;
+  async get<Value = unknown>(key: string, type: 'json'): Promise<Value | null>;
+  async get(key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>;
+  async get(key: string, type: 'stream'): Promise<ReadableStream | null>;
+  async get(key: string, options: { type: 'text'; cacheTtl?: number }): Promise<string | null>;
+  async get<Value = unknown>(
+    key: string,
+    options: { type: 'json'; cacheTtl?: number },
+  ): Promise<Value | null>;
+  async get(
+    key: string,
+    options: { type: 'arrayBuffer'; cacheTtl?: number },
+  ): Promise<ArrayBuffer | null>;
+  async get(
+    key: string,
+    options: { type: 'stream'; cacheTtl?: number },
+  ): Promise<ReadableStream | null>;
   async get(
     key: string,
     typeOrOptions:
@@ -21,7 +43,7 @@ class MemoryKV implements KVNamespaceInterface {
       | 'arrayBuffer'
       | 'stream'
       | { type: 'text' | 'json' | 'arrayBuffer' | 'stream'; cacheTtl?: number } = 'text',
-  ): Promise<any> {
+  ): Promise<string | ArrayBuffer | ReadableStream | unknown | null> {
     const value = this.store.get(key);
     if (value === undefined) return null;
     const type = typeof typeOrOptions === 'string' ? typeOrOptions : typeOrOptions.type;
@@ -174,9 +196,9 @@ describe('syncApi history keys', () => {
       });
 
     const response1 = await handleApiSyncRequest(makeRequest(), env);
-    const json1 = (await response1.json()) as any;
+    const json1 = await parseJson<SyncApiResponse & { historyKey: string }>(response1);
     const response2 = await handleApiSyncRequest(makeRequest(), env);
-    const json2 = (await response2.json()) as any;
+    const json2 = await parseJson<SyncApiResponse & { historyKey: string }>(response2);
 
     expect(json1.success).toBe(true);
     expect(json2.success).toBe(true);
@@ -217,7 +239,7 @@ describe('syncApi history keys', () => {
     });
 
     const response = await handleApiSyncRequest(request, env);
-    const json = (await response.json()) as any;
+    const json = await parseJson<SyncApiResponse & { historyKey: string }>(response);
 
     expect(json.success).toBe(true);
 
@@ -251,7 +273,7 @@ describe('syncApi history keys', () => {
     });
 
     const response = await handleApiSyncRequest(request, env);
-    const json = (await response.json()) as any;
+    const json = await parseJson<SyncApiResponse & { historyKey: string | null }>(response);
 
     expect(json.success).toBe(true);
     expect(json.historyKey).toBe(null);
@@ -304,7 +326,9 @@ describe('syncApi history keys', () => {
 
     const request = new Request('http://localhost/api/sync?action=backups', { method: 'GET' });
     const response = await handleApiSyncRequest(request, env);
-    const json = (await response.json()) as any;
+    const json = await parseJson<
+      SyncApiResponse & { backups: Array<{ key: string; timestamp: string }> }
+    >(response);
 
     expect(json.success).toBe(true);
     expect(listSpy).not.toHaveBeenCalled();
@@ -366,7 +390,7 @@ describe('syncApi history keys', () => {
     });
 
     const response = await handleApiSyncRequest(request, env);
-    const json = (await response.json()) as any;
+    const json = await parseJson<SyncApiResponse & { historyKey: string }>(response);
 
     expect(json.success).toBe(true);
     expect(typeof json.historyKey).toBe('string');
@@ -406,7 +430,7 @@ describe('syncApi history keys', () => {
 
     const request = new Request('http://localhost/api/sync?action=backups', { method: 'GET' });
     const response = await handleApiSyncRequest(request, env);
-    const json = (await response.json()) as any;
+    const json = await parseJson<SyncApiResponse & { backups: Array<{ key: string }> }>(response);
 
     expect(json.success).toBe(true);
     expect(json.backups).toHaveLength(20);
@@ -421,7 +445,10 @@ describe('syncApi history keys', () => {
     const historyList = await kv.list({ prefix: 'navhub:backup:history-' });
     expect(historyList.keys).toHaveLength(20);
 
-    const updatedIndex = (await kv.get('navhub:sync_history_index', 'json')) as any;
+    const updatedIndex = (await kv.get<{ items: Array<unknown> }>(
+      'navhub:sync_history_index',
+      'json',
+    ))!;
     expect(updatedIndex.items).toHaveLength(20);
   });
 
@@ -451,7 +478,7 @@ describe('syncApi history keys', () => {
 
     const request = new Request('http://localhost/api/sync?action=backups', { method: 'GET' });
     const response = await handleApiSyncRequest(request, env);
-    const json = (await response.json()) as any;
+    const json = await parseJson<SyncApiResponse & { backups: Array<{ key: string }> }>(response);
 
     expect(json.success).toBe(true);
     expect(json.backups).toHaveLength(20);
@@ -472,7 +499,7 @@ describe('syncApi env bindings', () => {
 
     const request = new Request('http://localhost/api/sync', { method: 'GET' });
     const response = await handleApiSyncRequest(request, env);
-    const json = (await response.json()) as any;
+    const json = await parseJson<SyncApiResponse & { data: unknown }>(response);
 
     expect(json.success).toBe(true);
     expect(json.data).toBe(null);
@@ -497,7 +524,9 @@ describe('syncApi R2 main-data store', () => {
       body: JSON.stringify({ data: baseDataV1, expectedVersion: 0 }),
     });
     const firstResponse = await handleApiSyncRequest(firstWrite, env);
-    const firstJson = (await firstResponse.json()) as any;
+    const firstJson = await parseJson<SyncApiResponse & { data: { meta: { version: number } } }>(
+      firstResponse,
+    );
     expect(firstJson.success).toBe(true);
     expect(firstJson.data.meta.version).toBe(1);
 
@@ -525,7 +554,9 @@ describe('syncApi R2 main-data store', () => {
       }),
     });
     const secondResponse = await handleApiSyncRequest(secondWrite, env);
-    const secondJson = (await secondResponse.json()) as any;
+    const secondJson = await parseJson<SyncApiResponse & { conflict?: boolean; data?: unknown }>(
+      secondResponse,
+    );
 
     expect(secondResponse.status).toBe(409);
     expect(secondJson.conflict).toBe(true);
@@ -552,7 +583,7 @@ describe('syncApi auth + public sanitization', () => {
       body: JSON.stringify({ data: baseData }),
     });
     const writeResponse = await handleApiSyncRequest(writeRequest, env);
-    const writeJson = (await writeResponse.json()) as any;
+    const writeJson = await parseJson<SyncApiResponse>(writeResponse);
     expect(writeJson.success).toBe(true);
 
     const readRequest = new Request('http://localhost/api/sync', {
@@ -560,14 +591,18 @@ describe('syncApi auth + public sanitization', () => {
       headers: { 'X-Sync-Password': '  secret  ' },
     });
     const readResponse = await handleApiSyncRequest(readRequest, env);
-    const readJson = (await readResponse.json()) as any;
+    const readJson = await parseJson<
+      SyncApiResponse & {
+        role?: string;
+        data: { privateVault?: string; encryptedSensitiveConfig?: string };
+      }
+    >(readResponse);
 
     expect(readJson.success).toBe(true);
     expect(readJson.role).toBe('admin');
     expect(readJson.data.privateVault).toBe('vault-cipher');
     expect(readJson.data.encryptedSensitiveConfig).toBe('v1.salt.iv.data');
   });
-
   it('removes privateVault and encryptedSensitiveConfig for public reads', async () => {
     const kv = new MemoryKV();
     const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
@@ -588,12 +623,22 @@ describe('syncApi auth + public sanitization', () => {
       body: JSON.stringify({ data: baseData }),
     });
     const writeResponse = await handleApiSyncRequest(writeRequest, env);
-    const writeJson = (await writeResponse.json()) as any;
+    const writeJson = await parseJson<SyncApiResponse>(writeResponse);
     expect(writeJson.success).toBe(true);
 
     const readRequest = new Request('http://localhost/api/sync', { method: 'GET' });
     const readResponse = await handleApiSyncRequest(readRequest, env);
-    const readJson = (await readResponse.json()) as any;
+    const readJson = await parseJson<
+      SyncApiResponse & {
+        role?: string;
+        data: {
+          privateVault?: string;
+          privacyConfig?: unknown;
+          encryptedSensitiveConfig?: string;
+          aiConfig: { apiKey: string };
+        };
+      }
+    >(readResponse);
 
     expect(readJson.success).toBe(true);
     expect(readJson.role).toBe('user');
@@ -640,7 +685,9 @@ describe('syncApi auth attempts', () => {
       body: JSON.stringify({ deviceId: 'device-1' }),
     });
     const wrongLoginResponse = await handleApiSyncRequest(wrongLoginRequest, env);
-    const wrongLoginJson = (await wrongLoginResponse.json()) as any;
+    const wrongLoginJson = await parseJson<SyncApiResponse & { remainingAttempts?: number }>(
+      wrongLoginResponse,
+    );
 
     expect(wrongLoginResponse.status).toBe(401);
     expect(wrongLoginJson.remainingAttempts).toBe(4);
@@ -656,7 +703,7 @@ describe('syncApi auth attempts', () => {
       body: JSON.stringify({ deviceId: 'device-1' }),
     });
     const successfulLoginResponse = await handleApiSyncRequest(successfulLoginRequest, env);
-    const successfulLoginJson = (await successfulLoginResponse.json()) as any;
+    const successfulLoginJson = await parseJson<SyncApiResponse>(successfulLoginResponse);
 
     expect(successfulLoginJson.success).toBe(true);
     expect(kv.has(attemptKey)).toBe(false);
@@ -671,7 +718,9 @@ describe('syncApi auth attempts', () => {
       body: JSON.stringify({ deviceId: 'device-1' }),
     });
     const wrongAgainResponse = await handleApiSyncRequest(wrongAgainRequest, env);
-    const wrongAgainJson = (await wrongAgainResponse.json()) as any;
+    const wrongAgainJson = await parseJson<SyncApiResponse & { remainingAttempts?: number }>(
+      wrongAgainResponse,
+    );
 
     expect(wrongAgainResponse.status).toBe(401);
     expect(wrongAgainJson.remainingAttempts).toBe(4);
@@ -692,7 +741,9 @@ describe('syncApi auth attempts', () => {
       },
     });
     const wrongAuthResponse = await handleApiSyncRequest(wrongAuthRequest, env);
-    const wrongAuthJson = (await wrongAuthResponse.json()) as any;
+    const wrongAuthJson = await parseJson<SyncApiResponse & { remainingAttempts?: number }>(
+      wrongAuthResponse,
+    );
 
     expect(wrongAuthResponse.status).toBe(401);
     expect(wrongAuthJson.remainingAttempts).toBe(4);
@@ -706,7 +757,7 @@ describe('syncApi auth attempts', () => {
       },
     });
     const successfulAuthResponse = await handleApiSyncRequest(successfulAuthRequest, env);
-    const successfulAuthJson = (await successfulAuthResponse.json()) as any;
+    const successfulAuthJson = await parseJson<SyncApiResponse>(successfulAuthResponse);
 
     expect(successfulAuthJson.success).toBe(true);
     expect(kv.has(attemptKey)).toBe(false);
@@ -719,12 +770,13 @@ describe('syncApi auth attempts', () => {
       },
     });
     const wrongAgainResponse = await handleApiSyncRequest(wrongAgainRequest, env);
-    const wrongAgainJson = (await wrongAgainResponse.json()) as any;
+    const wrongAgainJson = await parseJson<SyncApiResponse & { remainingAttempts?: number }>(
+      wrongAgainResponse,
+    );
 
     expect(wrongAgainResponse.status).toBe(401);
     expect(wrongAgainJson.remainingAttempts).toBe(4);
   });
-
 });
 
 describe('syncApi invalid JSON bodies', () => {
