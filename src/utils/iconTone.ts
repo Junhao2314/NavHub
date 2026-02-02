@@ -169,6 +169,8 @@ const getSeededDarkBg = (seed: string): { bg: string; text: string } => {
 
 // 图标颜色缓存
 const iconColorCache = new Map<string, { bg: string; text: string }>();
+// 进行中的分析 Promise（去重用）
+const pendingAnalysis = new Map<string, Promise<{ bg: string; text: string }>>();
 
 // 分析图标颜色并返回对比背景
 export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: string }> => {
@@ -177,7 +179,12 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
     return Promise.resolve(iconColorCache.get(iconUrl)!);
   }
 
-  return new Promise((resolve) => {
+  // 检查是否有进行中的分析
+  if (pendingAnalysis.has(iconUrl)) {
+    return pendingAnalysis.get(iconUrl)!;
+  }
+
+  const promise = new Promise<{ bg: string; text: string }>((resolve) => {
     const fallback = () => {
       const seeded = getSeededDarkBg(iconUrl);
       iconColorCache.set(iconUrl, seeded);
@@ -256,7 +263,12 @@ export const analyzeIconColor = (iconUrl: string): Promise<{ bg: string; text: s
     };
 
     img.src = iconUrl;
+  }).finally(() => {
+    pendingAnalysis.delete(iconUrl);
   });
+
+  pendingAnalysis.set(iconUrl, promise);
+  return promise;
 };
 
 export const getIconToneStyle = (

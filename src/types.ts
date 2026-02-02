@@ -356,10 +356,17 @@ export type SyncApiResponse<TSuccess extends object = {}, TFailure extends objec
   | SyncApiSuccess<TSuccess>
   | SyncApiFailure<TFailure>;
 
+// 云端空数据原因
+// - "virgin": 首次使用，从未同步过
+// - "lost": 数据丢失，曾经同步过但主数据和历史记录都不可用
+export type SyncEmptyReason = 'virgin' | 'lost';
+
 export type SyncGetResponse = SyncApiResponse<{
   role?: SyncRole;
   data: NavHubSyncData | null;
   message?: string;
+  emptyReason?: SyncEmptyReason;
+  fallback?: boolean;
 }>;
 
 export type SyncAuthResponse = SyncApiResponse<SyncAuthState>;

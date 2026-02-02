@@ -39,11 +39,45 @@ export async function handleGet(request: Request, env: Env): Promise<Response> {
     const data = await getMainData(env);
 
     if (!data) {
+      // 主数据缺失时，尝试回退到最近的同步历史记录
+      let historyExisted = false;
+      try {
+        const index = await ensureSyncHistoryIndexForListing(env);
+        const candidates = index?.items ?? [];
+        historyExisted = candidates.length > 0;
+        for (const item of candidates) {
+          const backupRaw = (await env.NAVHUB_KV.get(item.key, 'json')) as unknown;
+          const backupData = normalizeNavHubSyncData(backupRaw);
+          if (!backupData) continue;
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              role: isAdmin ? 'admin' : 'user',
+              data: isAdmin ? sanitizeSensitiveData(backupData) : sanitizePublicData(backupData),
+              message: '主数据缺失，已回退到最近同步记录',
+              fallback: true,
+            }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+      } catch {
+        // ignore fallback errors and return empty
+      }
+
+      // emptyReason 区分空数据原因：
+      // - "virgin": 首次使用，从未同步过（无历史记录）
+      // - "lost": 数据丢失，曾经同步过（有历史记录但恢复失败）
+      const emptyReason = historyExisted ? 'lost' : 'virgin';
+
       return new Response(
         JSON.stringify({
           success: true,
           data: null,
-          message: '云端暂无数据',
+          message: emptyReason === 'virgin' ? '云端暂无数据' : '云端数据丢失，历史记录恢复失败',
+          emptyReason,
         }),
         {
           headers: { 'Content-Type': 'application/json' },

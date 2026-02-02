@@ -1,6 +1,10 @@
+// Preflight 缓存时间（秒）- 浏览器缓存 OPTIONS 响应，减少重复预检请求
+const CORS_MAX_AGE_SECONDS = 86400; // 24 hours
+
 export const SYNC_CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, X-Sync-Password',
+  'Access-Control-Max-Age': String(CORS_MAX_AGE_SECONDS),
 };
 
 export type SyncCorsOptions = {
@@ -47,6 +51,7 @@ export function resolveSyncCorsHeaders(
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': SYNC_CORS_HEADERS['Access-Control-Allow-Methods'],
     'Access-Control-Allow-Headers': SYNC_CORS_HEADERS['Access-Control-Allow-Headers'],
+    'Access-Control-Max-Age': SYNC_CORS_HEADERS['Access-Control-Max-Age'],
   };
 
   if (allowOriginValue) {

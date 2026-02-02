@@ -2,10 +2,15 @@ import type { Env } from './types';
 
 // Auth Security (brute-force protection)
 const AUTH_MAX_FAILED_ATTEMPTS = 5;
+const AUTH_MAX_FAILED_ATTEMPTS_UNKNOWN_IP = 3; // 未知 IP 更严格
+const AUTH_MAX_FAILED_ATTEMPTS_NO_FINGERPRINT = 2; // 完全无指纹请求最严格
 const AUTH_LOCKOUT_SECONDS = 60 * 60; // 1 hour
 const KV_AUTH_ATTEMPT_PREFIX = 'navhub:auth_attempt:';
 const AUTH_ATTEMPT_HASH_PREFIX = 'sha256:';
 const CLIENT_KEY_SEED_MAX_LENGTH = 256;
+
+// IP 来源类型
+type IpSourceType = 'cf' | 'forwarded' | 'unknown';
 
 // In-memory best-effort cache: avoid doing KV.delete on every successful admin request.
 // Most requests will never see a failed-attempt record, so deleting every time is wasteful.
@@ -78,23 +83,78 @@ export const isSyncProtected = (env: Env): boolean => {
   return !!(env.SYNC_PASSWORD && env.SYNC_PASSWORD.trim() !== '');
 };
 
-// 获取客户端 IP（用于按 IP 记录管理员密码错误次数，防止爆破）。
-// 注意：本地/非 Cloudflare 环境可能取不到 IP（无 `CF-Connecting-IP` / `X-Forwarded-For`）会回退为 `unknown`，
-// 从而导致所有请求共享同一个限速/锁定键（看起来像"全局锁"）。建议在反代/本地调试时补齐 `X-Forwarded-For`。
-const getClientKeySeed = (request: Request): string => {
-  const cfIp = request.headers.get('CF-Connecting-IP');
-  if (cfIp) return normalizeClientKeySeed(cfIp);
+// 收集请求指纹特征（用于无 IP 时区分客户端）
+const collectRequestFingerprint = (request: Request): string => {
+  const parts: string[] = [];
 
-  const forwardedFor = request.headers.get('X-Forwarded-For');
-  if (forwardedFor) return normalizeClientKeySeed(forwardedFor.split(',')[0] || '');
+  // User-Agent
+  const ua = request.headers.get('User-Agent');
+  if (ua) parts.push(ua);
 
-  return 'unknown';
+  // Accept-Language（浏览器语言偏好，相对稳定）
+  const lang = request.headers.get('Accept-Language');
+  if (lang) parts.push(lang);
+
+  // Accept-Encoding（压缩支持，相对稳定）
+  const encoding = request.headers.get('Accept-Encoding');
+  if (encoding) parts.push(encoding);
+
+  // Sec-Ch-Ua（浏览器 Client Hints，Chrome 系浏览器提供）
+  const chUa = request.headers.get('Sec-Ch-Ua');
+  if (chUa) parts.push(chUa);
+
+  // Sec-Ch-Ua-Platform（操作系统平台）
+  const chPlatform = request.headers.get('Sec-Ch-Ua-Platform');
+  if (chPlatform) parts.push(chPlatform);
+
+  return parts.join('|');
 };
 
-const resolveAuthAttemptKey = async (request: Request): Promise<string> => {
-  const seed = getClientKeySeed(request);
+// 客户端标识信息
+interface ClientKeyInfo {
+  seed: string;
+  source: IpSourceType;
+  noFingerprint: boolean; // 完全无指纹（无 IP 且无任何请求特征）
+}
+
+// 获取客户端标识信息，用于按来源记录密码错误次数，防止爆破。
+// 返回 seed, source, noFingerprint：
+// - 'cf'：Cloudflare 提供的真实 IP，可信度最高
+// - 'forwarded'：X-Forwarded-For（可被伪造），与 User-Agent 组合降低绕过风险
+// - 'unknown'：无 IP 信息，采用最严格限流
+// - noFingerprint: 完全无请求特征，走最严格限流
+const getClientKeyInfo = (request: Request): ClientKeyInfo => {
+  const cfIp = request.headers.get('CF-Connecting-IP');
+  if (cfIp) {
+    return { seed: normalizeClientKeySeed(cfIp), source: 'cf', noFingerprint: false };
+  }
+
+  const forwardedFor = request.headers.get('X-Forwarded-For');
+  if (forwardedFor) {
+    const ip = normalizeClientKeySeed(forwardedFor.split(',')[0] || '');
+    // X-Forwarded-For 可伪造，混入 User-Agent 增加碰撞难度
+    const ua = request.headers.get('User-Agent') || '';
+    const seed = ip === 'unknown' ? ua || 'unknown' : `${ip}|${ua}`;
+    return { seed: normalizeClientKeySeed(seed), source: 'forwarded', noFingerprint: false };
+  }
+
+  // 无 IP 信息：收集多维度请求指纹来区分客户端
+  // 即使攻击者省略 User-Agent，也需要伪造多个请求头才能共享限流桶
+  const fingerprint = collectRequestFingerprint(request);
+  if (fingerprint) {
+    return { seed: normalizeClientKeySeed(fingerprint), source: 'unknown', noFingerprint: false };
+  }
+
+  // 完全无特征的请求：使用特殊标记，走最严格限流
+  return { seed: '__no_fingerprint__', source: 'unknown', noFingerprint: true };
+};
+
+const resolveAuthAttemptKey = async (
+  request: Request,
+): Promise<{ key: string; source: IpSourceType; noFingerprint: boolean }> => {
+  const { seed, source, noFingerprint } = getClientKeyInfo(request);
   const hash = await hashKeySeedSha256Hex(seed);
-  return `${KV_AUTH_ATTEMPT_PREFIX}${AUTH_ATTEMPT_HASH_PREFIX}${hash}`;
+  return { key: `${KV_AUTH_ATTEMPT_PREFIX}${AUTH_ATTEMPT_HASH_PREFIX}${hash}`, source, noFingerprint };
 };
 
 const buildLockoutResponse = (lockedUntil: number, now: number): Response => {
@@ -127,7 +187,7 @@ export const requireAdminAccess = async (
     return null;
   }
 
-  const attemptKey = await resolveAuthAttemptKey(request);
+  const { key: attemptKey, source: ipSource, noFingerprint } = await resolveAuthAttemptKey(request);
   const providedPassword = (request.headers.get('X-Sync-Password') || '').trim();
 
   if (!providedPassword) {
@@ -171,10 +231,17 @@ export const requireAdminAccess = async (
     return buildLockoutResponse(record.lockedUntil, now);
   }
 
+  // 根据来源可信度决定限流严格程度
+  // cf: 5次, forwarded/unknown 有指纹: 3次, 完全无指纹: 2次
+  const maxAttempts = noFingerprint
+    ? AUTH_MAX_FAILED_ATTEMPTS_NO_FINGERPRINT
+    : ipSource === 'cf'
+      ? AUTH_MAX_FAILED_ATTEMPTS
+      : AUTH_MAX_FAILED_ATTEMPTS_UNKNOWN_IP;
   const nextFailedCount = (record?.failedCount || 0) + 1;
-  const remainingAttempts = Math.max(0, AUTH_MAX_FAILED_ATTEMPTS - nextFailedCount);
+  const remainingAttempts = Math.max(0, maxAttempts - nextFailedCount);
   const lockedUntil =
-    nextFailedCount >= AUTH_MAX_FAILED_ATTEMPTS ? now + AUTH_LOCKOUT_SECONDS * 1000 : 0;
+    nextFailedCount >= maxAttempts ? now + AUTH_LOCKOUT_SECONDS * 1000 : 0;
 
   const nextRecord: AuthAttemptRecord = {
     failedCount: nextFailedCount,
@@ -196,7 +263,7 @@ export const requireAdminAccess = async (
       success: false,
       error: '密码错误',
       remainingAttempts,
-      maxAttempts: AUTH_MAX_FAILED_ATTEMPTS,
+      maxAttempts,
     }),
     { status: 401, headers: { 'Content-Type': 'application/json' } },
   );

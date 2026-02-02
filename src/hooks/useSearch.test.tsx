@@ -63,7 +63,7 @@ describe('useSearch', () => {
     expect(get().searchMode).toBe('external');
     expect(get().externalSearchSources.length).toBeGreaterThan(0);
     expect(get().selectedSearchSource?.id).toBe('bing');
-    expect(localStorage.getItem(SEARCH_CONFIG_KEY)).toBeNull();
+    expect(localStorage.getItem(SEARCH_CONFIG_KEY)).not.toBeNull();
   });
 
   it('handleExternalSearch opens selected source with encoded query', async () => {

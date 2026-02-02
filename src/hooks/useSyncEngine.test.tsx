@@ -507,12 +507,12 @@ describe('useSyncEngine', () => {
 
     const { get } = await renderEngine();
 
-    let data: any = null;
+    let result: any = null;
     await act(async () => {
-      data = await get().pullFromCloud();
+      result = await get().pullFromCloud();
     });
 
-    expect(data).toEqual(normalizedRemote);
+    expect(result.data).toEqual(normalizedRemote);
     expect(get().syncStatus).toBe('synced');
     expect(get().lastSyncTime).toBe(456);
 
@@ -531,12 +531,12 @@ describe('useSyncEngine', () => {
 
     const { get } = await renderEngine();
 
-    let data: any = { touched: true };
+    let result: any = { touched: true };
     await act(async () => {
-      data = await get().pullFromCloud();
+      result = await get().pullFromCloud();
     });
 
-    expect(data).toBeNull();
+    expect(result.data).toBeNull();
     expect(get().syncStatus).toBe('idle');
     expect(get().lastSyncTime).toBeNull();
   });
@@ -553,14 +553,57 @@ describe('useSyncEngine', () => {
     const onError = vi.fn();
     const { get } = await renderEngine({ onError });
 
-    let data: any = { touched: true };
+    let result: any = { touched: true };
     await act(async () => {
-      data = await get().pullFromCloud();
+      result = await get().pullFromCloud();
     });
 
-    expect(data).toBeNull();
+    expect(result.data).toBeNull();
     expect(get().syncStatus).toBe('error');
     expect(onError).toHaveBeenCalledWith('nope');
+  });
+
+  it('pullFromCloud returns emptyReason when cloud is empty', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
+        success: true,
+        data: null,
+        emptyReason: 'virgin',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const { get } = await renderEngine();
+
+    let result: any = null;
+    await act(async () => {
+      result = await get().pullFromCloud();
+    });
+
+    expect(result.data).toBeNull();
+    expect(result.emptyReason).toBe('virgin');
+  });
+
+  it('pullFromCloud returns emptyReason=lost when data was lost', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
+        success: true,
+        data: null,
+        emptyReason: 'lost',
+        message: '云端数据丢失，历史记录恢复失败',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const { get } = await renderEngine();
+
+    let result: any = null;
+    await act(async () => {
+      result = await get().pullFromCloud();
+    });
+
+    expect(result.data).toBeNull();
+    expect(result.emptyReason).toBe('lost');
   });
 
   it('resolveConflict(remote) clears conflict and calls onSyncComplete', async () => {
@@ -862,6 +905,7 @@ describe('useSyncEngine', () => {
       const fetchMock = vi.fn().mockResolvedValue({
         json: vi.fn().mockResolvedValue({
           success: false,
+          error: 'Version conflict',
           conflict: true,
           data: remoteData,
         }),
@@ -1045,6 +1089,7 @@ describe('useSyncEngine', () => {
           return Promise.resolve({
             json: vi.fn().mockResolvedValue({
               success: false,
+              error: 'Version conflict',
               conflict: true,
               data: {
                 links: [],
@@ -1113,6 +1158,7 @@ describe('useSyncEngine', () => {
       const fetchMock = vi.fn().mockResolvedValue({
         json: vi.fn().mockResolvedValue({
           success: false,
+          error: 'Version conflict',
           conflict: true,
           data: remoteData,
         }),

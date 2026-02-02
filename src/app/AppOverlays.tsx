@@ -117,6 +117,7 @@ export function AppTopOverlays({ controller }: AppOverlaysProps) {
           onManualSync={isAdmin ? sync.handleManualSync : sync.handleManualPull}
           onManualPull={sync.handleManualPull}
           onOpenConflict={() => sync.setSyncConflictOpen(true)}
+          showWhenIdle={!isAdmin}
         />
       </div>
     </>

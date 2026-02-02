@@ -172,6 +172,113 @@ describe('navHubSyncData schema normalization', () => {
     const normalized = normalizeNavHubSyncData(input);
     expect(normalized?.schemaVersion).toBe(99);
   });
+
+  it('returns null when links is not an array', () => {
+    const input = {
+      links: 'not-an-array',
+      categories: [],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    expect(normalizeNavHubSyncData(input)).toBe(null);
+  });
+
+  it('returns null when categories is not an array', () => {
+    const input = {
+      links: [],
+      categories: { id: 'cat1' },
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    expect(normalizeNavHubSyncData(input)).toBe(null);
+  });
+
+  it('filters out invalid link items', () => {
+    const input = {
+      links: [
+        { id: 'link1', title: 'Valid', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
+        { id: '', title: 'Empty ID', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
+        { title: 'Missing ID', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
+        { id: 'link2', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
+        { id: 'link3', title: 'Valid 2', url: 'https://test.com', categoryId: 'cat2', createdAt: 2 },
+        'not-an-object',
+        null,
+      ],
+      categories: [],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.links).toHaveLength(2);
+    expect(normalized?.links[0].id).toBe('link1');
+    expect(normalized?.links[1].id).toBe('link3');
+  });
+
+  it('filters out invalid category items', () => {
+    const input = {
+      links: [],
+      categories: [
+        { id: 'cat1', name: 'Valid', icon: 'Star' },
+        { id: '', name: 'Empty ID', icon: 'Star' },
+        { name: 'Missing ID', icon: 'Star' },
+        { id: 'cat2', icon: 'Code' },
+        { id: 'cat3', name: 'Valid 2', icon: 'Book' },
+        123,
+        null,
+      ],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.categories).toHaveLength(2);
+    expect(normalized?.categories[0].id).toBe('cat1');
+    expect(normalized?.categories[1].id).toBe('cat3');
+  });
+
+  it('validates optional string fields', () => {
+    const input = {
+      links: [],
+      categories: [],
+      privateVault: 12345,
+      encryptedSensitiveConfig: { invalid: true },
+      themeMode: ['array'],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.privateVault).toBeUndefined();
+    expect(normalized?.encryptedSensitiveConfig).toBeUndefined();
+    expect(normalized?.themeMode).toBeUndefined();
+  });
+
+  it('validates optional object fields', () => {
+    const input = {
+      links: [],
+      categories: [],
+      searchConfig: 'not-an-object',
+      aiConfig: ['array'],
+      siteSettings: null,
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.searchConfig).toBeUndefined();
+    expect(normalized?.aiConfig).toBeUndefined();
+    expect(normalized?.siteSettings).toBeUndefined();
+  });
+
+  it('preserves valid optional fields', () => {
+    const input = {
+      links: [],
+      categories: [],
+      privateVault: 'encrypted-vault',
+      encryptedSensitiveConfig: 'v1.salt.iv.data',
+      themeMode: 'dark',
+      searchConfig: { mode: 'internal', externalSources: [] },
+      aiConfig: { provider: 'gemini', apiKey: 'key', model: 'model', baseUrl: '' },
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.privateVault).toBe('encrypted-vault');
+    expect(normalized?.encryptedSensitiveConfig).toBe('v1.salt.iv.data');
+    expect(normalized?.themeMode).toBe('dark');
+    expect(normalized?.searchConfig).toEqual({ mode: 'internal', externalSources: [] });
+    expect(normalized?.aiConfig?.provider).toBe('gemini');
+  });
 });
 
 describe('syncApi history keys', () => {
@@ -680,7 +787,7 @@ describe('syncApi auth attempts', () => {
       headers: {
         'Content-Type': 'application/json',
         'X-Sync-Password': 'wrong',
-        'X-Forwarded-For': clientIp,
+        'CF-Connecting-IP': clientIp,
       },
       body: JSON.stringify({ deviceId: 'device-1' }),
     });
@@ -698,7 +805,7 @@ describe('syncApi auth attempts', () => {
       headers: {
         'Content-Type': 'application/json',
         'X-Sync-Password': 'secret',
-        'X-Forwarded-For': clientIp,
+        'CF-Connecting-IP': clientIp,
       },
       body: JSON.stringify({ deviceId: 'device-1' }),
     });
@@ -713,7 +820,7 @@ describe('syncApi auth attempts', () => {
       headers: {
         'Content-Type': 'application/json',
         'X-Sync-Password': 'wrong',
-        'X-Forwarded-For': clientIp,
+        'CF-Connecting-IP': clientIp,
       },
       body: JSON.stringify({ deviceId: 'device-1' }),
     });
@@ -737,7 +844,7 @@ describe('syncApi auth attempts', () => {
       method: 'GET',
       headers: {
         'X-Sync-Password': 'wrong',
-        'X-Forwarded-For': clientIp,
+        'CF-Connecting-IP': clientIp,
       },
     });
     const wrongAuthResponse = await handleApiSyncRequest(wrongAuthRequest, env);
@@ -753,7 +860,7 @@ describe('syncApi auth attempts', () => {
       method: 'GET',
       headers: {
         'X-Sync-Password': 'secret',
-        'X-Forwarded-For': clientIp,
+        'CF-Connecting-IP': clientIp,
       },
     });
     const successfulAuthResponse = await handleApiSyncRequest(successfulAuthRequest, env);
@@ -766,7 +873,7 @@ describe('syncApi auth attempts', () => {
       method: 'GET',
       headers: {
         'X-Sync-Password': 'wrong',
-        'X-Forwarded-For': clientIp,
+        'CF-Connecting-IP': clientIp,
       },
     });
     const wrongAgainResponse = await handleApiSyncRequest(wrongAgainRequest, env);

@@ -29,11 +29,17 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = React.memo(
 
     // 深色模式下分析图标颜色
     React.useEffect(() => {
+      let cancelled = false;
       if (isDark && link.icon && !link.iconTone) {
-        analyzeIconColor(link.icon).then(setAnalyzedBg);
+        analyzeIconColor(link.icon).then((result) => {
+          if (!cancelled) setAnalyzedBg(result);
+        });
       } else {
         setAnalyzedBg(null);
       }
+      return () => {
+        cancelled = true;
+      };
     }, [isDark, link.icon, link.iconTone]);
 
     const customToneStyle = getIconToneStyle(

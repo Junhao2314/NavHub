@@ -66,12 +66,26 @@ const loadAIConfigFromStorage = (): AIConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved) as Partial<AIConfig>;
+      const parsedApiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : '';
+      const shouldPromoteToSession = !sessionApiKey && !!parsedApiKey;
+      let promotedToSession = false;
 
-      return {
+      if (shouldPromoteToSession) {
+        promotedToSession = safeSessionStorageSetItem(AI_API_KEY_SESSION_KEY, parsedApiKey);
+      }
+
+      const resolvedApiKey = sessionApiKey || (promotedToSession ? parsedApiKey : parsedApiKey);
+      const nextConfig = {
         ...DEFAULT_AI_CONFIG,
         ...parsed,
-        apiKey: sessionApiKey || (typeof parsed.apiKey === 'string' ? parsed.apiKey : '') || '',
+        apiKey: resolvedApiKey || '',
       } satisfies AIConfig;
+
+      if (promotedToSession) {
+        safeLocalStorageSetItem(AI_CONFIG_KEY, JSON.stringify({ ...nextConfig, apiKey: '' }));
+      }
+
+      return nextConfig;
     } catch (error) {
       console.warn('[useConfig] Failed to parse AI config from localStorage; resetting.', error);
       safeLocalStorageRemoveItem(AI_CONFIG_KEY);

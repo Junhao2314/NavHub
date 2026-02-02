@@ -228,8 +228,14 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     ],
   );
 
+  // 使用 ref 存储签名更新回调，在 useKvSyncStrategy 返回后赋值
+  const updateSignaturesRef = useRef<((payload: Omit<NavHubSyncData, 'meta'>) => void) | null>(null);
+
   const handleSyncComplete = useCallback(
     (data: NavHubSyncData) => {
+      // 先更新签名，防止 applyCloudData 触发的状态变化被自动同步 effect 误判为"本地变更"
+      const { meta: _meta, ...payload } = data;
+      updateSignaturesRef.current?.(payload);
       applyCloudData(data, syncRole);
     },
     [applyCloudData, syncRole],
@@ -327,6 +333,12 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     syncPasswordRefreshTick,
   });
 
+  // 绑定签名更新回调，供 handleSyncComplete 使用
+  updateSignaturesRef.current = (payload) => {
+    prevBusinessSignatureRef.current = buildSyncBusinessSignature(payload);
+    prevFullSignatureRef.current = buildSyncFullSignature(payload);
+  };
+
   const handleSaveSettings = useCallback(
     async (nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
       saveAIConfig(nextConfig, nextSiteSettings);
@@ -397,12 +409,12 @@ export const useKvSync = (options: UseKvSyncOptions) => {
 
   // === Sync Conflict Resolution ===
   const handleResolveConflict = useCallback(
-    (choice: 'local' | 'remote') => {
+    async (choice: 'local' | 'remote') => {
       if (currentConflict) {
         const { meta: _meta, ...payload } =
           choice === 'remote' ? currentConflict.remoteData : currentConflict.localData;
-        // 冲突解决后，本地会应用“用户选择的那份”数据。
-        // 先把签名更新到这份 payload，避免随后 state 更新触发 auto-sync 误判为“又有新变更”。
+        // 冲突解决后，本地会应用"用户选择的那份"数据。
+        // 先把签名更新到这份 payload，避免随后 state 更新触发 auto-sync 误判为"又有新变更"。
         prevBusinessSignatureRef.current = buildSyncBusinessSignature(payload);
         prevFullSignatureRef.current = buildSyncFullSignature(payload);
       }
@@ -413,9 +425,13 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       cancelPendingSync();
       cancelPendingStatsSync();
       lastUserInitiatedSyncAtRef.current = Date.now();
-      resolveSyncConflict(choice);
-      setSyncConflictOpen(false);
-      setCurrentConflict(null);
+
+      // 等待冲突解决完成，如果选择本地版本但推送失败，保留冲突状态让用户可以重试
+      const success = await resolveSyncConflict(choice);
+      if (success) {
+        setSyncConflictOpen(false);
+        setCurrentConflict(null);
+      }
     },
     [
       currentConflict,
@@ -499,18 +515,18 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       const localDeviceId = localMeta?.deviceId || getDeviceId();
 
       const cloudData = await pullFromCloud();
-      if (!cloudData || !cloudData.links || !cloudData.categories) return;
+      if (!cloudData.data || !cloudData.data.links || !cloudData.data.categories) return;
 
       // 用户模式：直接以云端为准，不弹冲突
       if (role !== 'admin') {
         cancelPendingSync();
         cancelPendingStatsSync();
-        applyCloudData(cloudData, role);
+        applyCloudData(cloudData.data, role);
         return;
       }
 
       // 管理员模式：版本不一致时提示用户选择
-      if (cloudData.meta.version !== localVersion) {
+      if (cloudData.data.meta.version !== localVersion) {
         // 手动拉取时同样遵循“版本不一致就弹冲突”：
         // 管理员可能在当前设备做过未同步的修改，也可能是云端被其他设备更新过，必须人工决策。
         // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
@@ -548,18 +564,18 @@ export const useKvSync = (options: UseKvSyncOptions) => {
             ...localData,
             meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion },
           },
-          remoteData: cloudData,
+          remoteData: cloudData.data,
         });
         return;
       }
 
       cancelPendingSync();
       cancelPendingStatsSync();
-      const { meta: _meta, ...payload } = cloudData;
-      // 拉取并应用云端后，把签名更新到云端 payload，避免随后 auto-sync 误判为“本地变更”而再推一次。
+      const { meta: _meta, ...payload } = cloudData.data;
+      // 拉取并应用云端后，把签名更新到云端 payload，避免随后 auto-sync 误判为"本地变更"而再推一次。
       prevBusinessSignatureRef.current = buildSyncBusinessSignature(payload);
       prevFullSignatureRef.current = buildSyncFullSignature(payload);
-      applyCloudData(cloudData, role);
+      applyCloudData(cloudData.data, role);
     },
     [
       getLocalSyncMeta,

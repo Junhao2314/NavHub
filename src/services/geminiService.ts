@@ -187,11 +187,23 @@ export const generateLinkDescription = async (
     throw new AIServiceError('MISSING_API_KEY', 'API Key is required');
   }
 
-  const prompt = `
-      Title: ${title}
-      URL: ${url}
-      Please write a very short description (max 15 words) in Chinese (Simplified) that explains what this website is for. Return ONLY the description text. No quotes.
-  `;
+  const prompt = `Title: ${title}
+URL: ${url}
+
+为这个网站写一句简短的中文描述（最多15个字），说明它的用途。
+
+输出规则：
+- 只输出描述文本本身
+- 禁止输出引号、前缀、后缀
+- 禁止输出 FINISH、Done、完成、END 等标记词
+- 禁止输出任何解释或额外文字`;
+
+  const sanitizeDescription = (text: string): string => {
+    return text
+      .replace(/^["'`「」『』""'']+|["'`「」『』""'']+$/g, '') // 移除首尾引号
+      .replace(/\s*(FINISH|Done|完成|\[END\]|END|finished|结束)[\s.。]*$/i, '') // 移除结束标记
+      .trim();
+  };
 
   if (config.provider === 'gemini') {
     try {
@@ -200,24 +212,25 @@ export const generateLinkDescription = async (
 
       const response: GenerateContentResponse = await ai.models.generateContent({
         model: modelName,
-        contents: `I have a website bookmark. ${prompt}`,
+        contents: prompt,
       });
       const text = response.text?.trim();
       if (!text) {
         throw new AIServiceError('INVALID_RESPONSE', 'Gemini returned empty response');
       }
-      return text;
+      return sanitizeDescription(text);
     } catch (error) {
       if (error instanceof AIServiceError) throw error;
       throw new AIServiceError('API_ERROR', 'Gemini API call failed', error);
     }
   } else {
     // OpenAI Compatible - callOpenAICompatible 已经会抛出 AIServiceError
-    return callOpenAICompatible(
+    const result = await callOpenAICompatible(
       config,
-      'You are a helpful assistant that summarizes website bookmarks.',
+      '你是一个网站描述生成助手。只输出描述文本，不要输出任何标记词、引号或额外内容。',
       prompt,
     );
+    return sanitizeDescription(result);
   }
 };
 

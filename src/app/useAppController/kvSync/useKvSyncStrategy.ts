@@ -14,6 +14,7 @@ import type {
 } from '../../../types';
 import { getDeviceId, SYNC_STATS_DEBOUNCE_MS } from '../../../utils/constants';
 import { getSyncPassword } from '../../../utils/secrets';
+import type { PullResult } from '../../../hooks/sync/useSyncApi';
 import {
   buildSyncBusinessSignature,
   buildSyncFullSignature,
@@ -42,7 +43,7 @@ export const useKvSyncStrategy = (args: {
   isAdmin: boolean;
   currentConflict: SyncConflict | null;
 
-  pullFromCloud: () => Promise<NavHubSyncData | null>;
+  pullFromCloud: () => Promise<PullResult>;
   schedulePush: (data: SyncPayload) => void;
   pushToCloud: (
     data: SyncPayload,
@@ -201,25 +202,25 @@ export const useKvSyncStrategy = (args: {
           : getDeviceId();
       const cloudData = await pullFromCloud();
 
-      if (cloudData && cloudData.links && cloudData.categories) {
+      if (cloudData.data && cloudData.data.links && cloudData.data.categories) {
         if (auth.role !== 'admin') {
-          // 用户模式（只读）：不参与冲突解决，直接以云端为准（仅应用“可公开字段”）。
-          applyCloudData(cloudData, auth.role);
+          // 用户模式（只读）：不参与冲突解决，直接以云端为准（仅应用"可公开字段"）。
+          applyCloudData(cloudData.data, auth.role);
           return;
         }
 
         // 新设备首次同步：本地版本为 0 表示从未同步过，直接应用云端数据。
         // 这种情况下本地通常只有默认示例数据，不需要让用户选择。
         if (localVersion === 0) {
-          applyCloudData(cloudData, auth.role);
-          const { meta: _meta, ...cloudPayload } = cloudData;
+          applyCloudData(cloudData.data, auth.role);
+          const { meta: _meta, ...cloudPayload } = cloudData.data;
           prevBusinessSignatureRef.current = buildSyncBusinessSignature(cloudPayload);
           prevFullSignatureRef.current = buildSyncFullSignature(cloudPayload);
           return;
         }
 
         // 版本不一致时提示用户选择（仅当本地已有同步记录时）
-        if (cloudData.meta.version !== localVersion) {
+        if (cloudData.data.meta.version !== localVersion) {
           // 管理员模式（可写）：本地与云端 version 不一致时，无法自动决定保留哪份。
           // 这里构造一个“本地快照 vs 云端快照”的冲突对象，交给 UI 让用户选择：保留本地（强制覆盖）/保留云端（丢弃本地）。
           // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
@@ -257,7 +258,7 @@ export const useKvSyncStrategy = (args: {
               ...localData,
               meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion },
             },
-            remoteData: cloudData,
+            remoteData: cloudData.data,
           });
         } else {
           // 版本一致时：初始化签名以避免“不必要的自动同步”。

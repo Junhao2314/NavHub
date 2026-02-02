@@ -21,6 +21,9 @@
 
 const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
 
+// Preflight 缓存时间（秒）
+const AI_CORS_MAX_AGE_SECONDS = 86400; // 24 hours
+
 /**
  * Default CORS headers for AI proxy
  * AI 代理的默认 CORS 头
@@ -28,6 +31,7 @@ const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
 export const AI_CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Max-Age': String(AI_CORS_MAX_AGE_SECONDS),
 };
 
 /**
@@ -461,6 +465,7 @@ function resolveCorsHeaders(
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': AI_CORS_HEADERS['Access-Control-Allow-Methods'],
     'Access-Control-Allow-Headers': AI_CORS_HEADERS['Access-Control-Allow-Headers'],
+    'Access-Control-Max-Age': AI_CORS_HEADERS['Access-Control-Max-Age'],
   };
   if (allowOriginValue) {
     headers['Access-Control-Allow-Origin'] = allowOriginValue;

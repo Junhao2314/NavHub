@@ -5,6 +5,9 @@ import type { Category, LinkItem } from '../types';
 import { normalizeHttpUrl } from './url';
 
 const CATEGORY_ICON_FALLBACK = 'Folder';
+const CATEGORY_ICON_ALIASES: Record<string, string> = {
+  FolderOpen: 'Folder',
+};
 
 export const isTextIconName = (rawName: string): boolean => {
   const trimmed = rawName.trim();
@@ -60,7 +63,12 @@ export const sanitizeCategories = (input: Category[]): SanitizeCategoriesResult 
     const normalizedIcon = normalizeCategoryIcon(category.icon);
     let nextIcon = normalizedIcon;
 
-    if (!isTextIconName(normalizedIcon) && !hasLucideIcon(normalizedIcon)) {
+    const aliasTarget = CATEGORY_ICON_ALIASES[normalizedIcon];
+    if (aliasTarget) {
+      nextIcon = aliasTarget;
+    }
+
+    if (!aliasTarget && !isTextIconName(normalizedIcon) && !hasLucideIcon(normalizedIcon)) {
       invalidIcons.push({ name: category.name, icon: normalizedIcon });
       nextIcon = CATEGORY_ICON_FALLBACK;
     }

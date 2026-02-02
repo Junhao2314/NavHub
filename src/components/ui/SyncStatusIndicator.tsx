@@ -21,6 +21,7 @@ interface SyncStatusIndicatorProps {
   onManualSync?: () => void;
   onManualPull?: () => void;
   onOpenConflict?: () => void;
+  showWhenIdle?: boolean;
   className?: string;
 }
 
@@ -54,6 +55,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   onManualSync,
   onManualPull,
   onOpenConflict,
+  showWhenIdle = false,
   className = '',
 }) => {
   const { t, i18n } = useI18n();
@@ -87,9 +89,15 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 
   // 监听状态变化
   useEffect(() => {
-    // idle 状态不显示
+    // idle 状态：默认不显示，但允许显式展示（用户模式也能看到同步信息）
     if (status === 'idle') {
-      if (visible) startHide();
+      if (showWhenIdle) {
+        setVisible(true);
+        setIsExiting(false);
+        clearHideTimer();
+      } else if (visible) {
+        startHide();
+      }
       return;
     }
 
@@ -105,7 +113,7 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         scheduleHide();
       }
     }
-  }, [status, visible, startHide, clearHideTimer, scheduleHide]);
+  }, [status, visible, startHide, clearHideTimer, scheduleHide, showWhenIdle]);
 
   // 清理
   useEffect(() => {
@@ -117,6 +125,17 @@ const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
     const autoSyncSeconds = Math.max(1, Math.round(SYNC_DEBOUNCE_MS / 1000));
 
     switch (status) {
+      case 'idle':
+        return {
+          icon: Cloud,
+          color: 'text-slate-400',
+          bgColor: 'bg-slate-400/10',
+          borderColor: 'border-slate-400/30',
+          label: t('sync.disconnected'),
+          description: lastSyncedText ? t('sync.lastSync', { time: lastSyncedText }) : undefined,
+          animate: false as const,
+          title: t('sync.disconnectedClickRefresh'),
+        };
       case 'synced':
         return {
           icon: Check,

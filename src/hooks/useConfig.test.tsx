@@ -1,6 +1,8 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildDefaultSiteSettings } from '../config/defaults';
+import { APP_LANGUAGE } from '../config/i18n';
 import { resetAppStore } from '../stores/useAppStore';
 import type { AIConfig, SiteSettings } from '../types';
 import { AI_API_KEY_SESSION_KEY, AI_CONFIG_KEY, SITE_SETTINGS_KEY } from '../utils/constants';
@@ -66,11 +68,12 @@ describe('useConfig', () => {
 
   it('loads defaults and updates document title', async () => {
     const { get } = await renderConfig();
+    const expectedDefaults = buildDefaultSiteSettings(APP_LANGUAGE);
 
     expect(get().aiConfig.provider).toBe('gemini');
     expect(get().aiConfig.model).toBe('gemini-2.5-flash');
-    expect(get().siteSettings.title).toBe('NavHub - AI Smart Navigator');
-    expect(document.title).toBe('NavHub - AI Smart Navigator');
+    expect(get().siteSettings.title).toBe(expectedDefaults.title);
+    expect(document.title).toBe(expectedDefaults.title);
     expect(get().navTitleText).toBe('NavHub');
     expect(get().navTitleShort).toBe('Na');
   });
