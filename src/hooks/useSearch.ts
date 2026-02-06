@@ -23,6 +23,7 @@ import {
   safeLocalStorageRemoveItem,
   safeLocalStorageSetItem,
 } from '../utils/storage';
+import { isSearchConfig } from '../utils/typeGuards';
 import { normalizeHttpUrl } from '../utils/url';
 
 /**
@@ -267,7 +268,11 @@ export function useSearch() {
     const savedSearchConfig = safeLocalStorageGetItem(SEARCH_CONFIG_KEY);
     if (savedSearchConfig) {
       try {
-        const parsed = JSON.parse(savedSearchConfig) as SearchConfig;
+        const rawParsed: unknown = JSON.parse(savedSearchConfig);
+        if (!isSearchConfig(rawParsed)) {
+          throw new Error('Invalid search config structure');
+        }
+        const parsed = rawParsed;
         if (parsed?.mode) {
           const sources = parsed.externalSources || [];
           const resolvedSelected = resolveSelectedSource(

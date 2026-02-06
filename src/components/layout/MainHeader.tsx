@@ -15,6 +15,7 @@ import React, { useState } from 'react';
 import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
 import type { ExternalSearchSource, SearchMode } from '../../types';
+import { buildFaviconExtractorUrlFromUrlInput } from '../../utils/faviconExtractor';
 
 interface MainHeaderProps {
   canEdit: boolean;
@@ -39,6 +40,9 @@ interface MainHeaderProps {
   onOpenSettings: () => void;
   onEditDisabled: () => void;
 }
+
+const FALLBACK_SEARCH_ICON_DATA_URI =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
 
 const MainHeader: React.FC<MainHeaderProps> = ({
   canEdit,
@@ -103,6 +107,20 @@ const MainHeader: React.FC<MainHeaderProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // ESC 键关闭主题菜单
+  React.useEffect(() => {
+    if (!showThemeMenu) return;
+
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowThemeMenu(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [showThemeMenu]);
+
   const searchBar = (
     <div className="relative w-full group">
       {searchMode === 'external' && showSearchSourcePopup && (
@@ -128,13 +146,15 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 >
                   <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                     <img
-                      src={`https://www.faviconextractor.com/favicon/${new URL(source.url).hostname}?larger=true`}
+                      src={
+                        buildFaviconExtractorUrlFromUrlInput(source.url) ||
+                        FALLBACK_SEARCH_ICON_DATA_URI
+                      }
                       alt={source.name}
                       className="w-4 h-4"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src =
-                          'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
+                        target.src = FALLBACK_SEARCH_ICON_DATA_URI;
                       }}
                     />
                   </div>
@@ -195,13 +215,15 @@ const MainHeader: React.FC<MainHeaderProps> = ({
               <Search size={15} />
             ) : activeSearchSource ? (
               <img
-                src={`https://www.faviconextractor.com/favicon/${new URL(activeSearchSource.url).hostname}?larger=true`}
+                src={
+                  buildFaviconExtractorUrlFromUrlInput(activeSearchSource.url) ||
+                  FALLBACK_SEARCH_ICON_DATA_URI
+                }
                 alt={activeSearchSource.name}
                 className="w-4 h-4"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src =
-                    'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNlYXJjaCI+PHBhdGggZD0ibTIxIDIxLTQuMzQtNC4zNCI+PC9wYXRoPjxjaXJjbGUgY3g9IjExIiBjeT0iMTEiIHI9IjgiPjwvY2lyY2xlPjwvc3ZnPg==';
+                  target.src = FALLBACK_SEARCH_ICON_DATA_URI;
                 }}
               />
             ) : (
@@ -230,6 +252,11 @@ const MainHeader: React.FC<MainHeaderProps> = ({
             style={{ fontSize: '14px' }}
             inputMode="search"
             enterKeyHint="search"
+            aria-label={
+              searchMode === 'internal'
+                ? t('header.internalSearchTitle')
+                : t('header.externalSearchTitle')
+            }
           />
 
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none select-none">
@@ -248,6 +275,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 : 'text-slate-400 opacity-60 cursor-not-allowed'
             }`}
             title={canEdit ? t('header.manageSearchSources') : editDisabledHint}
+            aria-label={t('header.manageSearchSources')}
             aria-disabled={!canEdit}
           >
             <Settings size={14} />
@@ -264,6 +292,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
           <button
             onClick={openSidebar}
             className="lg:hidden p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            aria-label={t('header.openMenu')}
           >
             <Menu size={20} />
           </button>
@@ -281,6 +310,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
             onClick={onToggleMobileSearch}
             className="md:hidden p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-accent/50"
             title={t('common.search')}
+            aria-label={t('header.toggleSearch')}
           >
             <Search size={18} />
           </button>
@@ -295,6 +325,8 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
               }`}
               title={t('header.simpleView')}
+              aria-label={t('header.simpleView')}
+              aria-pressed={siteCardStyle === 'simple'}
             >
               <List size={16} />
             </button>
@@ -306,6 +338,8 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
               }`}
               title={t('header.detailedView')}
+              aria-label={t('header.detailedView')}
+              aria-pressed={siteCardStyle === 'detailed'}
             >
               <LayoutGrid size={16} />
             </button>
@@ -333,6 +367,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       : 'text-green-600 opacity-60 cursor-not-allowed'
                   }`}
                   title={canEdit ? t('header.saveSorting') : editDisabledHint}
+                  aria-label={t('header.saveSorting')}
                   aria-disabled={!canEdit}
                 >
                   <CheckCircle size={16} />
@@ -351,6 +386,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                       : 'text-slate-400 opacity-60 cursor-not-allowed'
                   }`}
                   title={canEdit ? t('header.cancelSorting') : editDisabledHint}
+                  aria-label={t('header.cancelSorting')}
                   aria-disabled={!canEdit}
                 >
                   <X size={16} />
@@ -371,6 +407,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                     : 'text-slate-500 opacity-60 cursor-not-allowed'
                 }`}
                 title={canEdit ? sortLabel : editDisabledHint}
+                aria-label={t('header.startSorting')}
                 aria-disabled={!canEdit}
               >
                 <GripVertical size={18} />
@@ -386,6 +423,9 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                 onClick={() => setShowThemeMenu(!showThemeMenu)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
                 title={t('header.switchTheme')}
+                aria-label={t('header.switchTheme')}
+                aria-expanded={showThemeMenu}
+                aria-haspopup="menu"
               >
                 {themeMode === 'system' ? (
                   <Monitor size={16} />
@@ -399,7 +439,11 @@ const MainHeader: React.FC<MainHeaderProps> = ({
               {showThemeMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowThemeMenu(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div
+                    className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                    role="menu"
+                    aria-label={t('header.switchTheme')}
+                  >
                     <button
                       onClick={() => {
                         onSetTheme('light');
@@ -410,6 +454,8 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                           ? 'bg-accent/10 text-accent font-medium'
                           : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
+                      role="menuitem"
+                      aria-current={themeMode === 'light' ? 'true' : undefined}
                     >
                       <Sun size={16} />
                       <span>{t('header.lightMode')}</span>
@@ -424,6 +470,8 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                           ? 'bg-accent/10 text-accent font-medium'
                           : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
+                      role="menuitem"
+                      aria-current={themeMode === 'dark' ? 'true' : undefined}
                     >
                       <Moon size={16} />
                       <span>{t('header.darkMode')}</span>
@@ -438,6 +486,8 @@ const MainHeader: React.FC<MainHeaderProps> = ({
                           ? 'bg-accent/10 text-accent font-medium'
                           : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
+                      role="menuitem"
+                      aria-current={themeMode === 'system' ? 'true' : undefined}
                     >
                       <Monitor size={16} />
                       <span>{t('header.systemMode')}</span>
@@ -452,6 +502,7 @@ const MainHeader: React.FC<MainHeaderProps> = ({
               onClick={onOpenSettings}
               className="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
               title={t('header.systemSettings')}
+              aria-label={t('header.systemSettings')}
             >
               <Settings size={16} />
             </button>

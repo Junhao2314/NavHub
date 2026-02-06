@@ -1,4 +1,5 @@
 import type { MutableRefObject } from 'react';
+import i18n from '../../../config/i18n';
 import type {
   AIConfig,
   Category,
@@ -21,7 +22,11 @@ import {
   PRIVATE_VAULT_KEY,
 } from '../../../utils/constants';
 import { mergeFromCloud } from '../../../utils/faviconCache';
-import { decryptPrivateVault, parsePlainPrivateVault } from '../../../utils/privateVault';
+import {
+  decryptPrivateVault,
+  decryptPrivateVaultWithFallback,
+  parsePlainPrivateVault,
+} from '../../../utils/privateVault';
 import { getPrivacyPassword, getSyncPassword } from '../../../utils/secrets';
 import { decryptSensitiveConfigWithFallback } from '../../../utils/sensitiveConfig';
 import {
@@ -188,6 +193,7 @@ export const applyCloudDataToLocalState = (args: {
           // Password incorrect or data corrupted - leave apiKey empty
           // User will need to re-enter password or apiKey
           console.warn('Failed to decrypt sensitive config - password may be incorrect');
+          args.notify(i18n.t('errors.decryptionFailed'), 'warning');
         });
     }
   }
@@ -228,20 +234,10 @@ export const applyCloudDataToLocalState = (args: {
         args.setPrivateLinks([]);
         args.setIsPrivateUnlocked(false);
         safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
-        const candidates = [getSyncPassword().trim(), getPrivacyPassword().trim()].filter(
-          (candidate): candidate is string => Boolean(candidate),
-        );
+        const candidates = [getSyncPassword().trim(), getPrivacyPassword().trim()];
 
-        const tryDecrypt = (index: number): ReturnType<typeof decryptPrivateVault> => {
-          const password = candidates[index];
-          if (password === undefined) return Promise.reject(new Error('No valid password'));
-          return decryptPrivateVault(password, privateVaultCipher).catch(() =>
-            tryDecrypt(index + 1),
-          );
-        };
-
-        if (candidates.length > 0) {
-          tryDecrypt(0)
+        if (candidates.some(Boolean)) {
+          decryptPrivateVaultWithFallback(candidates, privateVaultCipher)
             .then((payload) => {
               const plaintext = JSON.stringify({ links: payload.links || [] });
               safeLocalStorageSetItem(PRIVATE_VAULT_KEY, plaintext);
@@ -266,7 +262,7 @@ export const applyCloudDataToLocalState = (args: {
           args.setIsPrivateUnlocked(false);
           args.setPrivateLinks([]);
           args.setPrivateVaultPassword(null);
-          args.notify('隐私分组已锁定，请重新解锁', 'warning');
+          args.notify(i18n.t('privacy.lockedPleaseReunlock'), 'warning');
         });
     }
   } else if (data.privateVault === null) {

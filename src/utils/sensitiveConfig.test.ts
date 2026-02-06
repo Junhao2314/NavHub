@@ -151,6 +151,22 @@ describe('sensitiveConfig', () => {
         decryptSensitiveConfigWithFallback(['testPassword123'], 'invalid'),
       ).rejects.toThrow('Invalid sensitive config payload');
     });
+
+    it('should fail fast for invalid base64 payload parts', async () => {
+      await expect(
+        decryptSensitiveConfigWithFallback(['pw1', 'pw2'], 'v1.@@@.@@@.@@@'),
+      ).rejects.toThrow('Invalid sensitive config payload');
+
+      await expect(
+        decryptSensitiveConfigWithFallback(['pw1'], 'v1.AQ==.AQ==.AQ=='),
+      ).rejects.toThrow('Invalid sensitive config payload');
+    });
+
+    it('should enforce a maximum number of password candidates', async () => {
+      await expect(
+        decryptSensitiveConfigWithFallback(['a', 'b', 'c', 'd', 'e', 'f'], 'invalid'),
+      ).rejects.toThrow('Too many password candidates');
+    });
   });
 
   describe('round-trip encryption', () => {

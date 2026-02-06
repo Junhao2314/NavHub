@@ -70,6 +70,8 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
               onClick={() => onChange('accentColor', color.value)}
               className={`h-10 rounded-full ${color.class} transition-all duration-300 relative group border border-slate-100 dark:border-slate-700`}
               title={color.name}
+              aria-label={`${t('settings.appearance.themeColor')}: ${color.name}`}
+              aria-pressed={settings.accentColor === color.value}
             >
               {settings.accentColor === color.value && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -172,7 +174,10 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
             <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               {t('settings.appearance.enableBackgroundImage')}
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <div
+              id="background-image-hint"
+              className="text-xs text-slate-500 dark:text-slate-400 mt-1"
+            >
               {t('settings.appearance.backgroundImageHint')}
             </div>
           </div>
@@ -198,13 +203,15 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ settings, onChange }) => 
             type="text"
             value={settings.backgroundImage || ''}
             onChange={(e) => onChange('backgroundImage', e.target.value)}
-            placeholder="https://example.com/background.jpg"
+            placeholder={t('settings.appearance.backgroundImagePlaceholder')}
             disabled={!isBackgroundEnabled}
             className={`flex-1 px-4 py-2.5 rounded-xl text-sm border transition-all ${
               isBackgroundEnabled
                 ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none'
                 : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 cursor-not-allowed'
             }`}
+            aria-label={t('settings.appearance.customBackground')}
+            aria-describedby="background-image-hint"
           />
           <button
             type="button"

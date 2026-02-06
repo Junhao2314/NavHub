@@ -95,10 +95,14 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
+          <label
+            htmlFor="site-page-title"
+            className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2"
+          >
             {t('settings.site.pageTitle')}
           </label>
           <input
+            id="site-page-title"
             type="text"
             value={settings.title}
             onChange={(e) => {
@@ -109,7 +113,10 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
+          <label
+            htmlFor="site-favicon-url"
+            className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2"
+          >
             {t('settings.site.favicon')}
           </label>
           <div className="flex gap-3">
@@ -124,8 +131,11 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
                 <Globe size={24} className="text-slate-300" />
               )}
               <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                aria-label={t('common.upload')}
+                title={t('common.upload')}
               >
                 <Upload size={16} className="text-white" />
               </button>
@@ -133,13 +143,15 @@ const SiteTab: React.FC<SiteTabProps> = ({ settings, onChange }) => {
             <div className="flex-1 space-y-2">
               <div className="flex gap-2">
                 <input
+                  id="site-favicon-url"
                   type="text"
                   value={settings.favicon}
                   onChange={(e) => onChange('favicon', e.target.value)}
-                  placeholder="https://example.com/favicon.ico"
+                  placeholder={t('settings.site.faviconPlaceholder')}
                   className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
                 />
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors border border-slate-200 dark:border-slate-700"
                 >

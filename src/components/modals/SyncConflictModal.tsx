@@ -103,6 +103,7 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+            aria-label={t('common.close')}
           >
             <X className="w-5 h-5 text-slate-500" />
           </button>

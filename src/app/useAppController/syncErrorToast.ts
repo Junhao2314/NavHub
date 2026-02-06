@@ -1,3 +1,5 @@
+import i18n from '../../config/i18n';
+
 export type SyncErrorToastRecord = {
   message: string;
   at: number;
@@ -40,5 +42,5 @@ export const decideSyncErrorToast = (args: {
   }
 
   const nextToast: SyncErrorToastRecord = { message, at: args.now };
-  return { toastMessage: `同步失败：${message}`, nextToast };
+  return { toastMessage: i18n.t('sync.syncFailedWithMessage', { message }), nextToast };
 };

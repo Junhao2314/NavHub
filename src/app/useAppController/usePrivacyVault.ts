@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import i18n from '../../config/i18n';
 import type { Category, LinkItem } from '../../types';
 import type { ConfirmFn, NotifyFn } from '../../types/ui';
 import {
@@ -13,6 +14,7 @@ import {
 import { generateId } from '../../utils/id';
 import {
   decryptPrivateVault,
+  decryptPrivateVaultWithFallback,
   encryptPrivateVault,
   parsePlainPrivateVault,
 } from '../../utils/privateVault';
@@ -74,7 +76,7 @@ export const usePrivacyVault = ({
   const privateCategory = useMemo<Category>(
     () => ({
       id: PRIVATE_CATEGORY_ID,
-      name: '隐私分组',
+      name: i18n.t('privacy.groupName'),
       icon: 'Lock',
     }),
     [],
@@ -131,24 +133,13 @@ export const usePrivacyVault = ({
           setIsPrivateUnlocked(false);
           safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           if (input !== undefined) {
-            notify('云端隐私数据仍为加密格式，请输入旧密码完成转换', 'warning');
+            notify(i18n.t('privacy.unlockHintNeedsConversion'), 'warning');
           }
           return false;
         }
 
-        const tryDecrypt = async (index: number): Promise<{ links: LinkItem[] }> => {
-          if (index >= candidates.length) {
-            throw new Error('No valid password');
-          }
-          try {
-            return await decryptPrivateVault(candidates[index], privateVaultCipher);
-          } catch {
-            return tryDecrypt(index + 1);
-          }
-        };
-
         try {
-          const payload = await tryDecrypt(0);
+          const payload = await decryptPrivateVaultWithFallback(candidates, privateVaultCipher);
           const plaintext = JSON.stringify({ links: payload.links || [] });
           safeLocalStorageSetItem(PRIVATE_VAULT_KEY, plaintext);
           setPrivateVaultCipher(plaintext);
@@ -163,7 +154,7 @@ export const usePrivacyVault = ({
           setIsPrivateUnlocked(false);
           safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
           if (input !== undefined) {
-            notify('旧密码错误或隐私数据已损坏', 'error');
+            notify(i18n.t('privacy.oldPasswordWrongOrCorrupted'), 'error');
           }
           return false;
         }
@@ -171,18 +162,18 @@ export const usePrivacyVault = ({
 
       const password = resolvePrivacyPassword(input);
       if (!password) {
-        notify('请先输入隐私分组密码', 'warning');
+        notify(i18n.t('privacy.enterPrivacyPasswordFirst'), 'warning');
         return false;
       }
 
       if (!useSeparatePrivacyPassword) {
         const syncPassword = getSyncPassword().trim();
         if (!syncPassword) {
-          notify('请先设置同步密码，再解锁隐私分组', 'warning');
+          notify(i18n.t('privacy.setSyncPasswordBeforeUnlock'), 'warning');
           return false;
         }
         if (password !== syncPassword) {
-          notify('同步密码不匹配，请重新输入', 'error');
+          notify(i18n.t('privacy.syncPasswordMismatch'), 'error');
           return false;
         }
       }
@@ -213,7 +204,7 @@ export const usePrivacyVault = ({
         }
         return true;
       } catch {
-        notify('密码错误或隐私数据已损坏', 'error');
+        notify(i18n.t('privacy.passwordWrongOrCorrupted'), 'error');
         return false;
       }
     },
@@ -236,7 +227,7 @@ export const usePrivacyVault = ({
           privateVaultCipher.trim() &&
           !parsePlainPrivateVault(privateVaultCipher)
         ) {
-          notify('隐私分组需要先输入旧密码完成转换后才能保存', 'warning');
+          notify(i18n.t('privacy.needsConversionBeforeSave'), 'warning');
           return false;
         }
         safeLocalStorageSetItem(PRIVATE_VAULT_KEY, JSON.stringify({ links: nextLinks }));
@@ -253,7 +244,7 @@ export const usePrivacyVault = ({
         resolvePrivacyPassword()
       ).trim();
       if (!password) {
-        notify('请先设置隐私分组密码', 'warning');
+        notify(i18n.t('privacy.setPrivacyPasswordFirst'), 'warning');
         return false;
       }
 
@@ -266,7 +257,7 @@ export const usePrivacyVault = ({
         setPrivateVaultPassword(password);
         return true;
       } catch {
-        notify('隐私分组加密失败，请重试', 'error');
+        notify(i18n.t('privacy.encryptionFailedRetry'), 'error');
         return false;
       }
     },
@@ -287,24 +278,24 @@ export const usePrivacyVault = ({
       const syncPassword = getSyncPassword().trim();
 
       if (!trimmedOld || !trimmedNew) {
-        notify('请填写旧密码和新密码', 'warning');
+        notify(i18n.t('privacy.fillOldAndNewPassword'), 'warning');
         return false;
       }
 
       if (useSeparatePassword && !syncPassword) {
-        notify('请先设置同步密码，再启用独立密码模式', 'warning');
+        notify(i18n.t('privacy.setSyncPasswordBeforeSeparateMode'), 'warning');
         return false;
       }
 
       if (!useSeparatePassword && trimmedNew !== syncPassword) {
-        notify('切换回同步密码时，新密码必须与同步密码一致', 'warning');
+        notify(i18n.t('privacy.newPasswordMustMatchSyncPassword'), 'warning');
         return false;
       }
 
       const expectedOld = useSeparatePrivacyPassword ? getPrivacyPassword().trim() : syncPassword;
 
       if (expectedOld && trimmedOld !== expectedOld) {
-        notify('旧密码不正确', 'error');
+        notify(i18n.t('privacy.oldPasswordIncorrect'), 'error');
         return false;
       }
 
@@ -314,7 +305,7 @@ export const usePrivacyVault = ({
           const payloadData = await decryptPrivateVault(trimmedOld, privateVaultCipher);
           nextLinks = payloadData.links || [];
         } catch {
-          notify('旧密码不正确或隐私数据已损坏', 'error');
+          notify(i18n.t('privacy.oldPasswordIncorrectOrCorrupted'), 'error');
           return false;
         }
       }
@@ -341,7 +332,7 @@ export const usePrivacyVault = ({
       setPrivateLinks(nextLinks);
       setIsPrivateUnlocked(true);
       setPrivateVaultPassword(trimmedNew);
-      notify('隐私分组已完成转换', 'success');
+      notify(i18n.t('privacy.conversionComplete'), 'success');
       return true;
     },
     [notify, privateLinks, privateVaultCipher, useSeparatePrivacyPassword],
@@ -355,7 +346,7 @@ export const usePrivacyVault = ({
 
   const openPrivateAddModal = useCallback(() => {
     if (!isPrivateUnlocked) {
-      notify('请先解锁隐私分组', 'warning');
+      notify(i18n.t('privacy.unlockFirst'), 'warning');
       return;
     }
     setEditingPrivateLink(null);
@@ -366,7 +357,7 @@ export const usePrivacyVault = ({
   const openPrivateEditModal = useCallback(
     (link: LinkItem) => {
       if (!isPrivateUnlocked) {
-        notify('请先解锁隐私分组', 'warning');
+        notify(i18n.t('privacy.unlockFirst'), 'warning');
         return;
       }
       setEditingPrivateLink(link);
@@ -378,7 +369,7 @@ export const usePrivacyVault = ({
   const handlePrivateAddLink = useCallback(
     async (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
       if (!isPrivateUnlocked) {
-        notify('请先解锁隐私分组', 'warning');
+        notify(i18n.t('privacy.unlockFirst'), 'warning');
         return;
       }
       const now = Date.now();
@@ -403,11 +394,11 @@ export const usePrivacyVault = ({
   const handlePrivateEditLink = useCallback(
     async (data: Omit<LinkItem, 'id' | 'createdAt'>) => {
       if (!isPrivateUnlocked) {
-        notify('请先解锁隐私分组', 'warning');
+        notify(i18n.t('privacy.unlockFirst'), 'warning');
         return;
       }
       if (!editingPrivateLink) {
-        notify('未找到要编辑的链接', 'warning');
+        notify(i18n.t('privacy.linkNotFoundToEdit'), 'warning');
         return;
       }
       const updatedLinks = privateLinks.map((link) =>
@@ -430,14 +421,14 @@ export const usePrivacyVault = ({
   const handlePrivateDeleteLink = useCallback(
     async (id: string) => {
       if (!isPrivateUnlocked) {
-        notify('请先解锁隐私分组', 'warning');
+        notify(i18n.t('privacy.unlockFirst'), 'warning');
         return;
       }
       const shouldDelete = await confirm({
-        title: '删除隐私链接',
-        message: '确定删除此隐私链接吗？',
-        confirmText: '删除',
-        cancelText: '取消',
+        title: i18n.t('privacy.deletePrivateLinkTitle'),
+        message: i18n.t('privacy.deletePrivateLinkMessage'),
+        confirmText: i18n.t('common.delete'),
+        cancelText: i18n.t('common.cancel'),
         variant: 'danger',
       });
 
@@ -502,14 +493,14 @@ export const usePrivacyVault = ({
               } else if (!isPrivateUnlocked) {
                 const password = resolvePrivacyPassword();
                 if (!password) {
-                  notify('请先解锁隐私分组再关闭密码保护', 'warning');
+                  notify(i18n.t('privacy.unlockBeforeDisablePassword'), 'warning');
                   return;
                 }
                 try {
                   const payload = await decryptPrivateVault(password, privateVaultCipher);
                   nextLinks = payload.links || [];
                 } catch {
-                  notify('请先解锁隐私分组再关闭密码保护', 'warning');
+                  notify(i18n.t('privacy.unlockBeforeDisablePassword'), 'warning');
                   return;
                 }
               }
@@ -540,25 +531,25 @@ export const usePrivacyVault = ({
           if (plain) {
             const password = resolvePrivacyPassword();
             if (!password) {
-              notify('请先设置隐私分组密码', 'warning');
+              notify(i18n.t('privacy.setPrivacyPasswordFirst'), 'warning');
               return;
             }
             try {
               nextCipher = await encryptPrivateVault(password, plain);
             } catch {
-              notify('隐私分组加密失败，请重试', 'error');
+              notify(i18n.t('privacy.encryptionFailedRetry'), 'error');
               return;
             }
           } else if (!nextCipher && privateLinks.length > 0) {
             const password = resolvePrivacyPassword();
             if (!password) {
-              notify('请先设置隐私分组密码', 'warning');
+              notify(i18n.t('privacy.setPrivacyPasswordFirst'), 'warning');
               return;
             }
             try {
               nextCipher = await encryptPrivateVault(password, { links: privateLinks });
             } catch {
-              notify('隐私分组加密失败，请重试', 'error');
+              notify(i18n.t('privacy.encryptionFailedRetry'), 'error');
               return;
             }
           }
@@ -576,7 +567,7 @@ export const usePrivacyVault = ({
           setPrivateLinks([]);
           safeSessionStorageRemoveItem(PRIVACY_SESSION_UNLOCKED_KEY);
         } catch {
-          notify('隐私分组设置更新失败，请重试', 'error');
+          notify(i18n.t('privacy.settingsUpdateFailedRetry'), 'error');
         } finally {
           togglingPrivacyPasswordRef.current = false;
           setIsTogglingPrivacyPassword(false);
@@ -595,7 +586,7 @@ export const usePrivacyVault = ({
 
   const handleSelectPrivate = useCallback(() => {
     if (!privacyGroupEnabled) {
-      notify('隐私分组已关闭，可在设置中开启', 'warning');
+      notify(i18n.t('privacy.groupDisabledCanEnableInSettings'), 'warning');
       return;
     }
     setSelectedCategory(PRIVATE_CATEGORY_ID);
@@ -652,18 +643,18 @@ export const usePrivacyVault = ({
 
   const privateUnlockHint = !privacyPasswordEnabled
     ? privateVaultNeedsConversion
-      ? '隐私数据仍为加密格式，请输入旧密码完成转换'
-      : '隐私分组无需密码，点击解锁即可'
+      ? i18n.t('privacy.unlockHintNeedsConversion')
+      : i18n.t('privacy.unlockHintNoPassword')
     : useSeparatePrivacyPassword
-      ? '请输入独立密码解锁隐私分组'
-      : '请输入同步密码解锁隐私分组';
+      ? i18n.t('privacy.unlockHintEnterSeparatePassword')
+      : i18n.t('privacy.unlockHintEnterSyncPassword');
   const privateUnlockSubHint = !privacyPasswordEnabled
     ? privateVaultNeedsConversion
-      ? '转换成功后会保存为明文（因为已关闭密码保护）'
+      ? i18n.t('privacy.unlockSubHintConversionPlain')
       : undefined
     : useSeparatePrivacyPassword
-      ? '独立密码仅在当前会话缓存，关闭标签页/浏览器后需重新输入'
-      : '同步密码来自数据设置';
+      ? i18n.t('privacy.unlockSubHintSeparateSessionCache')
+      : i18n.t('privacy.unlockSubHintSyncPasswordFromSettings');
 
   return {
     privateVaultCipher,

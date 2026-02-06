@@ -150,7 +150,13 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
             {/* Icon */}
             <div className={iconContainerClasses} style={iconStyle}>
               {link.icon ? (
-                <img src={link.icon} alt="" className={isDetailedView ? 'w-8 h-8' : 'w-4 h-4'} />
+                <img
+                  src={link.icon}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className={isDetailedView ? 'w-8 h-8' : 'w-4 h-4'}
+                />
               ) : (
                 <span className={`font-bold uppercase ${isDetailedView ? 'text-xl' : 'text-xs'}`}>
                   {link.title.charAt(0)}
@@ -248,6 +254,7 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
               }}
               className="p-1.5 text-slate-400 hover:text-accent bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-slate-200/50 dark:border-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50"
               title={t('linkCard.edit')}
+              aria-label={t('linkCard.edit')}
             >
               <Settings size={14} />
             </button>

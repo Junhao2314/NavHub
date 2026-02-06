@@ -152,3 +152,219 @@ export const safeSessionStorageRemoveItem = (itemKey: string): boolean =>
 
 /** Clear all sessionStorage / 清空 sessionStorage */
 export const safeSessionStorageClear = (): boolean => safeStorageClear('session');
+
+// ============ Deferred Writes / 延迟写入（合并 + 调度） ============
+
+export type DeferredStorageWriteStrategy = 'timeout' | 'idle';
+
+export interface DeferredStorageWriteOptions {
+  /**
+   * Debounce window before scheduling the write (ms).
+   * 写入前的 debounce 时间（毫秒）。
+   */
+  debounceMs?: number;
+  /**
+   * When to run the actual `setItem`.
+   * - 'idle': prefer requestIdleCallback (with timeout) when available
+   * - 'timeout': use setTimeout to yield to the event loop
+   */
+  strategy?: DeferredStorageWriteStrategy;
+  /**
+   * requestIdleCallback timeout (ms). Only used when strategy === 'idle'.
+   * requestIdleCallback 的超时时间（毫秒）。
+   */
+  idleTimeoutMs?: number;
+}
+
+type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
+type CancelIdleCallback = (handle: number) => void;
+
+const DEFAULT_DEFERRED_WRITE_OPTIONS: Required<DeferredStorageWriteOptions> = {
+  debounceMs: 0,
+  strategy: 'idle',
+  idleTimeoutMs: 1000,
+};
+
+type PendingWriteValue = string | (() => string);
+
+type PendingWrite = {
+  kind: StorageKind;
+  itemKey: string;
+  value: PendingWriteValue;
+  timer: ReturnType<typeof setTimeout> | null;
+  idleHandle: number | null;
+};
+
+const pendingWrites = new Map<string, PendingWrite>();
+
+const getDeferredWriteId = (kind: StorageKind, itemKey: string): string => `${kind}:${itemKey}`;
+
+const resolveRequestIdleCallback = (): RequestIdleCallback | null => {
+  const ric = (globalThis as unknown as { requestIdleCallback?: unknown }).requestIdleCallback;
+  return typeof ric === 'function' ? (ric as RequestIdleCallback) : null;
+};
+
+const resolveCancelIdleCallback = (): CancelIdleCallback | null => {
+  const cic = (globalThis as unknown as { cancelIdleCallback?: unknown }).cancelIdleCallback;
+  return typeof cic === 'function' ? (cic as CancelIdleCallback) : null;
+};
+
+const cancelPendingWriteHandles = (pending: PendingWrite): void => {
+  if (pending.timer) {
+    clearTimeout(pending.timer);
+    pending.timer = null;
+  }
+  if (pending.idleHandle !== null) {
+    const cancelIdleCallback = resolveCancelIdleCallback();
+    cancelIdleCallback?.(pending.idleHandle);
+    pending.idleHandle = null;
+  }
+};
+
+export const cancelScheduledStorageWrite = (kind: StorageKind, itemKey: string): void => {
+  const id = getDeferredWriteId(kind, itemKey);
+  const pending = pendingWrites.get(id);
+  if (!pending) return;
+  cancelPendingWriteHandles(pending);
+  pendingWrites.delete(id);
+};
+
+export const flushScheduledStorageWrite = (kind: StorageKind, itemKey: string): boolean => {
+  const id = getDeferredWriteId(kind, itemKey);
+  const pending = pendingWrites.get(id);
+  if (!pending) return true;
+  cancelPendingWriteHandles(pending);
+  pendingWrites.delete(id);
+  try {
+    const value = typeof pending.value === 'function' ? pending.value() : pending.value;
+    return safeStorageSetItem(kind, itemKey, value);
+  } catch {
+    return false;
+  }
+};
+
+export const flushAllScheduledStorageWrites = (): { attempted: number; succeeded: number } => {
+  const entries = Array.from(pendingWrites.values());
+  let attempted = 0;
+  let succeeded = 0;
+
+  for (const entry of entries) {
+    attempted += 1;
+    if (flushScheduledStorageWrite(entry.kind, entry.itemKey)) {
+      succeeded += 1;
+    }
+  }
+
+  return { attempted, succeeded };
+};
+
+const scheduleDeferredFlush = (
+  kind: StorageKind,
+  itemKey: string,
+  options: Required<DeferredStorageWriteOptions>,
+): void => {
+  const id = getDeferredWriteId(kind, itemKey);
+  const pending = pendingWrites.get(id);
+  if (!pending) return;
+
+  // Prefer idling when possible (reduces jank on the main thread).
+  if (options.strategy === 'idle') {
+    const requestIdleCallback = resolveRequestIdleCallback();
+    if (requestIdleCallback) {
+      pending.idleHandle = requestIdleCallback(
+        () => {
+          flushScheduledStorageWrite(kind, itemKey);
+        },
+        { timeout: options.idleTimeoutMs },
+      );
+      return;
+    }
+  }
+
+  // Fallback: yield to next macrotask.
+  pending.timer = setTimeout(() => {
+    flushScheduledStorageWrite(kind, itemKey);
+  }, 0);
+};
+
+export const scheduleStorageSetItem = (
+  kind: StorageKind,
+  itemKey: string,
+  value: string,
+  options?: DeferredStorageWriteOptions,
+): void => {
+  scheduleStorageSetItemLazy(kind, itemKey, () => value, options);
+};
+
+export const scheduleStorageSetItemLazy = (
+  kind: StorageKind,
+  itemKey: string,
+  getValue: () => string,
+  options?: DeferredStorageWriteOptions,
+): void => {
+  const resolvedOptions: Required<DeferredStorageWriteOptions> = {
+    ...DEFAULT_DEFERRED_WRITE_OPTIONS,
+    ...options,
+  };
+
+  const id = getDeferredWriteId(kind, itemKey);
+  const existing = pendingWrites.get(id);
+  if (existing) {
+    cancelPendingWriteHandles(existing);
+  }
+
+  const pending: PendingWrite = { kind, itemKey, value: getValue, timer: null, idleHandle: null };
+  pendingWrites.set(id, pending);
+
+  if (resolvedOptions.debounceMs > 0) {
+    pending.timer = setTimeout(() => {
+      const current = pendingWrites.get(id);
+      if (!current) return;
+      // The debounce timer has fired, clear it so the next stage can schedule.
+      if (current.timer) {
+        clearTimeout(current.timer);
+        current.timer = null;
+      }
+      scheduleDeferredFlush(kind, itemKey, resolvedOptions);
+    }, resolvedOptions.debounceMs);
+    return;
+  }
+
+  scheduleDeferredFlush(kind, itemKey, resolvedOptions);
+};
+
+export const scheduleLocalStorageSetItem = (
+  itemKey: string,
+  value: string,
+  options?: DeferredStorageWriteOptions,
+): void => scheduleStorageSetItem('local', itemKey, value, options);
+
+export const scheduleLocalStorageSetItemLazy = (
+  itemKey: string,
+  getValue: () => string,
+  options?: DeferredStorageWriteOptions,
+): void => scheduleStorageSetItemLazy('local', itemKey, getValue, options);
+
+export const cancelScheduledLocalStorageWrite = (itemKey: string): void =>
+  cancelScheduledStorageWrite('local', itemKey);
+
+export const flushScheduledLocalStorageWrite = (itemKey: string): boolean =>
+  flushScheduledStorageWrite('local', itemKey);
+
+export const scheduleSessionStorageSetItem = (
+  itemKey: string,
+  value: string,
+  options?: DeferredStorageWriteOptions,
+): void => scheduleStorageSetItem('session', itemKey, value, options);
+
+export const scheduleSessionStorageSetItemLazy = (
+  itemKey: string,
+  getValue: () => string,
+  options?: DeferredStorageWriteOptions,
+): void => scheduleStorageSetItemLazy('session', itemKey, getValue, options);
+
+export const cancelScheduledSessionStorageWrite = (itemKey: string): void =>
+  cancelScheduledStorageWrite('session', itemKey);
+
+export const flushScheduledSessionStorageWrite = (itemKey: string): boolean =>
+  flushScheduledStorageWrite('session', itemKey);

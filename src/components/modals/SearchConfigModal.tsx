@@ -30,6 +30,7 @@ import React, { useEffect, useState } from 'react';
 import { buildDefaultSearchSources } from '../../config/defaults';
 import { useI18n } from '../../hooks/useI18n';
 import { ExternalSearchSource } from '../../types';
+import { buildFaviconExtractorUrlFromUrlInput } from '../../utils/faviconExtractor';
 import { useDialog } from '../ui/DialogProvider';
 
 interface SearchConfigModalProps {
@@ -65,15 +66,7 @@ const SortableSearchItem: React.FC<SortableSearchItemProps> = ({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  // 获取 favicon URL
-  const getFaviconUrl = (url: string) => {
-    try {
-      const hostname = new URL(url).hostname;
-      return `https://www.faviconextractor.com/favicon/${hostname}?larger=true`;
-    } catch (_e) {
-      return '';
-    }
-  };
+  const faviconUrl = buildFaviconExtractorUrlFromUrlInput(source.url);
 
   return (
     <div
@@ -90,23 +83,26 @@ const SortableSearchItem: React.FC<SortableSearchItemProps> = ({
         {...attributes}
         {...listeners}
         className="touch-none flex items-center justify-center p-1 text-slate-400 hover:text-accent cursor-grab active:cursor-grabbing transition-colors"
+        aria-label={`${t('modals.category.dragToSort')}: ${source.name}`}
       >
         <GripVertical size={16} />
       </div>
 
       {/* Icon */}
       <div className="shrink-0 w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center overflow-hidden border border-slate-100 dark:border-slate-600">
-        <img
-          src={getFaviconUrl(source.url)}
-          alt={source.name}
-          className="w-5 h-5 object-contain"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-            target.nextElementSibling?.classList.remove('hidden');
-          }}
-        />
-        <Globe size={16} className="text-slate-400 hidden" />
+        {faviconUrl ? (
+          <img
+            src={faviconUrl}
+            alt={source.name}
+            className="w-5 h-5 object-contain"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              target.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <Globe size={16} className={`text-slate-400 ${faviconUrl ? 'hidden' : ''}`} />
       </div>
 
       {/* Info */}
@@ -125,6 +121,7 @@ const SortableSearchItem: React.FC<SortableSearchItemProps> = ({
       <div className="flex items-center gap-3 pl-3 border-l border-slate-100 dark:border-slate-700/50 ml-1">
         {/* Toggle Switch - iOS Style */}
         <button
+          type="button"
           onClick={() => onToggle(source.id)}
           className={`relative w-10 h-6 rounded-full transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-accent/20 ${
             source.enabled
@@ -132,6 +129,9 @@ const SortableSearchItem: React.FC<SortableSearchItemProps> = ({
               : 'bg-slate-200 dark:bg-slate-700'
           }`}
           title={source.enabled ? t('common.enabled') : t('common.disabled')}
+          role="switch"
+          aria-checked={source.enabled}
+          aria-label={source.name}
         >
           <span
             className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
@@ -141,9 +141,11 @@ const SortableSearchItem: React.FC<SortableSearchItemProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => void onDelete(source.id)}
           className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors group/delete"
           title={t('common.delete')}
+          aria-label={`${t('common.delete')} ${source.name}`}
         >
           <Trash2 size={15} className="transition-transform group-hover/delete:scale-110" />
         </button>
@@ -280,6 +282,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            aria-label={t('common.close')}
           >
             <X size={20} strokeWidth={2} />
           </button>
@@ -314,10 +317,14 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
+                  <label
+                    htmlFor="search-config-source-name"
+                    className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1"
+                  >
                     {t('modals.searchConfig.sourceName')}
                   </label>
                   <input
+                    id="search-config-source-name"
                     type="text"
                     value={newSource.name}
                     onChange={(e) => setNewSource({ ...newSource, name: e.target.value })}
@@ -327,15 +334,20 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
+                  <label
+                    htmlFor="search-config-source-url"
+                    className="block text-xs font-bold text-slate-500 uppercase tracking-wider pl-1"
+                  >
                     {t('modals.searchConfig.searchUrl')}
                   </label>
                   <input
+                    id="search-config-source-url"
                     type="text"
                     value={newSource.url}
                     onChange={(e) => setNewSource({ ...newSource, url: e.target.value })}
                     placeholder={t('modals.searchConfig.searchUrlPlaceholder')}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all placeholder:text-slate-400"
+                    aria-describedby="search-config-query-hint"
                   />
                 </div>
               </div>
@@ -344,7 +356,7 @@ const SearchConfigModal: React.FC<SearchConfigModalProps> = ({
                   <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
                     <AlertCircle size={12} strokeWidth={2.5} />
                   </span>
-                  <span>
+                  <span id="search-config-query-hint">
                     {t('modals.searchConfig.queryPlaceholderHint').split('{query}')[0]}
                     <code className="font-mono font-bold text-orange-600 bg-orange-50 px-1 rounded">
                       {'{query}'}

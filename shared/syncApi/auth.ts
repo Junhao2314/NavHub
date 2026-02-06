@@ -1,3 +1,4 @@
+import { jsonResponse } from '../utils/response';
 import type { Env } from './types';
 
 // Auth Security (brute-force protection)
@@ -154,25 +155,26 @@ const resolveAuthAttemptKey = async (
 ): Promise<{ key: string; source: IpSourceType; noFingerprint: boolean }> => {
   const { seed, source, noFingerprint } = getClientKeyInfo(request);
   const hash = await hashKeySeedSha256Hex(seed);
-  return { key: `${KV_AUTH_ATTEMPT_PREFIX}${AUTH_ATTEMPT_HASH_PREFIX}${hash}`, source, noFingerprint };
+  return {
+    key: `${KV_AUTH_ATTEMPT_PREFIX}${AUTH_ATTEMPT_HASH_PREFIX}${hash}`,
+    source,
+    noFingerprint,
+  };
 };
 
 const buildLockoutResponse = (lockedUntil: number, now: number): Response => {
   const retryAfterSeconds = Math.max(1, Math.ceil((lockedUntil - now) / 1000));
-  return new Response(
-    JSON.stringify({
+  return jsonResponse(
+    {
       success: false,
       error: '登录失败：连续输入错误次数过多，请稍后重试',
       lockedUntil,
       retryAfterSeconds,
       maxAttempts: AUTH_MAX_FAILED_ATTEMPTS,
-    }),
+    },
     {
       status: 429,
-      headers: {
-        'Content-Type': 'application/json',
-        'Retry-After': String(retryAfterSeconds),
-      },
+      headers: { 'Retry-After': String(retryAfterSeconds) },
     },
   );
 };
@@ -191,12 +193,12 @@ export const requireAdminAccess = async (
   const providedPassword = (request.headers.get('X-Sync-Password') || '').trim();
 
   if (!providedPassword) {
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         success: false,
         error: 'Unauthorized: 管理员密码错误或未提供',
-      }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } },
+      },
+      { status: 401 },
     );
   }
 
@@ -240,8 +242,7 @@ export const requireAdminAccess = async (
       : AUTH_MAX_FAILED_ATTEMPTS_UNKNOWN_IP;
   const nextFailedCount = (record?.failedCount || 0) + 1;
   const remainingAttempts = Math.max(0, maxAttempts - nextFailedCount);
-  const lockedUntil =
-    nextFailedCount >= maxAttempts ? now + AUTH_LOCKOUT_SECONDS * 1000 : 0;
+  const lockedUntil = nextFailedCount >= maxAttempts ? now + AUTH_LOCKOUT_SECONDS * 1000 : 0;
 
   const nextRecord: AuthAttemptRecord = {
     failedCount: nextFailedCount,
@@ -258,14 +259,14 @@ export const requireAdminAccess = async (
     return buildLockoutResponse(lockedUntil, now);
   }
 
-  return new Response(
-    JSON.stringify({
+  return jsonResponse(
+    {
       success: false,
       error: '密码错误',
       remainingAttempts,
       maxAttempts,
-    }),
-    { status: 401, headers: { 'Content-Type': 'application/json' } },
+    },
+    { status: 401 },
   );
 };
 

@@ -10,6 +10,7 @@ import {
 import React, { useCallback, useMemo, useState } from 'react';
 import { useI18n } from '../../../hooks/useI18n';
 import { Category, LinkItem } from '../../../types';
+import { getDomainForComparison, normalizeUrlForComparison } from '../../../utils/urlComparison';
 
 interface DuplicateGroup {
   key: string;
@@ -23,33 +24,6 @@ interface DuplicateCheckerProps {
   onDeleteLink: (id: string) => void;
   onNavigateToCategory?: (categoryId: string) => void;
 }
-
-// 标准化 URL 用于比较
-const normalizeUrl = (url: string): string => {
-  try {
-    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
-    // 移除 www. 前缀、尾部斜杠、常见追踪参数
-    let host = u.hostname.replace(/^www\./, '');
-    let path = u.pathname.replace(/\/+$/, '') || '/';
-    return `${host}${path}`.toLowerCase();
-  } catch {
-    return url
-      .toLowerCase()
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .replace(/\/+$/, '');
-  }
-};
-
-// 获取 URL 的域名
-const getDomain = (url: string): string => {
-  try {
-    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
-    return u.hostname.replace(/^www\./, '').toLowerCase();
-  } catch {
-    return url.toLowerCase();
-  }
-};
 
 // 计算字符串相似度 (Levenshtein distance based)
 const similarity = (s1: string, s2: string): number => {
@@ -145,7 +119,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
     // 1. 完全相同的 URL
     const urlMap = new Map<string, LinkItem[]>();
     links.forEach((link) => {
-      const normalized = normalizeUrl(link.url);
+      const normalized = normalizeUrlForComparison(link.url);
       const existing = urlMap.get(normalized) || [];
       existing.push(link);
       urlMap.set(normalized, existing);
@@ -166,7 +140,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
     const domainMap = new Map<string, LinkItem[]>();
     links.forEach((link) => {
       if (processed.has(link.id)) return;
-      const domain = getDomain(link.url);
+      const domain = getDomainForComparison(link.url);
       const existing = domainMap.get(domain) || [];
       existing.push(link);
       domainMap.set(domain, existing);
@@ -177,8 +151,8 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
         // 检查路径相似度
         for (let i = 0; i < items.length; i++) {
           for (let j = i + 1; j < items.length; j++) {
-            const url1 = normalizeUrl(items[i].url);
-            const url2 = normalizeUrl(items[j].url);
+            const url1 = normalizeUrlForComparison(items[i].url);
+            const url2 = normalizeUrlForComparison(items[j].url);
             if (similarity(url1, url2) > 0.7 && url1 !== url2) {
               const key = `similar-url-${items[i].id}-${items[j].id}`;
               if (
@@ -293,6 +267,9 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
               type="button"
               onClick={() => setShowSimilar(!showSimilar)}
               className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${showSimilar ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'}`}
+              role="switch"
+              aria-checked={showSimilar}
+              aria-label={t('duplicateChecker.showSimilar')}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${showSimilar ? 'translate-x-5' : 'translate-x-1'}`}
@@ -377,6 +354,7 @@ const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({
                           disabled={deletingId === link.id}
                           className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shrink-0"
                           title={t('duplicateChecker.deleteCard')}
+                          aria-label={t('duplicateChecker.deleteCard')}
                         >
                           <Trash2
                             size={14}

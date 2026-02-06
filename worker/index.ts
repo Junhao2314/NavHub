@@ -16,6 +16,8 @@ import {
   type SyncApiEnv,
 } from '../shared/syncApi';
 import { resolveSyncCorsHeaders } from '../shared/syncApi/cors';
+import { parseEnvBool, parseEnvList } from '../shared/utils/env';
+import { mergeVaryHeaderValue } from '../shared/utils/httpHeaders';
 
 interface Env {
   NAVHUB_WORKER_KV: KVNamespaceInterface;
@@ -26,22 +28,6 @@ interface Env {
   AI_PROXY_ALLOWED_ORIGINS?: string;
   AI_PROXY_ALLOW_INSECURE_HTTP?: string;
   ASSETS: Fetcher;
-}
-
-function mergeVaryHeaderValue(prev: string | null, next: string): string {
-  const prevParts = (prev ?? '')
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const nextParts = next
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const merged = [...prevParts];
-  for (const part of nextParts) {
-    if (!merged.includes(part)) merged.push(part);
-  }
-  return merged.join(', ');
 }
 
 function withCors(response: Response, corsHeaders: Record<string, string>): Response {
@@ -96,19 +82,6 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
 // ============================================
 // AI Proxy (OpenAI Compatible)
 // ============================================
-
-function parseEnvList(value?: string): string[] {
-  if (!value) return [];
-  return value
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean);
-}
-
-function parseEnvBool(value?: string): boolean {
-  const normalized = (value || '').trim().toLowerCase();
-  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
-}
 
 async function handleApiAI(request: Request, env: Env): Promise<Response> {
   return handleApiAIRequest(request, {

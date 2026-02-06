@@ -37,10 +37,10 @@ import {
   PushToCloudOptions,
   saveLocalSyncMeta,
   UseSyncEngineOptions,
-  useSyncStatus,
   useSyncApi,
   useSyncBackup,
   useSyncDebounce,
+  useSyncStatus,
 } from './sync';
 
 // 同步引擎返回值
@@ -98,8 +98,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
   // Debounce 调度 - 需要先声明 pushChainRef
   const { pushChainRef, schedulePush, cancelPendingSync, flushPendingSync } = useSyncDebounce({
     setSyncStatus,
-    pushToCloud: (data, force, syncKind, opts) =>
-      apiHooks.pushToCloud(data, force, syncKind, opts),
+    pushToCloud: (data, force, syncKind, opts) => apiHooks.pushToCloud(data, force, syncKind, opts),
   });
 
   // 核心 API

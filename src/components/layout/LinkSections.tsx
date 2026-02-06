@@ -1,6 +1,15 @@
 ﻿import { closestCorners, DndContext, DragEndEvent, SensorDescriptor } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
-import { CheckSquare, Pin, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckSquare,
+  Pin,
+  RefreshCw,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { VirtuosoGrid } from 'react-virtuoso';
@@ -10,22 +19,19 @@ import {
   MOVE_MENU_OFFSET_PX,
   MOVE_MENU_PADDING_PX,
   MOVE_MENU_WIDTH_PX,
+  PINNED_VIRTUALIZATION_THRESHOLD,
+  SORTING_MODE_WARNING_THRESHOLD,
 } from '../../config/ui';
 import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
 import { Category, LinkItem } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
+import { type HitokotoPayload, isHitokotoPayload } from '../../utils/typeGuards';
 import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
 import SortableLinkCard from '../ui/SortableLinkCard';
-
-interface HitokotoPayload {
-  hitokoto: string;
-  from?: string;
-  from_who?: string | null;
-}
 
 const HITOKOTO_CACHE_KEY = 'navhub_hitokoto_cache_v1';
 
@@ -223,7 +229,11 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
         if (!response.ok) {
           throw new Error(`Hitokoto request failed: ${response.status}`);
         }
-        const payload = (await response.json()) as HitokotoPayload;
+        const rawPayload: unknown = await response.json();
+        if (!isHitokotoPayload(rawPayload)) {
+          throw new Error('Hitokoto payload invalid structure');
+        }
+        const payload = rawPayload;
         if (!payload?.hitokoto) {
           throw new Error('Hitokoto payload missing text');
         }
@@ -429,6 +439,28 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   </div>
                 </SortableContext>
               </DndContext>
+            ) : pinnedLinks.length > PINNED_VIRTUALIZATION_THRESHOLD && scrollParent ? (
+              <VirtuosoGrid
+                customScrollParent={scrollParent}
+                data={pinnedLinks}
+                computeItemKey={(_, link) => link.id}
+                listClassName={`grid ${gridGap} ${gridClassName}`}
+                itemClassName="min-w-0"
+                increaseViewportBy={{ top: 400, bottom: 600 }}
+                itemContent={(_, link) => (
+                  <LinkCard
+                    link={link}
+                    siteCardStyle={siteCardStyle}
+                    isDarkMode={isDarkMode}
+                    isBatchEditMode={isBatchEditMode}
+                    isSelected={selectedLinks.has(link.id)}
+                    onSelect={onLinkSelect}
+                    onContextMenu={onLinkContextMenu}
+                    onEdit={onLinkEdit}
+                    onOpenLink={onLinkOpen}
+                  />
+                )}
+              />
             ) : (
               <div className={`grid ${gridGap} ${gridClassName}`}>
                 {pinnedLinks.map((link) => (
@@ -503,6 +535,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         onClick={onBatchPin}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
                         title={t('linkSections.batchPin')}
+                        aria-label={t('linkSections.batchPin')}
                       >
                         <Pin size={13} />
                         <span>{t('modals.link.pinned')}</span>
@@ -511,6 +544,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         onClick={onBatchDelete}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                         title={t('linkSections.batchDelete')}
+                        aria-label={t('linkSections.batchDelete')}
                       >
                         <Trash2 size={13} />
                         <span>{t('common.delete')}</span>
@@ -519,6 +553,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         onClick={onSelectAll}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
                         title={t('linkSections.selectDeselectAll')}
+                        aria-label={t('linkSections.selectDeselectAll')}
                       >
                         <CheckSquare size={13} />
                         <span>
@@ -536,6 +571,9 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                           ref={moveMenuButtonRef}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
                           title={t('linkSections.batchMove')}
+                          aria-label={t('linkSections.batchMove')}
+                          aria-haspopup="menu"
+                          aria-expanded={moveMenuOpen}
                         >
                           <Upload size={13} />
                           <span>{t('contextMenu.moveToCategory')}</span>
@@ -545,6 +583,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                         onClick={onToggleBatchEditMode}
                         className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                         title={t('linkSections.exitBatchEdit')}
+                        aria-label={t('linkSections.exitBatchEdit')}
                       >
                         <X size={14} />
                       </button>
@@ -572,6 +611,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                     onChange={(e) => setPrivatePassword(e.target.value)}
                     placeholder={t('linkSections.enterPassword')}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                    aria-label={t('linkSections.enterPassword')}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         handlePrivateUnlock();
@@ -609,29 +649,42 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 )}
               </div>
             ) : isSortingMode === selectedCategory ? (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCorners}
-                onDragEnd={onDragEnd}
-              >
-                <SortableContext
-                  items={displayedLinks.map((link) => link.id)}
-                  strategy={rectSortingStrategy}
-                >
-                  <div className={`grid ${gridGap} ${gridClassName}`}>
-                    {displayedLinks.map((link) => (
-                      <SortableLinkCard
-                        key={link.id}
-                        link={link}
-                        siteCardStyle={siteCardStyle}
-                        isDarkMode={isDarkMode}
-                        isSortingMode={true}
-                        isSortingPinned={false}
-                      />
-                    ))}
+              <>
+                {displayedLinks.length > SORTING_MODE_WARNING_THRESHOLD && (
+                  <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-amber-700 dark:text-amber-300 text-sm">
+                    <AlertTriangle size={16} className="shrink-0" />
+                    <span>
+                      {t('linkSections.sortingPerformanceWarning', {
+                        count: displayedLinks.length,
+                        threshold: SORTING_MODE_WARNING_THRESHOLD,
+                      })}
+                    </span>
                   </div>
-                </SortableContext>
-              </DndContext>
+                )}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCorners}
+                  onDragEnd={onDragEnd}
+                >
+                  <SortableContext
+                    items={displayedLinks.map((link) => link.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    <div className={`grid ${gridGap} ${gridClassName}`}>
+                      {displayedLinks.map((link) => (
+                        <SortableLinkCard
+                          key={link.id}
+                          link={link}
+                          siteCardStyle={siteCardStyle}
+                          isDarkMode={isDarkMode}
+                          isSortingMode={true}
+                          isSortingPinned={false}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </>
             ) : scrollParent ? (
               <VirtuosoGrid
                 customScrollParent={scrollParent}
@@ -716,6 +769,8 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
             style={{ top: moveMenuPosition.top, left: moveMenuPosition.left }}
             onMouseEnter={cancelCloseMoveMenu}
             onMouseLeave={scheduleCloseMoveMenu}
+            role="menu"
+            aria-label={t('contextMenu.moveToCategory')}
           >
             {categories
               .filter((cat) => cat.id !== selectedCategory)
@@ -724,6 +779,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                   key={cat.id}
                   onClick={() => handleBatchMoveSelect(cat.id)}
                   className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  role="menuitem"
                 >
                   {cat.name}
                 </button>

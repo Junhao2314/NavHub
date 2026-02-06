@@ -1,7 +1,11 @@
 import { GenerateContentResponse, GoogleGenAI } from '@google/genai';
+import {
+  buildOpenAICompatibleUrls,
+  DEFAULT_OPENAI_COMPAT_BASE_URL,
+} from '../../shared/utils/openaiCompat';
+import i18n from '../config/i18n';
 import { AIConfig } from '../types';
-
-const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
+import { isGeminiModelsListResponse, isOpenAIModelsListResponse } from '../utils/typeGuards';
 
 /** AI 服务错误类型 */
 export type AIErrorCode =
@@ -27,74 +31,21 @@ export class AIServiceError extends Error {
   getUserMessage(): string {
     switch (this.code) {
       case 'MISSING_API_KEY':
-        return '请在设置中配置 API Key';
+        return i18n.t('settings.ai.missingApiKey');
       case 'MISSING_MODEL':
-        return '请选择 AI 模型';
+        return i18n.t('settings.ai.missingModel');
       case 'NETWORK_ERROR':
-        return '网络连接失败，请检查网络';
+        return i18n.t('errors.networkErrorRetry');
       case 'API_ERROR':
-        return 'AI 服务调用失败，请稍后重试';
+        return i18n.t('settings.ai.apiError');
       case 'INVALID_RESPONSE':
-        return 'AI 返回了无效响应';
+        return i18n.t('settings.ai.invalidResponse');
       case 'UNKNOWN_ERROR':
       default:
-        return '发生未知错误';
+        return i18n.t('errors.unknownError');
     }
   }
 }
-
-type OpenAICompatibleUrls = {
-  chatCompletionsUrl: string;
-  modelsUrl: string;
-};
-
-const ensureHttpScheme = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return trimmed;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-};
-
-const buildOpenAICompatibleUrls = (baseUrlInput: string): OpenAICompatibleUrls => {
-  const normalizedInput = ensureHttpScheme(baseUrlInput) || DEFAULT_OPENAI_COMPAT_BASE_URL;
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(normalizedInput);
-  } catch {
-    parsedUrl = new URL(DEFAULT_OPENAI_COMPAT_BASE_URL);
-  }
-
-  const origin = parsedUrl.origin;
-  const pathname = parsedUrl.pathname.replace(/\/+$/, ''); // drop trailing slash
-  const base = `${origin}${pathname === '/' ? '' : pathname}`;
-
-  if (pathname.endsWith('/chat/completions')) {
-    return {
-      chatCompletionsUrl: base,
-      modelsUrl: base.replace(/\/chat\/completions$/, '/models'),
-    };
-  }
-
-  if (pathname.endsWith('/models')) {
-    return {
-      chatCompletionsUrl: base.replace(/\/models$/, '/chat/completions'),
-      modelsUrl: base,
-    };
-  }
-
-  if (pathname.endsWith('/v1')) {
-    return {
-      chatCompletionsUrl: `${base}/chat/completions`,
-      modelsUrl: `${base}/models`,
-    };
-  }
-
-  return {
-    chatCompletionsUrl: `${base}/v1/chat/completions`,
-    modelsUrl: `${base}/v1/models`,
-  };
-};
 
 /**
  * Helper to call OpenAI Compatible API
@@ -187,16 +138,7 @@ export const generateLinkDescription = async (
     throw new AIServiceError('MISSING_API_KEY', 'API Key is required');
   }
 
-  const prompt = `Title: ${title}
-URL: ${url}
-
-为这个网站写一句简短的中文描述（最多15个字），说明它的用途。
-
-输出规则：
-- 只输出描述文本本身
-- 禁止输出引号、前缀、后缀
-- 禁止输出 FINISH、Done、完成、END 等标记词
-- 禁止输出任何解释或额外文字`;
+  const prompt = i18n.t('settings.ai.linkDescriptionUserPrompt', { title, url });
 
   const sanitizeDescription = (text: string): string => {
     return text
@@ -227,7 +169,7 @@ URL: ${url}
     // OpenAI Compatible - callOpenAICompatible 已经会抛出 AIServiceError
     const result = await callOpenAICompatible(
       config,
-      '你是一个网站描述生成助手。只输出描述文本，不要输出任何标记词、引号或额外内容。',
+      i18n.t('settings.ai.linkDescriptionSystemPrompt'),
       prompt,
     );
     return sanitizeDescription(result);
@@ -333,9 +275,6 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
   }
 
   if (config.provider === 'gemini') {
-    type GeminiModelsListResponse = {
-      models?: Array<{ name?: unknown }>;
-    };
     let response: Response;
     try {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
@@ -355,7 +294,11 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
       });
     }
 
-    const data = (await response.json()) as GeminiModelsListResponse;
+    const rawData: unknown = await response.json();
+    if (!isGeminiModelsListResponse(rawData)) {
+      return [];
+    }
+    const data = rawData;
     if (data.models && Array.isArray(data.models)) {
       return data.models
         .map((model) => (typeof model?.name === 'string' ? model.name.replace('models/', '') : ''))
@@ -363,9 +306,6 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
     }
     return [];
   } else {
-    type OpenAIModelsListResponse = {
-      data?: Array<{ id?: unknown }>;
-    };
     const baseUrlInput = (config.baseUrl || DEFAULT_OPENAI_COMPAT_BASE_URL).trim();
     const { modelsUrl } = buildOpenAICompatibleUrls(baseUrlInput);
 
@@ -406,7 +346,11 @@ export const fetchAvailableModels = async (config: AIConfig): Promise<string[]> 
       });
     }
 
-    const data = (await response.json()) as OpenAIModelsListResponse;
+    const rawData: unknown = await response.json();
+    if (!isOpenAIModelsListResponse(rawData)) {
+      return [];
+    }
+    const data = rawData;
     if (data.data && Array.isArray(data.data)) {
       return data.data
         .map((model) => (typeof model?.id === 'string' ? model.id : ''))

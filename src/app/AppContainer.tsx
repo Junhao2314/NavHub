@@ -35,29 +35,31 @@ function App({ onReady }: AppProps) {
   const { links, categories } = core;
   const { sidebarOpen, setSidebarOpen, selectedCategory } = sidebar;
   const { isAdmin, handleEditDisabled } = admin;
+  const { setIsSettingsModalOpen, setIsSearchConfigModalOpen, setIsCatManagerOpen } = modals;
+  const { startSorting: startCategorySorting } = sorting;
 
   const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
 
   const handleOpenSettings = useCallback(
-    () => modals.setIsSettingsModalOpen(true),
-    [modals.setIsSettingsModalOpen],
+    () => setIsSettingsModalOpen(true),
+    [setIsSettingsModalOpen],
   );
 
   const handleOpenSearchConfig = useCallback(() => {
     if (!isAdmin) return handleEditDisabled();
-    modals.setIsSearchConfigModalOpen(true);
-  }, [handleEditDisabled, isAdmin, modals.setIsSearchConfigModalOpen]);
+    setIsSearchConfigModalOpen(true);
+  }, [handleEditDisabled, isAdmin, setIsSearchConfigModalOpen]);
 
   const handleStartCategorySorting = useCallback(() => {
     if (!isPrivateView) {
-      sorting.startSorting(selectedCategory);
+      startCategorySorting(selectedCategory);
     }
-  }, [isPrivateView, sorting.startSorting, selectedCategory]);
+  }, [isPrivateView, selectedCategory, startCategorySorting]);
 
   const handleOpenCategoryManager = useCallback(() => {
     if (!isAdmin) return handleEditDisabled();
-    modals.setIsCatManagerOpen(true);
-  }, [handleEditDisabled, isAdmin, modals.setIsCatManagerOpen]);
+    setIsCatManagerOpen(true);
+  }, [handleEditDisabled, isAdmin, setIsCatManagerOpen]);
 
   // === Render ===
   return (

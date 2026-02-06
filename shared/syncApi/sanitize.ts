@@ -1,5 +1,12 @@
 import type { NavHubSyncData } from './types';
 
+const PRIVATE_CATEGORY_ID = '__private__';
+
+const sanitizeAiConfigApiKey = (data: NavHubSyncData): NavHubSyncData['aiConfig'] => {
+  if (!data.aiConfig || typeof data.aiConfig !== 'object') return undefined;
+  return { ...data.aiConfig, apiKey: '' };
+};
+
 /**
  * 管理员数据脱敏：仅清空明文敏感字段（例如 `aiConfig.apiKey`）。
  *
@@ -7,14 +14,9 @@ import type { NavHubSyncData } from './types';
  * 以便管理员客户端在本地解密/恢复配置；因此不要用于非管理员响应。
  */
 export const sanitizeSensitiveData = (data: NavHubSyncData): NavHubSyncData => {
-  const safeAiConfig =
-    data.aiConfig && typeof data.aiConfig === 'object'
-      ? { ...data.aiConfig, apiKey: '' }
-      : undefined;
-
   return {
     ...data,
-    aiConfig: safeAiConfig,
+    aiConfig: sanitizeAiConfigApiKey(data),
   };
 };
 
@@ -25,16 +27,19 @@ export const sanitizeSensitiveData = (data: NavHubSyncData): NavHubSyncData => {
  * 以避免将任何可用于推断或解密隐私的数据暴露给非管理员用户。
  */
 export const sanitizePublicData = (data: NavHubSyncData): NavHubSyncData => {
-  const safeAiConfig =
-    data.aiConfig && typeof data.aiConfig === 'object'
-      ? { ...data.aiConfig, apiKey: '' }
-      : undefined;
+  const hiddenCategoryIds = new Set(data.categories.filter((c) => c.hidden).map((c) => c.id));
+  const categories = data.categories.filter((c) => !c.hidden);
+  const links = data.links.filter(
+    (link) => link.categoryId !== PRIVATE_CATEGORY_ID && !hiddenCategoryIds.has(link.categoryId),
+  );
 
   return {
     ...data,
-    aiConfig: safeAiConfig,
+    aiConfig: sanitizeAiConfigApiKey(data),
     privateVault: undefined,
     encryptedSensitiveConfig: undefined,
     privacyConfig: undefined,
+    categories,
+    links,
   };
 };

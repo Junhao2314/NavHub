@@ -29,24 +29,10 @@ import {
 } from './syncApi/handlers';
 import type { Env, KVNamespaceInterface, R2BucketInterface, SyncApiEnv } from './syncApi/types';
 import { getErrorMessage } from './utils/error';
+import { mergeVaryHeaderValue } from './utils/httpHeaders';
+import { jsonResponse } from './utils/response';
 
 export type { KVNamespaceInterface, R2BucketInterface, SyncApiEnv };
-
-const mergeVaryHeaderValue = (prev: string | null, next: string): string => {
-  const prevParts = (prev ?? '')
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const nextParts = next
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const merged = [...prevParts];
-  for (const part of nextParts) {
-    if (!merged.includes(part)) merged.push(part);
-  }
-  return merged.join(', ');
-};
 
 const withSyncApiResponseHeaders = (response: Response): Response => {
   const headers = new Headers(response.headers);
@@ -79,15 +65,12 @@ export async function handleApiSyncRequest(request: Request, env: SyncApiEnv): P
     resolvedEnv = normalizeSyncApiEnv(env);
   } catch (error: unknown) {
     return withSyncApiResponseHeaders(
-      new Response(
-        JSON.stringify({
+      jsonResponse(
+        {
           success: false,
           error: getErrorMessage(error, 'KV binding missing'),
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
         },
+        { status: 500 },
       ),
     );
   }
@@ -130,15 +113,12 @@ export async function handleApiSyncRequest(request: Request, env: SyncApiEnv): P
   }
 
   return withSyncApiResponseHeaders(
-    new Response(
-      JSON.stringify({
+    jsonResponse(
+      {
         success: false,
         error: 'Method not allowed',
-      }),
-      {
-        status: 405,
-        headers: { 'Content-Type': 'application/json' },
       },
+      { status: 405 },
     ),
   );
 }

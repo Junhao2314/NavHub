@@ -46,15 +46,6 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   } = useDataStore();
   const { notify, confirm } = useDialog();
 
-  // === 数据加载完成后隐藏加载动画 ===
-  useEffect(() => {
-    if (isLoaded && onReady) {
-      // 稍微延迟以确保 UI 渲染完成
-      const timer = setTimeout(onReady, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoaded, onReady]);
-
   // === Theme ===
   const { themeMode, darkMode, setThemeAndApply, applyFromSync } = useTheme();
 
@@ -182,6 +173,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
   const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
 
   const {
+    isInitialSyncComplete,
     syncRole,
     isSyncProtected,
     isAdmin,
@@ -238,6 +230,17 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     notify,
     confirm,
   });
+
+  // === 初始同步完成后隐藏加载动画 ===
+  // 等待本地数据加载完成 + 云端初始同步完成后，才隐藏加载遮罩
+  // 这样可以避免用户看到"主数据缺失时回退到历史记录"的过渡状态
+  useEffect(() => {
+    if (isLoaded && isInitialSyncComplete && onReady) {
+      // 稍微延迟以确保 UI 渲染完成
+      const timer = setTimeout(onReady, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoaded, isInitialSyncComplete, onReady]);
 
   const handleImportBackupData = useCallback(
     (data: Partial<NavHubSyncData>) => {

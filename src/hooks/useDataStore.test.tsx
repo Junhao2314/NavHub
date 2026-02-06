@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, LinkItem } from '../types';
 import { LOCAL_STORAGE_KEY } from '../utils/constants';
+import { flushScheduledLocalStorageWrite } from '../utils/storage';
 import { useDataStore } from './useDataStore';
 
 const dialog = vi.hoisted(() => ({
@@ -111,6 +112,7 @@ describe('useDataStore', () => {
     expect(get().categories.find((c) => c.id === 'legacy')?.icon).toBe('Folder');
     expect(get().categories.find((c) => c.id === 'broken')?.icon).toBe('Folder');
 
+    flushScheduledLocalStorageWrite(LOCAL_STORAGE_KEY);
     const persisted = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) ?? '{}');
     expect(persisted.categories.find((c: Category) => c.id === 'common')?.icon).toBe('Star');
     expect(persisted.categories.find((c: Category) => c.id === 'weather')?.icon).toBe('CloudRain');
@@ -145,6 +147,7 @@ describe('useDataStore', () => {
     expect(added?.createdAt).toBe(1000);
     expect(added?.order).toBe(0);
 
+    flushScheduledLocalStorageWrite(LOCAL_STORAGE_KEY);
     const persisted = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) ?? '{}');
     expect(persisted.links.some((l: LinkItem) => l.id === 'id-1')).toBe(true);
   });
@@ -206,6 +209,7 @@ describe('useDataStore', () => {
     });
 
     expect(get().links.find((l) => l.id === 'l1')?.url).toBe('https://example.com');
+    flushScheduledLocalStorageWrite(LOCAL_STORAGE_KEY);
     const persisted = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) ?? '{}');
     expect(persisted.links.find((l: LinkItem) => l.id === 'l1')?.url).toBe('https://example.com');
   });
@@ -253,6 +257,7 @@ describe('useDataStore', () => {
     });
 
     expect(get().links.map((l) => l.id)).toEqual(['l2']);
+    flushScheduledLocalStorageWrite(LOCAL_STORAGE_KEY);
     const persisted = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) ?? '{}');
     expect(persisted.links.map((l: LinkItem) => l.id)).toEqual(['l2']);
   });
@@ -277,6 +282,7 @@ describe('useDataStore', () => {
     expect(updated?.adminClicks).toBe(1);
     expect(updated?.adminLastClickedAt).toBe(1000);
 
+    flushScheduledLocalStorageWrite(LOCAL_STORAGE_KEY);
     const persisted = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) ?? '{}');
     const stored = persisted.links.find((l: LinkItem) => l.id === 'l1');
     expect(stored?.adminClicks).toBe(1);
@@ -433,6 +439,7 @@ describe('useDataStore', () => {
     expect(get().categories.map((c) => c.id)).toContain('design');
     expect(get().categories.filter((c) => c.name === 'Dev')).toHaveLength(1);
 
+    flushScheduledLocalStorageWrite(LOCAL_STORAGE_KEY);
     const persisted = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) ?? '{}');
     expect(persisted.links.map((l: LinkItem) => l.id)).toEqual(['l1', 'l2']);
     expect(persisted.categories.filter((c: Category) => c.name === 'Dev')).toHaveLength(1);

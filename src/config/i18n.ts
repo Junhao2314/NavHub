@@ -31,7 +31,7 @@ export function initI18n(): typeof i18n {
     lng: APP_LANGUAGE,
     fallbackLng: 'zh-CN',
     resources,
-    debug: import.meta.env.DEV,
+    debug: import.meta.env.DEV && import.meta.env.MODE !== 'test',
     interpolation: {
       escapeValue: false,
     },
@@ -41,6 +41,11 @@ export function initI18n(): typeof i18n {
   });
 
   return i18n;
+}
+
+// Ensure the singleton i18n instance is initialized for direct usage (non-hook).
+if (!i18n.isInitialized) {
+  initI18n();
 }
 
 export default i18n;

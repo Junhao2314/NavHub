@@ -1,4 +1,12 @@
 import { SensitiveConfigPayload } from '../types';
+import {
+  decryptVersionedJsonPayload,
+  encryptVersionedJsonPayload,
+  InvalidPayloadError,
+  isDecryptionFailedError,
+  isInvalidPayloadError,
+} from './cryptoPayload';
+import { isSensitiveConfigPayload } from './typeGuards';
 
 /**
  * Sensitive Config Encryption Module
@@ -14,61 +22,7 @@ import { SensitiveConfigPayload } from '../types';
  */
 
 const CONFIG_VERSION = 'v1';
-const SALT_LENGTH = 16;
-const IV_LENGTH = 12;
-const PBKDF2_ITERATIONS = 100000;
-
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-/**
- * Convert ArrayBuffer or Uint8Array to Base64 string
- */
-const toBase64 = (buffer: ArrayBuffer | Uint8Array): string => {
-  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-};
-
-/**
- * Convert Base64 string to Uint8Array
- */
-const fromBase64 = (value: string): Uint8Array => {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-};
-
-/**
- * Derive AES-256 key from password using PBKDF2
- */
-const deriveKey = async (password: string, salt: Uint8Array): Promise<CryptoKey> => {
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveKey'],
-  );
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt'],
-  );
-};
+const INVALID_SENSITIVE_CONFIG_PAYLOAD_MESSAGE = 'Invalid sensitive config payload';
 
 /**
  * Encrypt sensitive configuration data
@@ -86,12 +40,7 @@ export const encryptSensitiveConfig = async (
   password: string,
   payload: SensitiveConfigPayload,
 ): Promise<string> => {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-  const key = await deriveKey(password, salt);
-  const encoded = encoder.encode(JSON.stringify(payload));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, encoded);
-  return `${CONFIG_VERSION}.${toBase64(salt)}.${toBase64(iv)}.${toBase64(encrypted)}`;
+  return encryptVersionedJsonPayload(password, payload, { version: CONFIG_VERSION });
 };
 
 /**
@@ -111,26 +60,20 @@ export const decryptSensitiveConfig = async (
   password: string,
   cipherText: string,
 ): Promise<SensitiveConfigPayload> => {
-  const [version, saltB64, ivB64, dataB64] = cipherText.split('.');
+  const rawParsed = await decryptVersionedJsonPayload(password, cipherText, {
+    version: CONFIG_VERSION,
+    invalidPayloadErrorMessage: INVALID_SENSITIVE_CONFIG_PAYLOAD_MESSAGE,
+  });
 
-  if (version !== CONFIG_VERSION || !saltB64 || !ivB64 || !dataB64) {
-    throw new Error('Invalid sensitive config payload');
+  // Validate the parsed payload structure.
+  // Note: keep best-effort backward compatibility for a legacy string payload.
+  if (isSensitiveConfigPayload(rawParsed)) return rawParsed;
+  if (typeof rawParsed === 'string') {
+    const apiKey = rawParsed.trim();
+    return apiKey ? { apiKey } : {};
   }
 
-  const salt = fromBase64(saltB64);
-  const iv = fromBase64(ivB64);
-  const data = fromBase64(dataB64);
-  const key = await deriveKey(password, salt);
-
-  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
-  const parsed = JSON.parse(decoder.decode(decrypted)) as SensitiveConfigPayload;
-
-  // Validate the parsed payload structure
-  if (!parsed || typeof parsed !== 'object') {
-    return {};
-  }
-
-  return parsed;
+  throw new InvalidPayloadError(INVALID_SENSITIVE_CONFIG_PAYLOAD_MESSAGE);
 };
 
 /**
@@ -145,18 +88,24 @@ export const decryptSensitiveConfig = async (
 export const decryptSensitiveConfigWithFallback = async (
   passwords: string[],
   cipherText: string,
+  options?: { maxCandidates?: number },
 ): Promise<SensitiveConfigPayload> => {
+  const maxCandidates = options?.maxCandidates ?? 5;
   const candidates = Array.from(
     new Set(passwords.map((password) => password.trim()).filter(Boolean)),
   );
+
+  if (candidates.length > maxCandidates) {
+    throw new Error('Too many password candidates');
+  }
 
   for (const candidate of candidates) {
     try {
       return await decryptSensitiveConfig(candidate, cipherText);
     } catch (error) {
-      if (error instanceof Error && error.message === 'Invalid sensitive config payload') {
-        throw error;
-      }
+      if (isInvalidPayloadError(error)) throw error;
+      if (isDecryptionFailedError(error)) continue;
+      throw error;
     }
   }
 

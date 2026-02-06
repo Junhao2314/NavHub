@@ -25,6 +25,7 @@ import {
   safeSessionStorageRemoveItem,
   safeSessionStorageSetItem,
 } from '../utils/storage';
+import { isPartialAIConfig, isPartialSiteSettings } from '../utils/typeGuards';
 
 /**
  * 持久化 AI 配置
@@ -65,7 +66,13 @@ const loadAIConfigFromStorage = (): AIConfig => {
   const saved = safeLocalStorageGetItem(AI_CONFIG_KEY);
   if (saved) {
     try {
-      const parsed = JSON.parse(saved) as Partial<AIConfig>;
+      const rawParsed: unknown = JSON.parse(saved);
+      if (!isPartialAIConfig(rawParsed)) {
+        console.warn('[useConfig] Invalid AI config structure in localStorage; resetting.');
+        safeLocalStorageRemoveItem(AI_CONFIG_KEY);
+        return { ...DEFAULT_AI_CONFIG, apiKey: sessionApiKey };
+      }
+      const parsed = rawParsed;
       const parsedApiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : '';
       const shouldPromoteToSession = !sessionApiKey && !!parsedApiKey;
       let promotedToSession = false;
@@ -101,7 +108,13 @@ const loadSiteSettingsFromStorage = (): SiteSettings => {
   const saved = safeLocalStorageGetItem(SITE_SETTINGS_KEY);
   if (saved) {
     try {
-      const parsed = JSON.parse(saved) as Partial<SiteSettings>;
+      const rawParsed: unknown = JSON.parse(saved);
+      if (!isPartialSiteSettings(rawParsed)) {
+        console.warn('[useConfig] Invalid site settings structure in localStorage; resetting.');
+        safeLocalStorageRemoveItem(SITE_SETTINGS_KEY);
+        return defaultSiteSettings;
+      }
+      const parsed = rawParsed;
 
       return {
         ...defaultSiteSettings,

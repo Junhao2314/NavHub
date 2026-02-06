@@ -38,6 +38,7 @@ import {
   safeLocalStorageSetItem,
 } from '../../../utils/storage';
 import { getSyncAuthHeaders } from '../../../utils/syncAuthHeaders';
+import { isRecord } from '../../../utils/typeGuards';
 import DuplicateChecker from './DuplicateChecker';
 
 interface DataTabProps {
@@ -221,7 +222,13 @@ const DataTab: React.FC<DataTabProps> = ({
         headers: getAuthHeaders(),
         cache: 'no-store',
       });
-      const result = (await response.json()) as SyncListBackupsResponse;
+      const rawResult: unknown = await response.json();
+      if (!isRecord(rawResult)) {
+        setBackupError(t('settings.data.fetchBackupsFailed'));
+        setBackups([]);
+        return;
+      }
+      const result = rawResult as SyncListBackupsResponse;
       if (result.success === false) {
         setBackupError(result.error || t('settings.data.fetchBackupsFailed'));
         setBackups([]);
@@ -283,7 +290,12 @@ const DataTab: React.FC<DataTabProps> = ({
             cache: 'no-store',
           },
         );
-        const result = (await response.json()) as SyncGetBackupResponse;
+        const rawResult: unknown = await response.json();
+        if (!isRecord(rawResult)) {
+          setExportError(t('settings.data.exportFailed'));
+          return;
+        }
+        const result = rawResult as SyncGetBackupResponse;
 
         if (result.success === false) {
           setExportError(result.error || t('settings.data.exportFailed'));
@@ -483,16 +495,24 @@ const DataTab: React.FC<DataTabProps> = ({
                 onChange={handlePasswordChange}
                 placeholder={t('settings.data.apiPasswordPlaceholder')}
                 className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-900 border border-green-200 dark:border-green-800 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                aria-label={t('settings.data.apiPassword')}
+                aria-describedby="settings-api-password-hint"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                aria-label={
+                  showPassword ? t('settings.data.hidePassword') : t('settings.data.showPassword')
+                }
               >
                 {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
-            <p className="text-[10px] text-green-600/80 dark:text-green-400/80 mt-1.5 leading-relaxed">
+            <p
+              id="settings-api-password-hint"
+              className="text-[10px] text-green-600/80 dark:text-green-400/80 mt-1.5 leading-relaxed"
+            >
               {t('settings.data.apiPasswordHint')}
             </p>
             <div className="mt-2 flex items-center justify-between text-[10px] text-green-700/80 dark:text-green-300/80">
@@ -568,6 +588,7 @@ const DataTab: React.FC<DataTabProps> = ({
                 disabled={isTogglingPrivacyPassword}
                 className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyGroupEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${isTogglingPrivacyPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-pressed={privacyGroupEnabled}
+                aria-label={t('settings.data.enablePrivacyGroup')}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${privacyGroupEnabled ? 'translate-x-5' : 'translate-x-1'}`}
@@ -590,6 +611,7 @@ const DataTab: React.FC<DataTabProps> = ({
                 className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyPasswordEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${!privacyGroupEnabled || isTogglingPrivacyPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-pressed={privacyPasswordEnabled}
                 aria-busy={isTogglingPrivacyPassword}
+                aria-label={t('settings.data.enablePassword')}
               >
                 <span
                   className={`inline-flex h-4 w-4 transform items-center justify-center rounded-full bg-white shadow transition-transform ${privacyPasswordEnabled ? 'translate-x-5' : 'translate-x-1'}`}
@@ -617,6 +639,7 @@ const DataTab: React.FC<DataTabProps> = ({
                 }
                 className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${privacyAutoUnlockEnabled ? 'bg-accent' : 'bg-slate-200 dark:bg-slate-700'} ${!privacyGroupEnabled || !privacyPasswordEnabled || isTogglingPrivacyPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-pressed={privacyAutoUnlockEnabled}
+                aria-label={t('settings.data.autoUnlock')}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${privacyAutoUnlockEnabled ? 'translate-x-5' : 'translate-x-1'}`}
@@ -681,11 +704,17 @@ const DataTab: React.FC<DataTabProps> = ({
                       onChange={(e) => setPrivacyOldPassword(e.target.value)}
                       placeholder={t('settings.data.oldPasswordPlaceholder')}
                       className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                      aria-label={t('settings.data.oldPassword')}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPrivacyOldPassword((prev) => !prev)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                      aria-label={
+                        showPrivacyOldPassword
+                          ? t('settings.data.hidePassword')
+                          : t('settings.data.showPassword')
+                      }
                     >
                       {showPrivacyOldPassword ? <EyeOff size={12} /> : <Eye size={12} />}
                     </button>
@@ -706,11 +735,17 @@ const DataTab: React.FC<DataTabProps> = ({
                           : t('settings.data.newPasswordPlaceholder')
                       }
                       className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                      aria-label={t('settings.data.newPassword')}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPrivacyNewPassword((prev) => !prev)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                      aria-label={
+                        showPrivacyNewPassword
+                          ? t('settings.data.hidePassword')
+                          : t('settings.data.showPassword')
+                      }
                     >
                       {showPrivacyNewPassword ? <EyeOff size={12} /> : <Eye size={12} />}
                     </button>

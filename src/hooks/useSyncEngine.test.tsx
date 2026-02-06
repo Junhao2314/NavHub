@@ -9,6 +9,10 @@ import { SYNC_API_ENDPOINT, SYNC_DEBOUNCE_MS, SYNC_META_KEY } from '../utils/con
 
 // Mock react-i18next to return translation keys as values for testing
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
   useTranslation: () => ({
     t: (key: string) => {
       // Return the actual translated strings for error messages
@@ -364,7 +368,9 @@ describe('useSyncEngine', () => {
 
     let ok = true;
     await act(async () => {
-      ok = await get().pushToCloud({ links: [], categories: [] });
+      const pushPromise = get().pushToCloud({ links: [], categories: [] });
+      await vi.runAllTimersAsync();
+      ok = await pushPromise;
     });
 
     expect(ok).toBe(false);
@@ -659,7 +665,7 @@ describe('useSyncEngine', () => {
     );
 
     const fetchMock = vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ success: true }),
+      json: vi.fn().mockResolvedValue({ success: true, backupKey: 'backup-1' }),
     });
     vi.stubGlobal('fetch', fetchMock as any);
 

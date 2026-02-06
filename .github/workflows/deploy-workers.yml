@@ -60,7 +60,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: '4.61.0'
+          wranglerVersion: '4.62.0'
           # 如果设置了同步密码，通过 secrets 注入
           secrets: |
             SYNC_PASSWORD

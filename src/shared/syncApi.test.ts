@@ -194,11 +194,23 @@ describe('navHubSyncData schema normalization', () => {
   it('filters out invalid link items', () => {
     const input = {
       links: [
-        { id: 'link1', title: 'Valid', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
+        {
+          id: 'link1',
+          title: 'Valid',
+          url: 'https://example.com',
+          categoryId: 'cat1',
+          createdAt: 1,
+        },
         { id: '', title: 'Empty ID', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
         { title: 'Missing ID', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
         { id: 'link2', url: 'https://example.com', categoryId: 'cat1', createdAt: 1 },
-        { id: 'link3', title: 'Valid 2', url: 'https://test.com', categoryId: 'cat2', createdAt: 2 },
+        {
+          id: 'link3',
+          title: 'Valid 2',
+          url: 'https://test.com',
+          categoryId: 'cat2',
+          createdAt: 2,
+        },
         'not-an-object',
         null,
       ],
@@ -753,6 +765,65 @@ describe('syncApi auth + public sanitization', () => {
     expect(readJson.data.privacyConfig).toBeUndefined();
     expect(readJson.data.encryptedSensitiveConfig).toBeUndefined();
     expect(readJson.data.aiConfig.apiKey).toBe('');
+  });
+
+  it('filters hidden categories and related links for public reads', async () => {
+    const kv = new MemoryKV();
+    const env: SyncApiEnv = { NAVHUB_KV: kv, SYNC_PASSWORD: 'secret' };
+
+    const baseData = {
+      links: [
+        {
+          id: 'link-public',
+          title: 'Public Link',
+          url: 'https://example.com',
+          categoryId: 'cat-public',
+          createdAt: 1,
+        },
+        {
+          id: 'link-hidden',
+          title: 'Hidden Link',
+          url: 'https://hidden.example.com',
+          categoryId: 'cat-hidden',
+          createdAt: 2,
+        },
+        {
+          id: 'link-private',
+          title: 'Private Link',
+          url: 'https://private.example.com',
+          categoryId: '__private__',
+          createdAt: 3,
+        },
+      ],
+      categories: [
+        { id: 'cat-public', name: 'Public Category', icon: 'Globe' },
+        { id: 'cat-hidden', name: 'Hidden Category', icon: 'EyeOff', hidden: true },
+      ],
+      meta: { updatedAt: 0, deviceId: 'device-1', version: 0 },
+    };
+
+    const writeRequest = new Request('http://localhost/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Sync-Password': 'secret' },
+      body: JSON.stringify({ data: baseData }),
+    });
+    const writeResponse = await handleApiSyncRequest(writeRequest, env);
+    const writeJson = await parseJson<SyncApiResponse>(writeResponse);
+    expect(writeJson.success).toBe(true);
+
+    const readRequest = new Request('http://localhost/api/sync', { method: 'GET' });
+    const readResponse = await handleApiSyncRequest(readRequest, env);
+    const readJson = await parseJson<
+      SyncApiResponse & {
+        role?: string;
+        data: { links: Array<{ id: string }>; categories: Array<{ id: string }> };
+      }
+    >(readResponse);
+
+    expect(readJson.success).toBe(true);
+    expect(readJson.role).toBe('user');
+    expect(readJson.data.categories.map((c) => c.id)).toEqual(['cat-public']);
+    expect(readJson.data.links.map((l) => l.id)).toEqual(['link-public']);
   });
 });
 

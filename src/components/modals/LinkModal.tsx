@@ -13,6 +13,10 @@ import {
 } from '../../services/geminiService';
 import { AIConfig, Category, LinkItem } from '../../types';
 import { getIcon as getFaviconIcon, setIcon as setFaviconIcon } from '../../utils/faviconCache';
+import {
+  buildFaviconExtractorUrlFromHostname,
+  getHostnameFromUrlInput,
+} from '../../utils/faviconExtractor';
 import { getIconToneStyle, normalizeHexColor } from '../../utils/iconTone';
 import { normalizeHttpUrl } from '../../utils/url';
 import { useDialog } from '../ui/DialogProvider';
@@ -198,34 +202,27 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
     setIsFetchingIcon(true);
     try {
-      // 提取域名
-      let domain = url;
-      // 如果URL没有协议前缀，添加https://作为默认协议
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        domain = 'https://' + url;
-      }
-
-      if (domain.startsWith('http://') || domain.startsWith('https://')) {
-        const urlObj = new URL(domain);
-        domain = urlObj.hostname;
+      const hostname = getHostnameFromUrlInput(url);
+      if (!hostname) {
+        notify(t('modals.link.invalidUrl'), 'warning');
+        return;
       }
 
       // 先尝试从本地缓存获取图标
       // Use faviconCache module to check cache
-      const cachedIcon = getFaviconIcon(domain);
+      const cachedIcon = getFaviconIcon(hostname);
       if (cachedIcon) {
         setIcon(cachedIcon);
-        setIsFetchingIcon(false);
         return;
       }
 
       // 如果缓存中没有，则生成新图标
-      const iconUrl = `https://www.faviconextractor.com/favicon/${domain}?larger=true`;
+      const iconUrl = buildFaviconExtractorUrlFromHostname(hostname);
       setIcon(iconUrl);
       // 将图标保存到本地缓存
       // Use faviconCache module with isCustom: false for auto-fetched icons
       // Requirements: 3.2 - Auto-fetched icons are NOT marked as custom
-      setFaviconIcon(domain, iconUrl, false);
+      setFaviconIcon(hostname, iconUrl, false);
     } catch (e) {
       console.error('Failed to fetch icon', e);
       notify(t('modals.link.fetchIconFailed'), 'error');
@@ -254,18 +251,11 @@ const LinkModal: React.FC<LinkModalProps> = ({
   };
 
   const cacheCustomIcon = (url: string, iconUrl: string) => {
-    try {
-      let domain = url;
-      if (domain.startsWith('http://') || domain.startsWith('https://')) {
-        const urlObj = new URL(domain);
-        domain = urlObj.hostname;
-      }
-      // Use faviconCache module with isCustom: true for user-set icons
-      // Requirements: 3.2 - Mark icon as user-customized
-      setFaviconIcon(domain, iconUrl, true);
-    } catch (_error) {
-      // Failed to cache custom icon - silently ignore
-    }
+    const hostname = getHostnameFromUrlInput(url);
+    if (!hostname) return;
+    // Use faviconCache module with isCustom: true for user-set icons
+    // Requirements: 3.2 - Mark icon as user-customized
+    setFaviconIcon(hostname, iconUrl, true);
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -474,6 +464,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
             <button
               onClick={onClose}
               className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              aria-label={t('modals.link.closeModal')}
             >
               <X size={20} strokeWidth={2} />
             </button>
@@ -543,6 +534,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full appearance-none pl-3 pr-8 py-1.5 text-xs font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600 cursor-pointer"
+                aria-label={t('modals.category.selectCategory')}
               >
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
@@ -580,6 +572,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
                 placeholder={t('modals.link.websiteTitle')}
+                aria-label={t('modals.link.titleInput')}
               />
             </div>
 
@@ -592,6 +585,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 onChange={(e) => setUrl(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium font-mono"
                 placeholder="https://example.com"
+                aria-label={t('modals.link.urlInput')}
               />
             </div>
 
@@ -638,6 +632,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     onChange={(e) => setIcon(e.target.value)}
                     className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-600 dark:text-slate-300 placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-mono"
                     placeholder={t('modals.link.iconUrl')}
+                    aria-label={t('modals.link.iconUrlInput')}
+                    aria-describedby="link-modal-supported-formats"
                   />
                   <div className="flex gap-1">
                     <button
@@ -646,6 +642,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       disabled={!url || isFetchingIcon}
                       className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title={t('modals.link.autoFetchIcon')}
+                      aria-label={t('modals.link.autoFetchIcon')}
                     >
                       {isFetchingIcon ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -658,6 +655,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       onClick={handleUploadClick}
                       className="p-2 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       title={t('common.upload')}
+                      aria-label={t('modals.link.uploadIcon')}
                     >
                       <Upload size={16} />
                     </button>
@@ -680,7 +678,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
                       {t('modals.link.autoFetchOnInput')}
                     </label>
                   </div>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  <span
+                    id="link-modal-supported-formats"
+                    className="text-[10px] text-slate-400 dark:text-slate-500"
+                  >
                     {t('modals.link.supportedFormats')}
                   </span>
                 </div>
@@ -701,11 +702,13 @@ const LinkModal: React.FC<LinkModalProps> = ({
                     onChange={(e) => handleToneInputChange(e.target.value)}
                     placeholder="#RRGGBB"
                     className="w-24 px-2 py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] text-slate-600 dark:text-slate-300 placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-mono"
+                    aria-label={t('modals.link.enterIconColorHex')}
                   />
                   <button
                     type="button"
                     onClick={handleToneAuto}
                     className="px-2 py-1.5 rounded-md text-[10px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    aria-label={t('modals.link.autoIconColor')}
                   >
                     {t('common.auto')}
                   </button>
@@ -744,6 +747,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm min-h-[80px] resize-none"
                 placeholder={t('modals.link.addDescription')}
+                aria-label={t('modals.link.descriptionInput')}
               />
             </div>
 
@@ -786,6 +790,8 @@ const LinkModal: React.FC<LinkModalProps> = ({
                   }}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm"
                   placeholder={t('modals.link.tagInputPlaceholder')}
+                  aria-label={t('modals.link.tagInput')}
+                  aria-describedby="link-modal-tag-hint"
                 />
                 {/* 标签建议下拉列表 */}
                 {showTagSuggestions && filteredTagSuggestions.length > 0 && (
@@ -829,7 +835,10 @@ const LinkModal: React.FC<LinkModalProps> = ({
                   ))}
                 </div>
               )}
-              <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+              <p
+                id="link-modal-tag-hint"
+                className="mt-1 text-[10px] text-slate-400 dark:text-slate-500"
+              >
                 {t('modals.link.tagHint')}
               </p>
             </div>

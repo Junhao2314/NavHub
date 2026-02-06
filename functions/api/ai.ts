@@ -5,21 +5,9 @@
  */
 
 import { handleApiAIRequest } from '../../shared/aiProxy';
+import { parseEnvBool, parseEnvList } from '../../shared/utils/env';
 
 type PagesEnv = Record<string, string | undefined>;
-
-const parseEnvList = (value?: string): string[] => {
-  if (!value) return [];
-  return value
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean);
-};
-
-const parseEnvBool = (value?: string): boolean => {
-  const normalized = (value || '').trim().toLowerCase();
-  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
-};
 
 export const onRequest = async (context: {
   request: Request;

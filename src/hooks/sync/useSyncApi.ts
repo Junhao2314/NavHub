@@ -18,25 +18,18 @@ import {
   SyncRole,
   SyncStatus,
 } from '../../types';
-import {
-  getDeviceId,
-  getDeviceInfo,
-  SYNC_API_ENDPOINT,
-} from '../../utils/constants';
-import {
-  safeLocalStorageRemoveItem,
-  safeLocalStorageSetItem,
-} from '../../utils/storage';
+import { getDeviceId, getDeviceInfo, SYNC_API_ENDPOINT } from '../../utils/constants';
+import { safeLocalStorageRemoveItem, safeLocalStorageSetItem } from '../../utils/storage';
 import { getSyncAuthHeaders } from '../../utils/syncAuthHeaders';
 import { useI18n } from '../useI18n';
-import { PushToCloudOptions } from './types';
 import {
   callSyncEngineCallback,
-  fetchWithTimeout,
+  fetchWithRetry,
   getLocalSyncMeta,
   getResponseHeader,
   getSyncNetworkErrorMessage,
   isKeepaliveBodyWithinLimit,
+  redactBackupsResponseForDebug,
   redactSyncDataForDebug,
   resolveSyncDebugFlags,
   sanitizeAiConfigForCloud,
@@ -46,6 +39,7 @@ import {
   validateSyncGetResponse,
   validateSyncPostResponse,
 } from './syncUtils';
+import { PushToCloudOptions } from './types';
 
 export interface UseSyncApiOptions {
   setSyncStatus: (status: SyncStatus) => void;
@@ -98,10 +92,20 @@ export function useSyncApi(options: UseSyncApiOptions): UseSyncApiReturn {
         console.info('[sync] pull:start', { url, hasPasswordHeader });
       }
 
-      const response = await fetchWithTimeout(url, {
-        headers,
-        cache: 'no-store',
-      });
+      const response = await fetchWithRetry(
+        url,
+        {
+          headers,
+          cache: 'no-store',
+        },
+        {
+          onRetry: (attempt, error, delayMs) => {
+            if (debug.enabled) {
+              console.info('[sync] pull:retry', { attempt, error, delayMs });
+            }
+          },
+        },
+      );
       const rawResult = await response.json();
       const validation = validateSyncGetResponse(rawResult);
       if (!validation.valid) {
@@ -146,14 +150,10 @@ export function useSyncApi(options: UseSyncApiOptions): UseSyncApiReturn {
               { headers, cache: 'no-store' },
             );
             const backupsJson = (await backupsResponse.json()) as unknown;
-            const backupsCount = Array.isArray((backupsJson as { backups?: unknown })?.backups)
-              ? (backupsJson as { backups: unknown[] }).backups.length
-              : null;
             console.info('[sync] pull:backups', {
               status: backupsResponse.status,
               ok: backupsResponse.ok,
-              backupsCount,
-              result: backupsJson,
+              ...redactBackupsResponseForDebug(backupsJson),
             });
           } catch {
             // ignore
@@ -205,7 +205,17 @@ export function useSyncApi(options: UseSyncApiOptions): UseSyncApiReturn {
         console.info('[sync] auth:start', { url, hasPasswordHeader });
       }
 
-      const response = await fetchWithTimeout(url, { headers, cache: 'no-store' });
+      const response = await fetchWithRetry(
+        url,
+        { headers, cache: 'no-store' },
+        {
+          onRetry: (attempt, error, delayMs) => {
+            if (debug.enabled) {
+              console.info('[sync] auth:retry', { attempt, error, delayMs });
+            }
+          },
+        },
+      );
       const rawResult = await response.json();
       const validation = validateSyncAuthResponse(rawResult);
       if (!validation.valid) {
@@ -316,12 +326,22 @@ export function useSyncApi(options: UseSyncApiOptions): UseSyncApiReturn {
           }
         }
 
-        const response = await fetchWithTimeout(SYNC_API_ENDPOINT, {
-          method: 'POST',
-          headers,
-          keepalive,
-          body: requestBody,
-        });
+        const response = await fetchWithRetry(
+          SYNC_API_ENDPOINT,
+          {
+            method: 'POST',
+            headers,
+            keepalive,
+            body: requestBody,
+          },
+          {
+            onRetry: (attempt, error, delayMs) => {
+              if (debug.enabled) {
+                console.info('[sync] push:retry', { attempt, error, delayMs });
+              }
+            },
+          },
+        );
 
         const rawResult = await response.json();
         const validation = validateSyncPostResponse(rawResult);

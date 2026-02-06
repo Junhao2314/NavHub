@@ -1,9 +1,21 @@
 import { useEffect } from 'react';
+import i18n from '../../config/i18n';
 import type { Category, LinkItem } from '../../types';
 import type { NotifyFn } from '../../types/ui';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 
-export const useBookmarkletAddLink = (args: {
+export const useBookmarkletAddLink = ({
+  selectedCategory,
+  categories,
+  isPrivateUnlocked,
+  notify,
+  openAddLinkModal,
+  setPrefillLink,
+  setEditingLink,
+  openPrivateAddModal,
+  setPrefillPrivateLink,
+  setEditingPrivateLink,
+}: {
   selectedCategory: string;
   categories: Category[];
   isPrivateUnlocked: boolean;
@@ -23,42 +35,42 @@ export const useBookmarkletAddLink = (args: {
     const addTitle = urlParams.get('add_title') || '';
     window.history.replaceState({}, '', window.location.pathname);
 
-    if (args.selectedCategory === PRIVATE_CATEGORY_ID) {
-      if (!args.isPrivateUnlocked) {
-        args.notify('请先解锁隐私分组', 'warning');
+    if (selectedCategory === PRIVATE_CATEGORY_ID) {
+      if (!isPrivateUnlocked) {
+        notify(i18n.t('privacy.unlockFirst'), 'warning');
         return;
       }
-      args.openPrivateAddModal();
-      args.setPrefillPrivateLink({
+      openPrivateAddModal();
+      setPrefillPrivateLink({
         title: addTitle,
         url: addUrl,
         categoryId: PRIVATE_CATEGORY_ID,
       });
-      args.setEditingPrivateLink(null);
+      setEditingPrivateLink(null);
       return;
     }
 
     const fallbackCategoryId =
-      args.selectedCategory !== 'all'
-        ? args.selectedCategory
-        : args.categories.find((c) => c.id === 'common')?.id || args.categories[0]?.id || 'common';
-    args.openAddLinkModal();
-    args.setPrefillLink({
+      selectedCategory !== 'all'
+        ? selectedCategory
+        : categories.find((c) => c.id === 'common')?.id || categories[0]?.id || 'common';
+    openAddLinkModal();
+    setPrefillLink({
       title: addTitle,
       url: addUrl,
       categoryId: fallbackCategoryId,
     });
-    args.setEditingLink(undefined);
+    setEditingLink(undefined);
   }, [
-    args.categories,
-    args.isPrivateUnlocked,
-    args.notify,
-    args.openAddLinkModal,
-    args.openPrivateAddModal,
-    args.selectedCategory,
-    args.setEditingLink,
-    args.setEditingPrivateLink,
-    args.setPrefillLink,
-    args.setPrefillPrivateLink,
+    categories,
+    isPrivateUnlocked,
+    notify,
+    openAddLinkModal,
+    openPrivateAddModal,
+    selectedCategory,
+    setEditingLink,
+    setEditingPrivateLink,
+    setPrefillLink,
+    setPrefillPrivateLink,
   ]);
 };

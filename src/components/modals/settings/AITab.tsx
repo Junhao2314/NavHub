@@ -193,11 +193,15 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label
+              htmlFor="ai-provider"
+              className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
               {t('settings.ai.provider')}
             </label>
             <div className="relative">
               <select
+                id="ai-provider"
                 value={config.provider}
                 onChange={(e) => onChange('provider', e.target.value)}
                 className="w-full appearance-none px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
@@ -211,11 +215,15 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label
+              htmlFor="ai-model"
+              className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
               {t('settings.ai.modelName')}
             </label>
             <div className="relative">
               <input
+                id="ai-model"
                 type="text"
                 value={config.model}
                 onChange={(e) => onChange('model', e.target.value)}
@@ -223,9 +231,11 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
                 className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
               <button
+                type="button"
                 onClick={handleFetchModels}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
                 title={t('settings.ai.fetchModels')}
+                aria-label={t('settings.ai.fetchModels')}
               >
                 {fetchingModels ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -255,12 +265,16 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+          <label
+            htmlFor="ai-api-key"
+            className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5"
+          >
             {t('settings.ai.apiKey')}
           </label>
           <div className="relative">
             <Key size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
+              id="ai-api-key"
               type="password"
               value={config.apiKey}
               onChange={(e) => onChange('apiKey', e.target.value)}
@@ -272,10 +286,14 @@ const AITab: React.FC<AITabProps> = ({ config, onChange, links, onUpdateLinks })
 
         {config.provider === 'openai' && (
           <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label
+              htmlFor="ai-base-url"
+              className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
               {t('settings.ai.baseUrl')}
             </label>
             <input
+              id="ai-base-url"
               type="text"
               value={config.baseUrl}
               onChange={(e) => onChange('baseUrl', e.target.value)}

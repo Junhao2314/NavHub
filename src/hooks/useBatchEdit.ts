@@ -15,6 +15,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
+import i18n from '../config/i18n';
 import { Category, LinkItem } from '../types';
 
 interface UseBatchEditProps {
@@ -66,15 +67,15 @@ export function useBatchEdit({ links, categories, displayedLinks, updateData }: 
    */
   const handleBatchDelete = useCallback(async () => {
     if (selectedLinks.size === 0) {
-      notify('请先选择要删除的链接', 'warning');
+      notify(i18n.t('linkSections.selectLinksToDelete'), 'warning');
       return;
     }
 
     const shouldDelete = await confirm({
-      title: '删除链接',
-      message: `确定要删除选中的 ${selectedLinks.size} 个链接吗？`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: i18n.t('modals.link.batchDeleteConfirmTitle'),
+      message: i18n.t('modals.link.batchDeleteConfirmMessage', { count: selectedLinks.size }),
+      confirmText: i18n.t('common.delete'),
+      cancelText: i18n.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -93,7 +94,7 @@ export function useBatchEdit({ links, categories, displayedLinks, updateData }: 
   const handleBatchMove = useCallback(
     (targetCategoryId: string) => {
       if (selectedLinks.size === 0) {
-        notify('请先选择要移动的链接', 'warning');
+        notify(i18n.t('linkSections.selectLinksToMove'), 'warning');
         return;
       }
 
@@ -118,7 +119,7 @@ export function useBatchEdit({ links, categories, displayedLinks, updateData }: 
    */
   const handleBatchPin = useCallback(() => {
     if (selectedLinks.size === 0) {
-      notify('请先选择要置顶的链接', 'warning');
+      notify(i18n.t('linkSections.selectLinksToPin'), 'warning');
       return;
     }
 
@@ -143,7 +144,7 @@ export function useBatchEdit({ links, categories, displayedLinks, updateData }: 
     });
 
     if (orderMap.size === 0) {
-      notify('所选链接已置顶', 'info');
+      notify(i18n.t('linkSections.allSelectedLinksPinned'), 'info');
       return;
     }
 

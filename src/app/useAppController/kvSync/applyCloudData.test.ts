@@ -24,6 +24,7 @@ vi.mock('../../../utils/faviconCache', () => ({
 
 vi.mock('../../../utils/privateVault', () => ({
   decryptPrivateVault: vi.fn(),
+  decryptPrivateVaultWithFallback: vi.fn(),
   parsePlainPrivateVault: vi.fn(() => null),
 }));
 
@@ -71,6 +72,7 @@ describe('applyCloudDataToLocalState - encryptedSensitiveConfig', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -136,5 +138,13 @@ describe('applyCloudDataToLocalState - encryptedSensitiveConfig', () => {
     // but NOT called again with decrypted key since decryption failed
     expect(args.restoreAIConfig).toHaveBeenCalledTimes(1);
     expect(args.restoreAIConfig).toHaveBeenCalledWith(expect.objectContaining({ apiKey: '' }));
+
+    // User should be notified about the decryption failure
+    await vi.waitFor(() => {
+      expect(args.notify).toHaveBeenCalledWith(
+        'API Key 解密失败，密码可能不匹配或数据损坏，请重新输入',
+        'warning',
+      );
+    });
   });
 });

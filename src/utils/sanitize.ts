@@ -1,7 +1,8 @@
 import { isLucideIconName } from '../components/ui/lucideIconMap';
-import { APP_LANGUAGE } from '../config/i18n';
+import i18n, { APP_LANGUAGE } from '../config/i18n';
 import { buildSeedLinks } from '../config/seedData';
 import type { Category, LinkItem } from '../types';
+import { isRecord } from './typeGuards';
 import { normalizeHttpUrl } from './url';
 
 const CATEGORY_ICON_FALLBACK = 'Folder';
@@ -44,9 +45,16 @@ export const formatInvalidIconNotice = (invalidIcons: InvalidCategoryIcon[]): st
   const preview = invalidIcons
     .slice(0, 3)
     .map(({ name, icon }) => `${name}(${icon})`)
-    .join('、');
-  const suffix = invalidIcons.length > 3 ? ' 等' : '';
-  return `检测到 ${invalidIcons.length} 个分类图标不在 Lucide 子集内，已自动替换为 ${CATEGORY_ICON_FALLBACK}：${preview}${suffix}`;
+    .join(i18n.t('common.listSeparator'));
+
+  const suffix = invalidIcons.length > 3 ? i18n.t('common.etcSuffix') : '';
+
+  return i18n.t('errors.invalidCategoryIconNotice', {
+    count: invalidIcons.length,
+    fallback: CATEGORY_ICON_FALLBACK,
+    preview,
+    suffix,
+  });
 };
 
 export interface SanitizeCategoriesResult {
@@ -102,13 +110,13 @@ export const sanitizeLinks = (input: unknown): SanitizeLinksResult => {
   const sanitized: LinkItem[] = [];
 
   for (const raw of input) {
-    if (!raw || typeof raw !== 'object') {
+    if (!isRecord(raw)) {
       didChange = true;
       dropped += 1;
       continue;
     }
 
-    const candidate = raw as LinkItem;
+    const candidate = raw as unknown as LinkItem;
     const safeUrl = normalizeHttpUrl(candidate.url);
     if (!safeUrl) {
       didChange = true;
@@ -128,5 +136,5 @@ export const sanitizeLinks = (input: unknown): SanitizeLinksResult => {
 
   return didChange
     ? { links: sanitized, didChange, dropped, normalized }
-    : { links: input as LinkItem[], didChange, dropped, normalized };
+    : { links: sanitized, didChange, dropped, normalized };
 };

@@ -95,6 +95,25 @@ type SyncStatus = 'idle' | 'pending' | 'syncing' | 'synced' | 'conflict' | 'erro
 }
 ```
 
+### NavHubSyncData 结构
+
+```typescript
+interface NavHubSyncData {
+  schemaVersion?: number;           // 数据结构版本号
+  links: LinkItem[];
+  categories: Category[];
+  searchConfig?: SearchConfig;
+  aiConfig?: AIConfig;
+  siteSettings?: SiteSettings;
+  privateVault?: string;            // 加密的隐私分组数据
+  privacyConfig?: PrivacyConfig;
+  meta: SyncMetadata;
+  themeMode?: 'light' | 'dark' | 'system';
+  encryptedSensitiveConfig?: string; // 加密的敏感配置
+  customFaviconCache?: CustomFaviconCache; // 自定义图标缓存
+}
+```
+
 ---
 
 ## 后端同步 API
@@ -304,9 +323,13 @@ const payload = await decryptSensitiveConfigWithFallback(candidates, encryptedCo
 
 ### 暴力破解防护
 
-- 每 IP 最多 5 次失败尝试
+- 三级限流策略：
+  - CF-Connecting-IP（可信 IP）：最多 5 次失败尝试
+  - X-Forwarded-For + 请求指纹：最多 3 次失败尝试
+  - 完全无指纹请求：最多 2 次失败尝试
 - 超限后锁定 1 小时
-- 使用 SHA256 哈希存储 IP
+- 使用 SHA256 哈希存储客户端标识
+- 请求指纹收集：User-Agent、Accept-Language、Accept-Encoding、Sec-Ch-Ua、Sec-Ch-Ua-Platform
 
 ### 数据验证
 
@@ -326,14 +349,29 @@ const payload = await decryptSensitiveConfigWithFallback(candidates, encryptedCo
 
 | 键 | 用途 |
 |----|------|
-| `navhub_links_categories` | 链接和分类数据 |
+| `navhub_data_cache_v2` | 链接和分类数据缓存 |
 | `navhub_sync_meta` | 同步元数据（版本、时间、设备 ID） |
-| `navhub_sync_password` | 同步密码（内存中） |
+| `navhub_sync_password` | 同步密码 |
 | `navhub_sync_admin_session` | 管理员会话标记 |
+| `navhub_sync_password_lock_until` | 密码锁定截止时间 |
+| `navhub_last_sync` | 最后同步时间 |
 | `navhub_device_id` | 设备唯一标识 |
+| `navhub_device_info` | 设备信息（浏览器/OS） |
 | `navhub_ai_config` | AI 配置 |
+| `navhub_ai_api_key_session` | AI API Key 会话缓存 |
+| `navhub_search_config` | 搜索配置 |
 | `navhub_site_settings` | 站点设置 |
-| `navhub_theme_mode` | 主题模式 |
+| `navhub_favicon_cache` | Favicon 缓存 |
+| `navhub_favicon_custom` | 用户自定义图标的主机名列表 |
+| `navhub_favicon_custom_meta` | 自定义图标元数据（hostname → updatedAt） |
+| `navhub_private_vault_v1` | 加密的隐私分组数据 |
+| `navhub_privacy_password` | 隐私分组密码 |
+| `navhub_privacy_use_separate_password` | 是否使用独立密码 |
+| `navhub_privacy_group_enabled` | 隐私分组启用状态 |
+| `navhub_privacy_password_enabled` | 隐私密码启用状态 |
+| `navhub_privacy_auto_unlock` | 会话内自动解锁 |
+| `navhub_privacy_session_unlocked` | 当前会话解锁状态 |
+| `theme` | 主题模式（light/dark/system） |
 
 ---
 

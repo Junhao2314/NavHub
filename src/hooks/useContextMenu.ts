@@ -15,6 +15,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
+import i18n from '../config/i18n';
 import { Category, LinkItem } from '../types';
 
 /**
@@ -100,11 +101,11 @@ export function useContextMenu({
     navigator.clipboard
       .writeText(contextMenu.link.url)
       .then(() => {
-        notify('链接已复制到剪贴板', 'success');
+        notify(i18n.t('linkSections.copiedToClipboard'), 'success');
       })
       .catch((err) => {
-        console.error('复制链接失败:', err);
-        notify('复制链接失败', 'error');
+        console.error('Copy link failed:', err);
+        notify(i18n.t('linkSections.copyFailed'), 'error');
       });
 
     closeContextMenu();
@@ -128,10 +129,10 @@ export function useContextMenu({
     if (!contextMenu.link) return;
 
     const shouldDelete = await confirm({
-      title: '删除链接',
-      message: `确定要删除"${contextMenu.link.title}"吗？`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: i18n.t('modals.link.deleteConfirmTitle'),
+      message: i18n.t('modals.link.deleteConfirmMessage', { title: contextMenu.link.title }),
+      confirmText: i18n.t('common.delete'),
+      cancelText: i18n.t('common.cancel'),
       variant: 'danger',
     });
 
@@ -210,7 +211,7 @@ export function useContextMenu({
       ...contextMenu.link,
       id: Date.now().toString(),
       createdAt: Date.now(),
-      title: `${contextMenu.link.title} (副本)`,
+      title: i18n.t('contextMenu.duplicateTitle', { title: contextMenu.link.title }),
       // Default to unpinned for duplicate to be safe/clean
       // 副本默认不置顶，保持整洁
       pinned: false,

@@ -41,10 +41,11 @@
 
 ### 2.3 管理员密码防爆破（KV + TTL）
 
-当配置了 `SYNC_PASSWORD` 且密码错误时，会按客户端 IP 写入失败次数/锁定信息：
+当配置了 `SYNC_PASSWORD` 且密码错误时，会按客户端标识写入失败次数/锁定信息：
 
-- Key 前缀：`navhub:auth_attempt:sha256:<hash>`（IP 经 SHA256 哈希）
+- Key 前缀：`navhub:auth_attempt:sha256:<hash>`（客户端标识经 SHA256 哈希）
 - TTL：默认 1 小时（锁定窗口）
+- 三级限流：CF IP 5 次 / 代理 IP + 指纹 3 次 / 无指纹 2 次
 
 ---
 

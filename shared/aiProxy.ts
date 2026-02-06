@@ -19,7 +19,12 @@
  * - Redirect validation / 重定向验证
  */
 
-const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1';
+import { resolveCorsHeaders as resolveCorsHeadersBase } from './utils/cors';
+import {
+  buildOpenAICompatibleUrls,
+  DEFAULT_OPENAI_COMPAT_BASE_URL,
+  ensureHttpScheme,
+} from './utils/openaiCompat';
 
 // Preflight 缓存时间（秒）
 const AI_CORS_MAX_AGE_SECONDS = 86400; // 24 hours
@@ -32,15 +37,6 @@ export const AI_CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Max-Age': String(AI_CORS_MAX_AGE_SECONDS),
-};
-
-/**
- * OpenAI API endpoint URLs
- * OpenAI API 端点 URL
- */
-type OpenAICompatibleUrls = {
-  chatCompletionsUrl: string;
-  modelsUrl: string;
 };
 
 type ChatPayload = Record<string, unknown>;
@@ -139,13 +135,6 @@ function jsonResponse(
       ...extraHeaders,
     },
   });
-}
-
-function ensureHttpScheme(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return trimmed;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
 }
 
 function normalizeHostname(value: string): string {
@@ -438,92 +427,11 @@ function resolveCorsHeaders(
   request: Request,
   options: ApiAIHandlerOptions,
 ): { headers: Record<string, string>; allowed: boolean } {
-  if (options.corsHeaders) {
-    return { headers: options.corsHeaders, allowed: true };
-  }
-
-  const urlOrigin = new URL(request.url).origin;
-  const requestOrigin = (request.headers.get('Origin') || '').trim();
-  const configuredOrigins = (options.corsAllowedOrigins || []).map((v) => v.trim()).filter(Boolean);
-  const allowAnyOrigin = configuredOrigins.includes('*');
-
-  let allowOriginValue = '';
-  let allowed = true;
-
-  if (requestOrigin) {
-    if (allowAnyOrigin) {
-      allowOriginValue = '*';
-    } else if (configuredOrigins.length > 0) {
-      allowed = configuredOrigins.includes(requestOrigin);
-      if (allowed) allowOriginValue = requestOrigin;
-    } else {
-      allowed = requestOrigin === urlOrigin;
-      if (allowed) allowOriginValue = requestOrigin;
-    }
-  }
-
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': AI_CORS_HEADERS['Access-Control-Allow-Methods'],
-    'Access-Control-Allow-Headers': AI_CORS_HEADERS['Access-Control-Allow-Headers'],
-    'Access-Control-Max-Age': AI_CORS_HEADERS['Access-Control-Max-Age'],
-  };
-  if (allowOriginValue) {
-    headers['Access-Control-Allow-Origin'] = allowOriginValue;
-    if (allowOriginValue !== '*') {
-      headers['Vary'] = 'Origin';
-    }
-  }
-
-  return { headers, allowed };
-}
-
-function buildOpenAICompatibleUrls(
-  baseUrlInput: string,
-  onError?: ApiAIHandlerOptions['onError'],
-): OpenAICompatibleUrls {
-  const normalizedInput = ensureHttpScheme(baseUrlInput) || DEFAULT_OPENAI_COMPAT_BASE_URL;
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(normalizedInput);
-  } catch (error: unknown) {
-    reportError(onError, error, { stage: 'buildOpenAICompatibleUrls' });
-    parsedUrl = new URL(DEFAULT_OPENAI_COMPAT_BASE_URL);
-  }
-
-  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-    parsedUrl = new URL(DEFAULT_OPENAI_COMPAT_BASE_URL);
-  }
-
-  const origin = parsedUrl.origin;
-  const pathname = parsedUrl.pathname.replace(/\/+$/, '');
-  const base = `${origin}${pathname === '/' ? '' : pathname}`;
-
-  if (pathname.endsWith('/chat/completions')) {
-    return {
-      chatCompletionsUrl: base,
-      modelsUrl: base.replace(/\/chat\/completions$/, '/models'),
-    };
-  }
-
-  if (pathname.endsWith('/models')) {
-    return {
-      chatCompletionsUrl: base.replace(/\/models$/, '/chat/completions'),
-      modelsUrl: base,
-    };
-  }
-
-  if (pathname.endsWith('/v1')) {
-    return {
-      chatCompletionsUrl: `${base}/chat/completions`,
-      modelsUrl: `${base}/models`,
-    };
-  }
-
-  return {
-    chatCompletionsUrl: `${base}/v1/chat/completions`,
-    modelsUrl: `${base}/v1/models`,
-  };
+  return resolveCorsHeadersBase(request, {
+    corsHeaders: options.corsHeaders,
+    corsAllowedOrigins: options.corsAllowedOrigins,
+    baseHeaders: AI_CORS_HEADERS,
+  });
 }
 
 function isRedirectStatus(status: number): boolean {

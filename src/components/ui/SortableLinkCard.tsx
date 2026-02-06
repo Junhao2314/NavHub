@@ -107,7 +107,7 @@ const SortableLinkCard: React.FC<SortableLinkCardProps> = React.memo(
               style={iconStyle}
             >
               {link.icon ? (
-                <img src={link.icon} alt="" className="w-5 h-5" />
+                <img src={link.icon} alt="" loading="lazy" decoding="async" className="w-5 h-5" />
               ) : (
                 link.title.charAt(0)
               )}

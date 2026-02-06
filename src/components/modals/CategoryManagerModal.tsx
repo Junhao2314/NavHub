@@ -332,6 +332,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
             <button
               onClick={onClose}
               className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+              aria-label={t('common.close')}
             >
               <X className="w-5 h-5 dark:text-slate-400" />
             </button>
@@ -397,8 +398,11 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                         {/* 多选模式复选框 */}
                         {isBatchMode && (
                           <button
+                            type="button"
                             onClick={() => toggleCategorySelection(cat.id)}
                             className="flex-shrink-0 p-1"
+                            aria-label={`${t('modals.category.selectCategory')}: ${cat.name}`}
+                            aria-pressed={selectedCategories.has(cat.id)}
                           >
                             {selectedCategories.has(cat.id) ? (
                               <CheckSquare size={18} className="text-accent" />
@@ -456,6 +460,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                   onChange={(e) => setEditName(e.target.value)}
                                   className="flex-1 p-1.5 px-2 text-sm rounded border border-accent dark:bg-slate-800 dark:text-white outline-none"
                                   placeholder={t('modals.category.categoryName')}
+                                  aria-label={t('modals.category.categoryName')}
                                   autoFocus
                                 />
                                 <button
@@ -463,6 +468,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                   className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
                                   onClick={() => openIconSelector('edit')}
                                   title={t('modals.category.selectIcon')}
+                                  aria-label={t('modals.category.selectIcon')}
                                 >
                                   <Palette size={16} />
                                 </button>
@@ -493,8 +499,10 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                           <div className="flex items-center gap-1 self-start mt-1">
                             {editingId === cat.id ? (
                               <button
+                                type="button"
                                 onClick={saveEdit}
                                 className="text-green-500 hover:bg-green-50 dark:hover:bg-slate-600 p-1.5 rounded bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-600"
+                                aria-label={t('common.save')}
                               >
                                 <Check size={16} />
                               </button>
@@ -502,6 +510,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                               <>
                                 {isAdmin && (
                                   <button
+                                    type="button"
                                     onClick={() => toggleCategoryHidden(cat.id)}
                                     className={`p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 ${
                                       cat.hidden
@@ -513,19 +522,30 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                                         ? t('modals.category.unhideCategory')
                                         : t('modals.category.hideCategory')
                                     }
+                                    aria-label={
+                                      cat.hidden
+                                        ? t('modals.category.unhideCategory')
+                                        : t('modals.category.hideCategory')
+                                    }
                                   >
                                     {cat.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
                                   </button>
                                 )}
                                 <button
+                                  type="button"
                                   onClick={() => handleStartEdit(cat)}
                                   className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+                                  aria-label={t('common.edit')}
+                                  title={t('common.edit')}
                                 >
                                   <Edit2 size={14} />
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleDeleteClick(cat)}
                                   className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+                                  aria-label={t('common.delete')}
+                                  title={t('common.delete')}
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -554,6 +574,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
                 placeholder={t('modals.category.categoryName')}
+                aria-label={t('modals.category.categoryName')}
                 className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
               <button
@@ -561,15 +582,18 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                 className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                 onClick={() => openIconSelector('new')}
                 title={t('modals.category.selectIcon')}
+                aria-label={t('modals.category.selectIcon')}
               >
                 <Palette size={16} />
               </button>
             </div>
             <div className="flex justify-end">
               <button
+                type="button"
                 onClick={handleAdd}
                 disabled={!newCatName.trim()}
                 className="bg-accent text-white hover:opacity-90 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors flex items-center"
+                aria-label={t('modals.category.addNewCategory')}
               >
                 <Plus size={18} />
               </button>
@@ -594,6 +618,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                     type="button"
                     onClick={cancelIconSelector}
                     className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    aria-label={t('common.close')}
                   >
                     <X size={20} />
                   </button>

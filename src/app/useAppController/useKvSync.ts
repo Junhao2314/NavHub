@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import i18n from '../../config/i18n';
 import { buildSyncData, useSyncEngine } from '../../hooks';
 import type {
   AIConfig,
@@ -9,18 +10,17 @@ import type {
   SearchMode,
   SiteSettings,
   SyncConflict,
-  SyncLoginResponse,
   SyncRole,
   ThemeMode,
   VerifySyncPasswordResult,
 } from '../../types';
 import type { ConfirmFn, NotifyFn } from '../../types/ui';
-
 import { requireAdminAccess } from '../../utils/adminAccess';
 import { getDeviceId, SYNC_API_ENDPOINT, SYNC_META_KEY } from '../../utils/constants';
 import { getErrorMessage } from '../../utils/error';
 import { clearSyncAdminSession, getSyncPassword, setSyncAdminSession } from '../../utils/secrets';
 import { safeLocalStorageGetItem } from '../../utils/storage';
+import { validateLoginResponse } from '../../utils/typeGuards';
 
 import { applyCloudDataToLocalState } from './kvSync/applyCloudData';
 import { buildLocalSyncPayload, type SyncPrivacyConfig } from './kvSync/buildLocalSyncPayload';
@@ -141,6 +141,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
   const pendingSensitiveConfigSyncRef = useRef(false);
   const suppressSyncErrorToastRef = useRef(false);
   const lastUserInitiatedSyncAtRef = useRef(0);
+  const userInitiatedSyncInFlightCountRef = useRef(0);
   const lastSyncErrorToastRef = useRef<SyncErrorToastRecord | null>(null);
   const [syncRole, setSyncRole] = useState<SyncRole>('user');
   const [isSyncProtected, setIsSyncProtected] = useState(false);
@@ -229,7 +230,9 @@ export const useKvSync = (options: UseKvSyncOptions) => {
   );
 
   // 使用 ref 存储签名更新回调，在 useKvSyncStrategy 返回后赋值
-  const updateSignaturesRef = useRef<((payload: Omit<NavHubSyncData, 'meta'>) => void) | null>(null);
+  const updateSignaturesRef = useRef<((payload: Omit<NavHubSyncData, 'meta'>) => void) | null>(
+    null,
+  );
 
   const handleSyncComplete = useCallback(
     (data: NavHubSyncData) => {
@@ -247,13 +250,15 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       if (suppressSyncErrorToastRef.current) return;
 
       const now = Date.now();
+      const effectiveLastUserInitiatedAt =
+        userInitiatedSyncInFlightCountRef.current > 0 ? now : lastUserInitiatedSyncAtRef.current;
       // 同步错误提示策略：
       // - 用户手动触发（手动同步/拉取/冲突解决/备份恢复等）后短时间内发生的错误，应立即提示（不做冷却）。
       // - 后台自动同步（debounce/stats 批量）如果频繁失败，toast 会让用户“刷屏”；因此相同错误会按 cooldown 去重。
       const decision = decideSyncErrorToast({
         error,
         now,
-        lastUserInitiatedAt: lastUserInitiatedSyncAtRef.current,
+        lastUserInitiatedAt: effectiveLastUserInitiatedAt,
         lastToast: lastSyncErrorToastRef.current,
         userInitiatedWindowMs: USER_INITIATED_SYNC_WINDOW_MS,
         cooldownMs: SYNC_ERROR_TOAST_COOLDOWN_MS,
@@ -300,6 +305,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
   }, [refreshSyncAuth]);
 
   const {
+    isInitialSyncComplete,
     prevBusinessSignatureRef,
     prevFullSignatureRef,
     encryptedSensitiveConfigCacheRef,
@@ -348,11 +354,15 @@ export const useKvSync = (options: UseKvSyncOptions) => {
 
       // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
       const syncPassword = getSyncPassword().trim();
-      const encryptedConfig = await encryptApiKeyForSync({
+      const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey: nextConfig?.apiKey || '',
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
+
+      if (encryptResult.error) {
+        notify(i18n.t('errors.encryptionFailed'), 'warning');
+      }
 
       const privacyConfig: SyncPrivacyConfig = {
         groupEnabled: privacyGroupEnabled,
@@ -372,7 +382,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         isAdmin: true,
         privacyConfig,
         themeMode,
-        encryptedSensitiveConfig: encryptedConfig,
+        encryptedSensitiveConfig: encryptResult.encrypted,
       });
 
       // 避免与自动同步重复触发
@@ -383,7 +393,13 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       cancelPendingSync();
       cancelPendingStatsSync();
       lastUserInitiatedSyncAtRef.current = Date.now();
-      void pushToCloud(syncData, false, 'manual');
+      userInitiatedSyncInFlightCountRef.current += 1;
+      void pushToCloud(syncData, false, 'manual').finally(() => {
+        userInitiatedSyncInFlightCountRef.current = Math.max(
+          0,
+          userInitiatedSyncInFlightCountRef.current - 1,
+        );
+      });
     },
     [
       saveAIConfig,
@@ -404,6 +420,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       cancelPendingStatsSync,
       pushToCloud,
       themeMode,
+      notify,
     ],
   );
 
@@ -425,12 +442,20 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       cancelPendingSync();
       cancelPendingStatsSync();
       lastUserInitiatedSyncAtRef.current = Date.now();
+      userInitiatedSyncInFlightCountRef.current += 1;
 
-      // 等待冲突解决完成，如果选择本地版本但推送失败，保留冲突状态让用户可以重试
-      const success = await resolveSyncConflict(choice);
-      if (success) {
-        setSyncConflictOpen(false);
-        setCurrentConflict(null);
+      try {
+        // 等待冲突解决完成，如果选择本地版本但推送失败，保留冲突状态让用户可以重试
+        const success = await resolveSyncConflict(choice);
+        if (success) {
+          setSyncConflictOpen(false);
+          setCurrentConflict(null);
+        }
+      } finally {
+        userInitiatedSyncInFlightCountRef.current = Math.max(
+          0,
+          userInitiatedSyncInFlightCountRef.current - 1,
+        );
       }
     },
     [
@@ -445,17 +470,21 @@ export const useKvSync = (options: UseKvSyncOptions) => {
 
   // 手动触发同步
   const handleManualSync = useCallback(async () => {
-    if (!requireAdmin('用户模式无法写入云端，请先输入 API 访问密码进入管理员模式。')) return;
+    if (!requireAdmin()) return;
 
-    // 手动同步：用户期望“立刻同步”，因此直接 pushToCloud(syncKind='manual')。
-    // 同时会写入同步记录（除非服务端策略变化），便于用户在“最近同步记录”中看到这一笔。
+    // 手动同步：用户期望"立刻同步"，因此直接 pushToCloud(syncKind='manual')。
+    // 同时会写入同步记录（除非服务端策略变化），便于用户在"最近同步记录"中看到这一笔。
     // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
     const syncPassword = getSyncPassword().trim();
-    const encryptedConfig = await encryptApiKeyForSync({
+    const encryptResult = await encryptApiKeyForSync({
       syncPassword,
       apiKey: aiConfig?.apiKey || '',
       cacheRef: encryptedSensitiveConfigCacheRef,
     });
+
+    if (encryptResult.error) {
+      notify(i18n.t('errors.encryptionFailed'), 'warning');
+    }
 
     const privacyConfig: SyncPrivacyConfig = {
       groupEnabled: privacyGroupEnabled,
@@ -475,7 +504,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       isAdmin: true,
       privacyConfig,
       themeMode,
-      encryptedSensitiveConfig: encryptedConfig,
+      encryptedSensitiveConfig: encryptResult.encrypted,
     });
 
     // 避免与自动同步重复触发
@@ -484,7 +513,15 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     cancelPendingSync();
     cancelPendingStatsSync();
     lastUserInitiatedSyncAtRef.current = Date.now();
-    await pushToCloud(syncData, false, 'manual');
+    userInitiatedSyncInFlightCountRef.current += 1;
+    try {
+      await pushToCloud(syncData, false, 'manual');
+    } finally {
+      userInitiatedSyncInFlightCountRef.current = Math.max(
+        0,
+        userInitiatedSyncInFlightCountRef.current - 1,
+      );
+    }
   }, [
     requireAdmin,
     links,
@@ -505,6 +542,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     cancelPendingSync,
     cancelPendingStatsSync,
     pushToCloud,
+    notify,
   ]);
 
   const performPull = useCallback(
@@ -527,11 +565,11 @@ export const useKvSync = (options: UseKvSyncOptions) => {
 
       // 管理员模式：版本不一致时提示用户选择
       if (cloudData.data.meta.version !== localVersion) {
-        // 手动拉取时同样遵循“版本不一致就弹冲突”：
+        // 手动拉取时同样遵循"版本不一致就弹冲突"：
         // 管理员可能在当前设备做过未同步的修改，也可能是云端被其他设备更新过，必须人工决策。
         // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
         const syncPassword = getSyncPassword().trim();
-        const encryptedConfig = await encryptApiKeyForSync({
+        const encryptResult = await encryptApiKeyForSync({
           syncPassword,
           apiKey: aiConfig?.apiKey || '',
           cacheRef: encryptedSensitiveConfigCacheRef,
@@ -555,7 +593,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
           isAdmin: true,
           privacyConfig,
           themeMode,
-          encryptedSensitiveConfig: encryptedConfig,
+          encryptedSensitiveConfig: encryptResult.encrypted,
         });
         cancelPendingSync();
         cancelPendingStatsSync();
@@ -604,7 +642,15 @@ export const useKvSync = (options: UseKvSyncOptions) => {
 
   const handleManualPull = useCallback(async () => {
     lastUserInitiatedSyncAtRef.current = Date.now();
-    await performPull(syncRole);
+    userInitiatedSyncInFlightCountRef.current += 1;
+    try {
+      await performPull(syncRole);
+    } finally {
+      userInitiatedSyncInFlightCountRef.current = Math.max(
+        0,
+        userInitiatedSyncInFlightCountRef.current - 1,
+      );
+    }
   }, [performPull, syncRole]);
 
   const handleSyncPasswordChange = useCallback(
@@ -638,7 +684,11 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     if (!password) {
       clearSyncAdminSession();
       setSyncRole('user');
-      return { success: false, role: 'user', error: '请输入密码后点击登录' };
+      return {
+        success: false,
+        role: 'user',
+        error: i18n.t('settings.data.enterPasswordToLogin'),
+      };
     }
 
     cancelPendingSync();
@@ -656,7 +706,14 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         body: JSON.stringify({ deviceId: getDeviceId() }),
       });
 
-      const result = (await response.json()) as SyncLoginResponse;
+      const rawResult: unknown = await response.json();
+      const validation = validateLoginResponse(rawResult);
+      if (!validation.valid) {
+        clearSyncAdminSession();
+        setSyncRole('user');
+        return { success: false, role: 'user', error: validation.reason };
+      }
+      const result = validation.data;
 
       if (result.success === false) {
         clearSyncAdminSession();
@@ -665,7 +722,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         return {
           success: false,
           role: 'user',
-          error: result.error || '登录失败',
+          error: result.error || i18n.t('settings.data.loginFailed'),
           lockedUntil: typeof result.lockedUntil === 'number' ? result.lockedUntil : undefined,
           retryAfterSeconds:
             typeof result.retryAfterSeconds === 'number' ? result.retryAfterSeconds : undefined,
@@ -683,7 +740,11 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     } catch (error: unknown) {
       clearSyncAdminSession();
       setSyncRole('user');
-      return { success: false, role: 'user', error: getErrorMessage(error, '网络错误') };
+      return {
+        success: false,
+        role: 'user',
+        error: getErrorMessage(error, i18n.t('errors.networkError')),
+      };
     } finally {
       isSyncPasswordRefreshingRef.current = false;
       setSyncPasswordRefreshTick((prev) => prev + 1);
@@ -692,14 +753,13 @@ export const useKvSync = (options: UseKvSyncOptions) => {
 
   const handleRestoreBackup = useCallback(
     async (backupKey: string) => {
-      if (!requireAdmin('用户模式无法恢复云端备份，请先输入 API 访问密码进入管理员模式。'))
-        return false;
+      if (!requireAdmin()) return false;
 
       const confirmed = await confirm({
-        title: '恢复云端备份',
-        message: '此操作将用所选备份覆盖本地数据，并在云端创建一个回滚点。',
-        confirmText: '恢复',
-        cancelText: '取消',
+        title: i18n.t('settings.data.restoreBackupTitle'),
+        message: i18n.t('settings.data.restoreBackupMessage'),
+        confirmText: i18n.t('settings.data.restore'),
+        cancelText: i18n.t('common.cancel'),
         variant: 'danger',
       });
       if (!confirmed) return false;
@@ -715,7 +775,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         suppressSyncErrorToastRef.current = false;
       }
       if (!restoredData) {
-        notify('恢复失败，请稍后重试', 'error');
+        notify(i18n.t('settings.data.restoreBackupFailed'), 'error');
         return false;
       }
 
@@ -734,7 +794,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       );
       prevBusinessSignatureRef.current = buildSyncBusinessSignature(restoredPayload);
       prevFullSignatureRef.current = buildSyncFullSignature(restoredPayload);
-      notify('已恢复到所选备份，并创建回滚点', 'success');
+      notify(i18n.t('settings.data.restoreBackupSuccess'), 'success');
       return true;
     },
     [
@@ -752,14 +812,13 @@ export const useKvSync = (options: UseKvSyncOptions) => {
 
   const handleDeleteBackup = useCallback(
     async (backupKey: string) => {
-      if (!requireAdmin('用户模式无法删除云端备份，请先输入 API 访问密码进入管理员模式。'))
-        return false;
+      if (!requireAdmin()) return false;
 
       const confirmed = await confirm({
-        title: '删除备份',
-        message: '确定要删除此备份吗?此操作无法撤销。',
-        confirmText: '删除',
-        cancelText: '取消',
+        title: i18n.t('settings.data.deleteBackupTitle'),
+        message: i18n.t('settings.data.deleteBackupMessage'),
+        confirmText: i18n.t('common.delete'),
+        cancelText: i18n.t('common.cancel'),
         variant: 'danger',
       });
       if (!confirmed) return false;
@@ -772,17 +831,18 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         suppressSyncErrorToastRef.current = false;
       }
       if (!success) {
-        notify('删除失败，请稍后重试', 'error');
+        notify(i18n.t('settings.data.deleteBackupFailed'), 'error');
         return false;
       }
 
-      notify('备份已删除', 'success');
+      notify(i18n.t('settings.data.deleteBackupSuccess'), 'success');
       return true;
     },
     [requireAdmin, confirm, deleteBackup, notify],
   );
 
   return {
+    isInitialSyncComplete,
     syncRole,
     isSyncProtected,
     isAdmin,

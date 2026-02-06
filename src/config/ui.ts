@@ -32,3 +32,7 @@ export const SYNC_STATUS_AUTO_HIDE_DELAY_MS = 2500;
 export const SYNC_STATUS_EXIT_ANIMATION_MS = 300;
 
 export const AI_CONNECTION_STATUS_RESET_MS = 3000;
+
+// List rendering optimization thresholds
+export const PINNED_VIRTUALIZATION_THRESHOLD = 20; // Use VirtuosoGrid when pinned links exceed this
+export const SORTING_MODE_WARNING_THRESHOLD = 50; // Show performance warning when sorting more than this

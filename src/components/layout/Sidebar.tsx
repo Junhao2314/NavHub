@@ -140,6 +140,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               onClick={onToggleCollapsed}
               className="h-9 w-9 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-white/10 flex items-center justify-center transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-accent/20 hover:border-accent/30 hover:bg-white dark:hover:bg-slate-800 hover:scale-105 active:scale-95 group"
               title={t('sidebar.expandSidebar')}
+              aria-label={t('sidebar.expandSidebar')}
             >
               <span className="font-mono font-black text-xl text-slate-700 dark:text-slate-200 group-hover:text-accent transition-colors duration-300">
                 N
@@ -192,6 +193,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <button
           onClick={onSelectAll}
           title={t('sidebar.pinnedSites')}
+          aria-label={t('sidebar.pinnedSites')}
           className={`relative w-full rounded-xl transition-all duration-200 mb-1 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${
             selectedCategory === 'all'
               ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'
@@ -233,6 +235,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             onClick={onOpenCategoryManager}
             className="p-1 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors"
             title={t('sidebar.manageCategories')}
+            aria-label={t('sidebar.manageCategories')}
           >
             <Settings size={13} />
           </button>
@@ -250,6 +253,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   key={cat.id}
                   onClick={() => onSelectCategory(cat)}
                   title={isSidebarCollapsed ? cat.name : undefined}
+                  aria-label={cat.name}
                   className={`relative w-full rounded-xl transition-all duration-200 group ${
                     isSidebarCollapsed
                       ? 'flex items-center justify-center p-2.5'
@@ -303,6 +307,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={onSelectPrivate}
               title={t('sidebar.privacyGroup')}
+              aria-label={t('sidebar.privacyGroup')}
               className={`relative w-full rounded-xl transition-all duration-200 group ${isSidebarCollapsed ? 'flex items-center justify-center p-2.5' : 'flex items-center gap-3 px-3 py-2.5'} ${
                 selectedCategory === PRIVATE_CATEGORY_ID
                   ? 'bg-gradient-to-r from-accent/20 via-accent/5 to-transparent text-accent shadow-sm border border-accent/10'

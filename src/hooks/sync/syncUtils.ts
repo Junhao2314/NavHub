@@ -5,10 +5,8 @@
 import { AIConfig, NavHubSyncData, SyncMetadata } from '../../types';
 import { SYNC_META_KEY } from '../../utils/constants';
 import { getErrorMessage } from '../../utils/error';
-import {
-  safeLocalStorageGetItem,
-  safeLocalStorageSetItem,
-} from '../../utils/storage';
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
+import { isSyncMetadata } from '../../utils/typeGuards';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -95,6 +93,27 @@ export const redactSyncDataForDebug = (data: NavHubSyncData): NavHubSyncData => 
   };
 };
 
+/**
+ * 脱敏备份列表响应，移除可能的敏感数据
+ */
+export const redactBackupsResponseForDebug = (
+  response: unknown,
+): { backupsCount: number | null; keys: string[] | null } => {
+  if (!response || typeof response !== 'object') {
+    return { backupsCount: null, keys: null };
+  }
+  const record = response as UnknownRecord;
+  const backups = record.backups;
+  if (!Array.isArray(backups)) {
+    return { backupsCount: null, keys: null };
+  }
+  // 只提取备份的 key（时间戳），不暴露完整数据
+  const keys = backups
+    .map((b) => (b && typeof b === 'object' ? (b as UnknownRecord).key : null))
+    .filter((k): k is string => typeof k === 'string');
+  return { backupsCount: backups.length, keys };
+};
+
 export const getSyncNetworkErrorMessage = (error: unknown, t: (key: string) => string): string => {
   const message = getErrorMessage(error, t('errors.networkError')).trim();
   if (!message) return t('errors.networkError');
@@ -136,7 +155,11 @@ export const getLocalSyncMeta = (): SyncMetadata | null => {
   const stored = safeLocalStorageGetItem(SYNC_META_KEY);
   if (!stored) return null;
   try {
-    return JSON.parse(stored) as SyncMetadata;
+    const parsed: unknown = JSON.parse(stored);
+    if (!isSyncMetadata(parsed)) {
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -177,6 +200,106 @@ export const fetchWithTimeout = async (
   } finally {
     clearTimeout(timeoutId);
   }
+};
+
+/**
+ * 判断错误是否为可重试的网络错误
+ * 仅对网络层错误重试，HTTP 状态码错误(4xx/5xx)不重试
+ */
+export const isRetryableNetworkError = (error: unknown): boolean => {
+  // AbortError 可能是超时导致的，应重试
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true;
+  }
+
+  // TypeError 通常表示网络层错误（如 DNS 解析失败、连接被拒绝等）
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  const message = getErrorMessage(error, '').toLowerCase();
+
+  // 常见网络错误消息
+  const networkErrorPatterns = [
+    'failed to fetch',
+    'networkerror',
+    'network error',
+    'load failed',
+    'fetch failed',
+    'the network connection was lost',
+    'the internet connection appears to be offline',
+    'net::err_',
+    'econnrefused',
+    'enotfound',
+    'etimedout',
+    'econnreset',
+  ];
+
+  return networkErrorPatterns.some((pattern) => message.includes(pattern));
+};
+
+export interface FetchRetryOptions {
+  /** 最大重试次数（不含首次请求），默认 2 */
+  maxRetries?: number;
+  /** 基础延迟时间（毫秒），默认 1000 */
+  baseDelayMs?: number;
+  /** 最大延迟时间（毫秒），默认 5000 */
+  maxDelayMs?: number;
+  /** 重试时的回调，用于日志等 */
+  onRetry?: (attempt: number, error: unknown, delayMs: number) => void;
+}
+
+const DEFAULT_RETRY_OPTIONS: Required<Omit<FetchRetryOptions, 'onRetry'>> = {
+  maxRetries: 2,
+  baseDelayMs: 1000,
+  maxDelayMs: 5000,
+};
+
+/**
+ * 带网络错误自动重试的 fetch 封装
+ *
+ * 重试策略:
+ * - 仅对网络层错误重试（超时、连接失败等）
+ * - HTTP 响应（包括 4xx/5xx）不重试，因为服务器已响应
+ * - 使用指数退避：delay = baseDelay * 2^attempt（带随机抖动）
+ */
+export const fetchWithRetry = async (
+  input: RequestInfo | URL,
+  init?: RequestInit & { timeout?: number },
+  retryOptions?: FetchRetryOptions,
+): Promise<Response> => {
+  const { maxRetries, baseDelayMs, maxDelayMs } = {
+    ...DEFAULT_RETRY_OPTIONS,
+    ...retryOptions,
+  };
+  const { onRetry } = retryOptions ?? {};
+
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fetchWithTimeout(input, init);
+    } catch (error) {
+      lastError = error;
+
+      // 如果不是可重试的网络错误，或已达到最大重试次数，直接抛出
+      if (!isRetryableNetworkError(error) || attempt >= maxRetries) {
+        throw error;
+      }
+
+      // 计算延迟：指数退避 + 随机抖动（±20%）
+      const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
+      const jitter = 0.8 + Math.random() * 0.4; // 0.8 ~ 1.2
+      const delayMs = Math.min(exponentialDelay * jitter, maxDelayMs);
+
+      onRetry?.(attempt + 1, error, delayMs);
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  // 不应该到达这里，但为了类型安全
+  throw lastError;
 };
 
 /**

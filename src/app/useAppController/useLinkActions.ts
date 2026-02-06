@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useCallback } from 'react';
+import i18n from '../../config/i18n';
 import type { Category, LinkItem } from '../../types';
 import type { ConfirmFn, NotifyFn } from '../../types/ui';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
@@ -55,12 +56,12 @@ export const useLinkActions = (args: {
 
   const handleImportConfirm = useCallback(
     (newLinks: LinkItem[], newCategories: Category[]) => {
-      if (!requireAdmin('用户模式无法导入数据，请先输入 API 访问密码进入管理员模式。')) {
+      if (!requireAdmin()) {
         return;
       }
       importData(newLinks, newCategories);
       setIsImportModalOpen(false);
-      notify(`成功导入 ${newLinks.length} 个新书签!`, 'success');
+      notify(i18n.t('modals.import.importSuccess', { count: newLinks.length }), 'success');
     },
     [importData, notify, requireAdmin, setIsImportModalOpen],
   );
@@ -88,10 +89,10 @@ export const useLinkActions = (args: {
     async (id: string) => {
       if (!requireAdmin()) return;
       const shouldDelete = await confirm({
-        title: '删除链接',
-        message: '确定删除此链接吗？',
-        confirmText: '删除',
-        cancelText: '取消',
+        title: i18n.t('modals.link.deleteConfirmTitle'),
+        message: i18n.t('modals.link.deleteConfirmMessageGeneric'),
+        confirmText: i18n.t('common.delete'),
+        cancelText: i18n.t('common.cancel'),
         variant: 'danger',
       });
 

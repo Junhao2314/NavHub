@@ -1,5 +1,6 @@
 import type { MutableRefObject } from 'react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { PullResult } from '../../../hooks/sync/useSyncApi';
 import type {
   AIConfig,
   Category,
@@ -14,7 +15,6 @@ import type {
 } from '../../../types';
 import { getDeviceId, SYNC_STATS_DEBOUNCE_MS } from '../../../utils/constants';
 import { getSyncPassword } from '../../../utils/secrets';
-import type { PullResult } from '../../../hooks/sync/useSyncApi';
 import {
   buildSyncBusinessSignature,
   buildSyncFullSignature,
@@ -92,6 +92,7 @@ export const useKvSyncStrategy = (args: {
   } = args;
 
   const hasInitialSyncRun = useRef(false);
+  const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(false);
 
   const prevBusinessSignatureRef = useRef<string | null>(null);
   const prevFullSignatureRef = useRef<string | null>(null);
@@ -133,17 +134,19 @@ export const useKvSyncStrategy = (args: {
       // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
       const syncPassword = getSyncPassword().trim();
       const apiKey = pending.aiConfig?.apiKey?.trim() || '';
-      const encryptedConfig = await encryptApiKeyForSync({
+      const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey,
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
 
       return pushToCloud(
-        encryptedConfig ? { ...pending, encryptedSensitiveConfig: encryptedConfig } : pending,
+        encryptResult.encrypted
+          ? { ...pending, encryptedSensitiveConfig: encryptResult.encrypted }
+          : pending,
         false,
         'auto',
-        // 纯统计同步：仅同步点击统计等高频字段，不写入同步记录（避免“最近 20 次同步记录”被刷屏）。
+        // 纯统计同步：仅同步点击统计等高频字段，不写入同步记录（避免"最近 20 次同步记录"被刷屏）。
         { skipHistory: true, keepalive: options?.keepalive === true },
       );
     },
@@ -182,117 +185,122 @@ export const useKvSyncStrategy = (args: {
     hasInitialSyncRun.current = true;
 
     const checkCloudData = async () => {
-      // 先刷新一次权限状态（syncRole/isAdmin 可能尚未更新）。
-      // 后续的拉取/冲突判断需要以“当前请求的真实权限”作为依据。
-      const auth = await refreshSyncAuth();
-      const localMeta = getLocalSyncMeta();
-      const localVersion =
-        typeof localMeta === 'object' && localMeta && 'version' in localMeta
-          ? ((localMeta as { version?: number }).version ?? 0)
-          : 0;
-      const localUpdatedAt =
-        typeof localMeta === 'object' && localMeta && 'updatedAt' in localMeta
-          ? typeof (localMeta as { updatedAt?: unknown }).updatedAt === 'number'
-            ? (localMeta as { updatedAt: number }).updatedAt
-            : 0
-          : 0;
-      const localDeviceId =
-        typeof localMeta === 'object' && localMeta && 'deviceId' in localMeta
-          ? (localMeta as { deviceId?: string }).deviceId || getDeviceId()
-          : getDeviceId();
-      const cloudData = await pullFromCloud();
+      try {
+        // 先刷新一次权限状态（syncRole/isAdmin 可能尚未更新）。
+        // 后续的拉取/冲突判断需要以"当前请求的真实权限"作为依据。
+        const auth = await refreshSyncAuth();
+        const localMeta = getLocalSyncMeta();
+        const localVersion =
+          typeof localMeta === 'object' && localMeta && 'version' in localMeta
+            ? ((localMeta as { version?: number }).version ?? 0)
+            : 0;
+        const localUpdatedAt =
+          typeof localMeta === 'object' && localMeta && 'updatedAt' in localMeta
+            ? typeof (localMeta as { updatedAt?: unknown }).updatedAt === 'number'
+              ? (localMeta as { updatedAt: number }).updatedAt
+              : 0
+            : 0;
+        const localDeviceId =
+          typeof localMeta === 'object' && localMeta && 'deviceId' in localMeta
+            ? (localMeta as { deviceId?: string }).deviceId || getDeviceId()
+            : getDeviceId();
+        const cloudData = await pullFromCloud();
 
-      if (cloudData.data && cloudData.data.links && cloudData.data.categories) {
-        if (auth.role !== 'admin') {
-          // 用户模式（只读）：不参与冲突解决，直接以云端为准（仅应用"可公开字段"）。
-          applyCloudData(cloudData.data, auth.role);
-          return;
+        if (cloudData.data && cloudData.data.links && cloudData.data.categories) {
+          if (auth.role !== 'admin') {
+            // 用户模式（只读）：不参与冲突解决，直接以云端为准（仅应用"可公开字段"）。
+            applyCloudData(cloudData.data, auth.role);
+            return;
+          }
+
+          // 新设备首次同步：本地版本为 0 表示从未同步过，直接应用云端数据。
+          // 这种情况下本地通常只有默认示例数据，不需要让用户选择。
+          if (localVersion === 0) {
+            applyCloudData(cloudData.data, auth.role);
+            const { meta: _meta, ...cloudPayload } = cloudData.data;
+            prevBusinessSignatureRef.current = buildSyncBusinessSignature(cloudPayload);
+            prevFullSignatureRef.current = buildSyncFullSignature(cloudPayload);
+            return;
+          }
+
+          // 版本不一致时提示用户选择（仅当本地已有同步记录时）
+          if (cloudData.data.meta.version !== localVersion) {
+            // 管理员模式（可写）：本地与云端 version 不一致时，无法自动决定保留哪份。
+            // 这里构造一个"本地快照 vs 云端快照"的冲突对象，交给 UI 让用户选择：保留本地（强制覆盖）/保留云端（丢弃本地）。
+            // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
+            const syncPassword = getSyncPassword().trim();
+            const encryptResult = await encryptApiKeyForSync({
+              syncPassword,
+              apiKey: aiConfig?.apiKey || '',
+              cacheRef: encryptedSensitiveConfigCacheRef,
+            });
+
+            const privacyConfig: SyncPrivacyConfig = {
+              groupEnabled: privacyGroupEnabled,
+              passwordEnabled: privacyPasswordEnabled,
+              autoUnlockEnabled: privacyAutoUnlockEnabled,
+              useSeparatePassword: useSeparatePrivacyPassword,
+            };
+
+            // 使用 auth.role 而不是 isAdmin，因为 isAdmin 可能还未更新
+            const isAdminRole = auth.role === 'admin';
+            const localData = buildLocalSyncPayload({
+              links,
+              categories,
+              searchMode,
+              externalSearchSources,
+              aiConfig,
+              siteSettings,
+              privateVaultCipher,
+              isAdmin: isAdminRole,
+              privacyConfig,
+              themeMode,
+              encryptedSensitiveConfig: encryptResult.encrypted,
+            });
+            handleSyncConflict({
+              localData: {
+                ...localData,
+                meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion },
+              },
+              remoteData: cloudData.data,
+            });
+          } else {
+            // 版本一致时：初始化签名以避免"不必要的自动同步"。
+            // 典型场景：用户刚打开页面，本地已是最新版本；如果不初始化签名，后续 effect 可能把当前状态当成"变更"而触发 push。
+            const syncPassword = getSyncPassword().trim();
+            const encryptResult = await encryptApiKeyForSync({
+              syncPassword,
+              apiKey: aiConfig?.apiKey || '',
+              cacheRef: encryptedSensitiveConfigCacheRef,
+            });
+
+            const privacyConfig: SyncPrivacyConfig = {
+              groupEnabled: privacyGroupEnabled,
+              passwordEnabled: privacyPasswordEnabled,
+              autoUnlockEnabled: privacyAutoUnlockEnabled,
+              useSeparatePassword: useSeparatePrivacyPassword,
+            };
+
+            const localData = buildLocalSyncPayload({
+              links,
+              categories,
+              searchMode,
+              externalSearchSources,
+              aiConfig,
+              siteSettings,
+              privateVaultCipher,
+              isAdmin: true,
+              privacyConfig,
+              themeMode,
+              encryptedSensitiveConfig: encryptResult.encrypted,
+            });
+            prevBusinessSignatureRef.current = buildSyncBusinessSignature(localData);
+            prevFullSignatureRef.current = buildSyncFullSignature(localData);
+          }
         }
-
-        // 新设备首次同步：本地版本为 0 表示从未同步过，直接应用云端数据。
-        // 这种情况下本地通常只有默认示例数据，不需要让用户选择。
-        if (localVersion === 0) {
-          applyCloudData(cloudData.data, auth.role);
-          const { meta: _meta, ...cloudPayload } = cloudData.data;
-          prevBusinessSignatureRef.current = buildSyncBusinessSignature(cloudPayload);
-          prevFullSignatureRef.current = buildSyncFullSignature(cloudPayload);
-          return;
-        }
-
-        // 版本不一致时提示用户选择（仅当本地已有同步记录时）
-        if (cloudData.data.meta.version !== localVersion) {
-          // 管理员模式（可写）：本地与云端 version 不一致时，无法自动决定保留哪份。
-          // 这里构造一个“本地快照 vs 云端快照”的冲突对象，交给 UI 让用户选择：保留本地（强制覆盖）/保留云端（丢弃本地）。
-          // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
-          const syncPassword = getSyncPassword().trim();
-          const encryptedConfig = await encryptApiKeyForSync({
-            syncPassword,
-            apiKey: aiConfig?.apiKey || '',
-            cacheRef: encryptedSensitiveConfigCacheRef,
-          });
-
-          const privacyConfig: SyncPrivacyConfig = {
-            groupEnabled: privacyGroupEnabled,
-            passwordEnabled: privacyPasswordEnabled,
-            autoUnlockEnabled: privacyAutoUnlockEnabled,
-            useSeparatePassword: useSeparatePrivacyPassword,
-          };
-
-          // 使用 auth.role 而不是 isAdmin，因为 isAdmin 可能还未更新
-          const isAdminRole = auth.role === 'admin';
-          const localData = buildLocalSyncPayload({
-            links,
-            categories,
-            searchMode,
-            externalSearchSources,
-            aiConfig,
-            siteSettings,
-            privateVaultCipher,
-            isAdmin: isAdminRole,
-            privacyConfig,
-            themeMode,
-            encryptedSensitiveConfig: encryptedConfig,
-          });
-          handleSyncConflict({
-            localData: {
-              ...localData,
-              meta: { updatedAt: localUpdatedAt, deviceId: localDeviceId, version: localVersion },
-            },
-            remoteData: cloudData.data,
-          });
-        } else {
-          // 版本一致时：初始化签名以避免“不必要的自动同步”。
-          // 典型场景：用户刚打开页面，本地已是最新版本；如果不初始化签名，后续 effect 可能把当前状态当成“变更”而触发 push。
-          const syncPassword = getSyncPassword().trim();
-          const encryptedConfig = await encryptApiKeyForSync({
-            syncPassword,
-            apiKey: aiConfig?.apiKey || '',
-            cacheRef: encryptedSensitiveConfigCacheRef,
-          });
-
-          const privacyConfig: SyncPrivacyConfig = {
-            groupEnabled: privacyGroupEnabled,
-            passwordEnabled: privacyPasswordEnabled,
-            autoUnlockEnabled: privacyAutoUnlockEnabled,
-            useSeparatePassword: useSeparatePrivacyPassword,
-          };
-
-          const localData = buildLocalSyncPayload({
-            links,
-            categories,
-            searchMode,
-            externalSearchSources,
-            aiConfig,
-            siteSettings,
-            privateVaultCipher,
-            isAdmin: true,
-            privacyConfig,
-            themeMode,
-            encryptedSensitiveConfig: encryptedConfig,
-          });
-          prevBusinessSignatureRef.current = buildSyncBusinessSignature(localData);
-          prevFullSignatureRef.current = buildSyncFullSignature(localData);
-        }
+      } finally {
+        // 无论初始同步成功还是失败，都标记为完成以隐藏加载动画
+        setIsInitialSyncComplete(true);
       }
     };
 
@@ -382,15 +390,15 @@ export const useKvSyncStrategy = (args: {
       // Prepare encrypted sensitive config for sync (Requirements 2.1, 2.6)
       const syncPassword = getSyncPassword().trim();
       const apiKey = aiConfig?.apiKey?.trim() || '';
-      const encryptedConfig = await encryptApiKeyForSync({
+      const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey,
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
 
       schedulePush(
-        encryptedConfig
-          ? { ...syncDataBase, encryptedSensitiveConfig: encryptedConfig }
+        encryptResult.encrypted
+          ? { ...syncDataBase, encryptedSensitiveConfig: encryptResult.encrypted }
           : syncDataBase,
       );
     };
@@ -437,14 +445,14 @@ export const useKvSyncStrategy = (args: {
     }
 
     const syncEncryptedConfig = async () => {
-      const encryptedConfig = await encryptApiKeyForSync({
+      const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey,
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
 
       pendingSensitiveConfigSyncRef.current = false;
-      if (!encryptedConfig) return;
+      if (!encryptResult.encrypted) return;
 
       const privacyConfig: SyncPrivacyConfig = {
         groupEnabled: privacyGroupEnabled,
@@ -466,7 +474,7 @@ export const useKvSyncStrategy = (args: {
         themeMode,
       });
 
-      schedulePush({ ...syncDataBase, encryptedSensitiveConfig: encryptedConfig });
+      schedulePush({ ...syncDataBase, encryptedSensitiveConfig: encryptResult.encrypted });
     };
 
     void syncEncryptedConfig();
@@ -493,6 +501,7 @@ export const useKvSyncStrategy = (args: {
   ]);
 
   return {
+    isInitialSyncComplete,
     prevBusinessSignatureRef,
     prevFullSignatureRef,
     encryptedSensitiveConfigCacheRef,

@@ -7,19 +7,19 @@ import {
   ensureNavHubSyncDataSchemaVersion,
   normalizeNavHubSyncData,
 } from '../../../shared/syncApi/navHubSyncData';
-import {
-  NavHubSyncData,
-  SyncCreateBackupResponse,
-  SyncDeleteBackupResponse,
-  SyncRestoreBackupResponse,
-  SyncStatus,
-} from '../../types';
+import { NavHubSyncData, SyncStatus } from '../../types';
 import { getDeviceId, getDeviceInfo, SYNC_API_ENDPOINT } from '../../utils/constants';
 import { getErrorMessage } from '../../utils/error';
 import { getSyncAuthHeaders } from '../../utils/syncAuthHeaders';
+import {
+  validateCreateBackupResponse,
+  validateDeleteBackupResponse,
+  validateRestoreBackupResponse,
+} from '../../utils/typeGuards';
 import { useI18n } from '../useI18n';
 import {
   callSyncEngineCallback,
+  fetchWithRetry,
   getLocalSyncMeta,
   getSyncNetworkErrorMessage,
   sanitizeAiConfigForCloud,
@@ -69,13 +69,19 @@ export function useSyncBackup(options: UseSyncBackupOptions): UseSyncBackupRetur
       };
 
       try {
-        const response = await fetch(`${SYNC_API_ENDPOINT}?action=backup`, {
+        const response = await fetchWithRetry(`${SYNC_API_ENDPOINT}?action=backup`, {
           method: 'POST',
           headers: getSyncAuthHeaders(),
           body: JSON.stringify({ data: syncData }),
         });
 
-        const result = (await response.json()) as SyncCreateBackupResponse;
+        const rawResult: unknown = await response.json();
+        const validation = validateCreateBackupResponse(rawResult);
+        if (!validation.valid) {
+          emitSyncError(validation.reason, 'server');
+          return false;
+        }
+        const result = validation.data;
 
         if (result.success === false) {
           emitSyncError(result.error || t('errors.backupFailed'), 'server');
@@ -98,12 +104,18 @@ export function useSyncBackup(options: UseSyncBackupOptions): UseSyncBackupRetur
       setSyncStatus('syncing');
 
       try {
-        const response = await fetch(`${SYNC_API_ENDPOINT}?action=restore`, {
+        const response = await fetchWithRetry(`${SYNC_API_ENDPOINT}?action=restore`, {
           method: 'POST',
           headers: getSyncAuthHeaders(),
           body: JSON.stringify({ backupKey, deviceId: getDeviceId() }),
         });
-        const result = (await response.json()) as SyncRestoreBackupResponse;
+        const rawResult: unknown = await response.json();
+        const validation = validateRestoreBackupResponse(rawResult);
+        if (!validation.valid) {
+          emitSyncError(validation.reason, 'server');
+          return null;
+        }
+        const result = validation.data;
 
         if (result.success === false) {
           emitSyncError(result.error || t('errors.restoreFailed'), 'server');
@@ -138,12 +150,18 @@ export function useSyncBackup(options: UseSyncBackupOptions): UseSyncBackupRetur
   const deleteBackup = useCallback(
     async (backupKey: string): Promise<boolean> => {
       try {
-        const response = await fetch(`${SYNC_API_ENDPOINT}?action=backup`, {
+        const response = await fetchWithRetry(`${SYNC_API_ENDPOINT}?action=backup`, {
           method: 'DELETE',
           headers: getSyncAuthHeaders(),
           body: JSON.stringify({ backupKey }),
         });
-        const result = (await response.json()) as SyncDeleteBackupResponse;
+        const rawResult: unknown = await response.json();
+        const validation = validateDeleteBackupResponse(rawResult);
+        if (!validation.valid) {
+          callSyncEngineCallback('onError', onError, validation.reason);
+          return false;
+        }
+        const result = validation.data;
 
         if (result.success === false) {
           callSyncEngineCallback('onError', onError, result.error || t('errors.deleteFailed'));
