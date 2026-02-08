@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { isLucideIconName } from './lucideIconMap';
+import { isLucideIconName, LUCIDE_ICON_NAMES, resolveLucideIconName } from './lucideIconMap';
 
-describe('lucide icon subset', () => {
+describe('lucide icon map', () => {
   it('includes the default icons used by the app', () => {
     const required = [
       'Star',
@@ -22,5 +22,15 @@ describe('lucide icon subset', () => {
     for (const iconName of required) {
       expect(isLucideIconName(iconName)).toBe(true);
     }
+  });
+
+  it('loads the full lucide catalog through dynamic imports', () => {
+    expect(LUCIDE_ICON_NAMES.length).toBeGreaterThan(1000);
+  });
+
+  it('resolves icon names from kebab-case and case-insensitive input', () => {
+    expect(resolveLucideIconName('cloud-rain')).toBe('CloudRain');
+    expect(resolveLucideIconName('cloudrain')).toBe('CloudRain');
+    expect(resolveLucideIconName('does-not-exist')).toBeNull();
   });
 });

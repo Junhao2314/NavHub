@@ -6,9 +6,7 @@ import { isRecord } from './typeGuards';
 import { normalizeHttpUrl } from './url';
 
 const CATEGORY_ICON_FALLBACK = 'Folder';
-const CATEGORY_ICON_ALIASES: Record<string, string> = {
-  FolderOpen: 'Folder',
-};
+const CATEGORY_ICON_ALIASES: Record<string, string> = {};
 
 export const isTextIconName = (rawName: string): boolean => {
   const trimmed = rawName.trim();

@@ -109,7 +109,7 @@ describe('useDataStore', () => {
     expect(get().categories.find((c) => c.id === 'common')?.icon).toBe('Star');
     expect(get().categories.find((c) => c.id === 'weather')?.icon).toBe('CloudRain');
     expect(get().categories.find((c) => c.id === 'emoji')?.icon).toBe('🔥');
-    expect(get().categories.find((c) => c.id === 'legacy')?.icon).toBe('Folder');
+    expect(get().categories.find((c) => c.id === 'legacy')?.icon).toBe('FolderOpen');
     expect(get().categories.find((c) => c.id === 'broken')?.icon).toBe('Folder');
 
     flushScheduledLocalStorageWrite(LOCAL_STORAGE_KEY);
@@ -117,7 +117,7 @@ describe('useDataStore', () => {
     expect(persisted.categories.find((c: Category) => c.id === 'common')?.icon).toBe('Star');
     expect(persisted.categories.find((c: Category) => c.id === 'weather')?.icon).toBe('CloudRain');
     expect(persisted.categories.find((c: Category) => c.id === 'emoji')?.icon).toBe('🔥');
-    expect(persisted.categories.find((c: Category) => c.id === 'legacy')?.icon).toBe('Folder');
+    expect(persisted.categories.find((c: Category) => c.id === 'legacy')?.icon).toBe('FolderOpen');
     expect(persisted.categories.find((c: Category) => c.id === 'broken')?.icon).toBe('Folder');
     expect(dialog.notify).toHaveBeenCalledTimes(1);
     expect(dialog.notify).toHaveBeenCalledWith(expect.stringContaining('Lucide'), 'warning');

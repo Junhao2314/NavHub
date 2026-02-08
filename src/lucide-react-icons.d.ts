@@ -4,3 +4,9 @@ declare module 'lucide-react/dist/esm/icons/*.js' {
   const icon: LucideIcon;
   export default icon;
 }
+
+declare module 'lucide-react/dynamicIconImports.mjs' {
+  import dynamicIconImports from 'lucide-react/dynamicIconImports';
+
+  export default dynamicIconImports;
+}

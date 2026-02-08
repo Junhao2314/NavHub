@@ -24,3 +24,4 @@ yarn-debug.log*
 test
 playwright-report/
 test-results/
+nul

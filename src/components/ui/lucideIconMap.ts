@@ -1,120 +1,70 @@
 import type { LucideIcon } from 'lucide-react';
+import dynamicIconImports from 'lucide-react/dynamicIconImports.mjs';
 import React from 'react';
 
 type LucideIconModule = { default: LucideIcon };
+type LucideIconImporter = () => Promise<LucideIconModule>;
 
-export const LUCIDE_ICON_IMPORTERS = {
-  AlertCircle: () => import('lucide-react/dist/esm/icons/alert-circle.js'),
-  Archive: () => import('lucide-react/dist/esm/icons/archive.js'),
-  AtSign: () => import('lucide-react/dist/esm/icons/at-sign.js'),
-  Bell: () => import('lucide-react/dist/esm/icons/bell.js'),
-  Bike: () => import('lucide-react/dist/esm/icons/bike.js'),
-  Bot: () => import('lucide-react/dist/esm/icons/bot.js'),
-  Book: () => import('lucide-react/dist/esm/icons/book.js'),
-  BookOpen: () => import('lucide-react/dist/esm/icons/book-open.js'),
-  Bookmark: () => import('lucide-react/dist/esm/icons/bookmark.js'),
-  Camera: () => import('lucide-react/dist/esm/icons/camera.js'),
-  Calendar: () => import('lucide-react/dist/esm/icons/calendar.js'),
-  Car: () => import('lucide-react/dist/esm/icons/car.js'),
-  Check: () => import('lucide-react/dist/esm/icons/check.js'),
-  ChevronDown: () => import('lucide-react/dist/esm/icons/chevron-down.js'),
-  ChevronUp: () => import('lucide-react/dist/esm/icons/chevron-up.js'),
-  Chrome: () => import('lucide-react/dist/esm/icons/chrome.js'),
-  Circle: () => import('lucide-react/dist/esm/icons/circle.js'),
-  Clock: () => import('lucide-react/dist/esm/icons/clock.js'),
-  Cloud: () => import('lucide-react/dist/esm/icons/cloud.js'),
-  CloudRain: () => import('lucide-react/dist/esm/icons/cloud-rain.js'),
-  CloudSnow: () => import('lucide-react/dist/esm/icons/cloud-snow.js'),
-  Code: () => import('lucide-react/dist/esm/icons/code.js'),
-  Columns: () => import('lucide-react/dist/esm/icons/columns.js'),
-  Copy: () => import('lucide-react/dist/esm/icons/copy.js'),
-  CreditCard: () => import('lucide-react/dist/esm/icons/credit-card.js'),
-  Database: () => import('lucide-react/dist/esm/icons/database.js'),
-  Download: () => import('lucide-react/dist/esm/icons/download.js'),
-  Edit: () => import('lucide-react/dist/esm/icons/edit.js'),
-  ExternalLink: () => import('lucide-react/dist/esm/icons/external-link.js'),
-  File: () => import('lucide-react/dist/esm/icons/file.js'),
-  FileText: () => import('lucide-react/dist/esm/icons/file-text.js'),
-  Filter: () => import('lucide-react/dist/esm/icons/filter.js'),
-  Flag: () => import('lucide-react/dist/esm/icons/flag.js'),
-  Folder: () => import('lucide-react/dist/esm/icons/folder.js'),
-  Gamepad2: () => import('lucide-react/dist/esm/icons/gamepad-2.js'),
-  Github: () => import('lucide-react/dist/esm/icons/github.js'),
-  Gitlab: () => import('lucide-react/dist/esm/icons/gitlab.js'),
-  Globe: () => import('lucide-react/dist/esm/icons/globe.js'),
-  Grid: () => import('lucide-react/dist/esm/icons/grid.js'),
-  Hash: () => import('lucide-react/dist/esm/icons/hash.js'),
-  Headphones: () => import('lucide-react/dist/esm/icons/headphones.js'),
-  Heart: () => import('lucide-react/dist/esm/icons/heart.js'),
-  Hexagon: () => import('lucide-react/dist/esm/icons/hexagon.js'),
-  Highlighter: () => import('lucide-react/dist/esm/icons/highlighter.js'),
-  Home: () => import('lucide-react/dist/esm/icons/home.js'),
-  Image: () => import('lucide-react/dist/esm/icons/image.js'),
-  Info: () => import('lucide-react/dist/esm/icons/info.js'),
-  Layers: () => import('lucide-react/dist/esm/icons/layers.js'),
-  Layout: () => import('lucide-react/dist/esm/icons/layout.js'),
-  Link: () => import('lucide-react/dist/esm/icons/link.js'),
-  List: () => import('lucide-react/dist/esm/icons/list.js'),
-  Lock: () => import('lucide-react/dist/esm/icons/lock.js'),
-  Mail: () => import('lucide-react/dist/esm/icons/mail.js'),
-  MapPin: () => import('lucide-react/dist/esm/icons/map-pin.js'),
-  Menu: () => import('lucide-react/dist/esm/icons/menu.js'),
-  MessageCircle: () => import('lucide-react/dist/esm/icons/message-circle.js'),
-  MessageSquare: () => import('lucide-react/dist/esm/icons/message-square.js'),
-  Mic: () => import('lucide-react/dist/esm/icons/mic.js'),
-  Minus: () => import('lucide-react/dist/esm/icons/minus.js'),
-  Moon: () => import('lucide-react/dist/esm/icons/moon.js'),
-  MoreVertical: () => import('lucide-react/dist/esm/icons/more-vertical.js'),
-  Music: () => import('lucide-react/dist/esm/icons/music.js'),
-  Package: () => import('lucide-react/dist/esm/icons/package.js'),
-  Palette: () => import('lucide-react/dist/esm/icons/palette.js'),
-  Pause: () => import('lucide-react/dist/esm/icons/pause.js'),
-  PenTool: () => import('lucide-react/dist/esm/icons/pen-tool.js'),
-  Percent: () => import('lucide-react/dist/esm/icons/percent.js'),
-  Phone: () => import('lucide-react/dist/esm/icons/phone.js'),
-  Pin: () => import('lucide-react/dist/esm/icons/pin.js'),
-  Plane: () => import('lucide-react/dist/esm/icons/plane.js'),
-  Play: () => import('lucide-react/dist/esm/icons/play.js'),
-  Plus: () => import('lucide-react/dist/esm/icons/plus.js'),
-  Rocket: () => import('lucide-react/dist/esm/icons/rocket.js'),
-  Search: () => import('lucide-react/dist/esm/icons/search.js'),
-  Send: () => import('lucide-react/dist/esm/icons/send.js'),
-  Server: () => import('lucide-react/dist/esm/icons/server.js'),
-  Settings: () => import('lucide-react/dist/esm/icons/settings.js'),
-  Share: () => import('lucide-react/dist/esm/icons/share.js'),
-  Ship: () => import('lucide-react/dist/esm/icons/ship.js'),
-  ShoppingCart: () => import('lucide-react/dist/esm/icons/shopping-cart.js'),
-  Sidebar: () => import('lucide-react/dist/esm/icons/sidebar.js'),
-  Square: () => import('lucide-react/dist/esm/icons/square.js'),
-  Star: () => import('lucide-react/dist/esm/icons/star.js'),
-  Store: () => import('lucide-react/dist/esm/icons/store.js'),
-  Sun: () => import('lucide-react/dist/esm/icons/sun.js'),
-  Tag: () => import('lucide-react/dist/esm/icons/tag.js'),
-  Target: () => import('lucide-react/dist/esm/icons/target.js'),
-  Terminal: () => import('lucide-react/dist/esm/icons/terminal.js'),
-  Thermometer: () => import('lucide-react/dist/esm/icons/thermometer.js'),
-  Train: () => import('lucide-react/dist/esm/icons/train.js'),
-  Trash2: () => import('lucide-react/dist/esm/icons/trash-2.js'),
-  Triangle: () => import('lucide-react/dist/esm/icons/triangle.js'),
-  Truck: () => import('lucide-react/dist/esm/icons/truck.js'),
-  Type: () => import('lucide-react/dist/esm/icons/type.js'),
-  Upload: () => import('lucide-react/dist/esm/icons/upload.js'),
-  User: () => import('lucide-react/dist/esm/icons/user.js'),
-  Users: () => import('lucide-react/dist/esm/icons/users.js'),
-  Video: () => import('lucide-react/dist/esm/icons/video.js'),
-  Volume2: () => import('lucide-react/dist/esm/icons/volume-2.js'),
-  Wifi: () => import('lucide-react/dist/esm/icons/wifi.js'),
-  Wind: () => import('lucide-react/dist/esm/icons/wind.js'),
-  X: () => import('lucide-react/dist/esm/icons/x.js'),
-  Zap: () => import('lucide-react/dist/esm/icons/zap.js'),
-} satisfies Record<string, () => Promise<LucideIconModule>>;
+const IMPORTER_PATH_REGEX = /icons\/([a-z0-9-]+)\.js/;
 
-export type LucideIconName = keyof typeof LUCIDE_ICON_IMPORTERS;
+const kebabToPascal = (kebabName: string): string =>
+  kebabName
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+
+const canonicalIconEntries = (() => {
+  const seenModulePaths = new Set<string>();
+  const entries: Array<[string, LucideIconImporter]> = [];
+
+  for (const [kebabName, importer] of Object.entries(
+    dynamicIconImports as Record<string, LucideIconImporter>,
+  )) {
+    const source = importer.toString();
+    const modulePath = source.match(IMPORTER_PATH_REGEX)?.[1] ?? kebabName;
+    if (seenModulePaths.has(modulePath)) continue;
+
+    seenModulePaths.add(modulePath);
+    entries.push([kebabToPascal(modulePath), importer]);
+  }
+
+  return entries;
+})();
+
+export const LUCIDE_ICON_IMPORTERS = Object.fromEntries(canonicalIconEntries) as Record<
+  string,
+  LucideIconImporter
+>;
+
+export type LucideIconName = string;
 
 export const LUCIDE_ICON_NAMES = Object.keys(LUCIDE_ICON_IMPORTERS) as LucideIconName[];
 
-export function isLucideIconName(name: string): name is LucideIconName {
-  return Object.hasOwn(LUCIDE_ICON_IMPORTERS, name);
+const LUCIDE_ICON_NAME_SET = new Set(LUCIDE_ICON_NAMES);
+const LOWERCASE_ICON_NAME_MAP = new Map(
+  LUCIDE_ICON_NAMES.map((name) => [name.toLowerCase(), name] as const),
+);
+
+export function isLucideIconName(name: string): boolean {
+  return LUCIDE_ICON_NAME_SET.has(name as LucideIconName);
+}
+
+export function resolveLucideIconName(rawName: string): LucideIconName | null {
+  const trimmed = rawName.trim();
+  if (!trimmed) return null;
+
+  if (isLucideIconName(trimmed)) return trimmed;
+
+  const lowerCaseMatch = LOWERCASE_ICON_NAME_MAP.get(trimmed.toLowerCase());
+  if (lowerCaseMatch) return lowerCaseMatch;
+
+  if (trimmed.includes('-')) {
+    const normalized = kebabToPascal(trimmed.toLowerCase());
+    if (isLucideIconName(normalized)) return normalized;
+  }
+
+  return null;
 }
 
 const lazyIconCache = new Map<LucideIconName, React.LazyExoticComponent<LucideIcon>>();
