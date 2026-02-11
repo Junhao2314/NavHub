@@ -122,7 +122,7 @@
     "startSorting": "开始排序"
   },
   "sidebar": {
-    "pinnedSites": "置顶网站",
+    "pinnedSites": "顶置",
     "categoryDirectory": "分类目录",
     "manageCategories": "管理分类",
     "privacyGroup": "隐私分组",
@@ -355,7 +355,11 @@
       "iconSizeError": "图标文件大小不能超过 2MB",
       "configureAiFirst": "请先点击侧边栏左下角设置图标配置 AI API Key",
       "aiRecommendCategory": "AI 推荐分类：{{category}}（右上角可手动切换）",
-      "aiFillFailed": "AI 生成失败，请检查 AI 配置或查看控制台日志"
+      "aiFillFailed": "AI 生成失败，请检查 AI 配置或查看控制台日志",
+      "alternativeUrls": "备选网址",
+      "alternativeUrlsHint": "最多添加 5 个备选网址",
+      "addAlternativeUrl": "添加备选网址",
+      "alternativeUrlPlaceholder": "https://mirror.example.com"
     },
     "category": {
       "title": "分类管理",
@@ -439,6 +443,42 @@
     },
     "confirm": {
       "defaultTitle": "请确认操作"
+    },
+    "countdown": {
+      "sectionTitle": "倒计时",
+      "addCountdown": "添加倒计时",
+      "editCountdown": "编辑倒计时",
+      "title": "标题",
+      "note": "备注",
+      "notePlaceholder": "添加备注（可选）",
+      "targetDate": "目标时间",
+      "recurrence": "重复方式",
+      "once": "不重复",
+      "daily": "每天",
+      "weekly": "每周",
+      "monthly": "每月",
+      "yearly": "每年",
+      "reminders": "提醒",
+      "remindersHint": "提前 N 分钟提醒（0 表示到点）",
+      "atTime": "到点",
+      "reminderChip": "{{minutes}} 分钟",
+      "reminderPlaceholder": "分钟，例如 30",
+      "addReminder": "添加提醒",
+      "daysLeft": "{{count}} 天",
+      "hoursLeft": "{{count}} 小时",
+      "minutesLeft": "{{count}} 分钟",
+      "secondsLeft": "{{count}} 秒",
+      "expired": "已过期",
+      "today": "就在今天",
+      "deleteConfirmTitle": "删除倒计时",
+      "deleteConfirmMessage": "确定要删除「{{title}}」倒计时吗？",
+      "noCountdowns": "暂无倒计时",
+      "hidden": "已隐藏",
+      "toggleVisibility": "切换可见性",
+      "saveCountdown": "保存倒计时",
+      "reminderTitle": "倒计时提醒",
+      "reminderBefore": "「{{title}}」还有 {{minutes}} 分钟",
+      "reminderDue": "「{{title}}」到点了"
     }
   },
   "errors": {
@@ -559,7 +599,8 @@
   "linkCard": {
     "invalidUrl": "链接 URL 无效（仅支持 http/https），已阻止打开。",
     "edit": "编辑",
-    "category": "分类: {{category}}"
+    "category": "分类: {{category}}",
+    "alternativeUrls": "{{count}} 个备选网址"
   },
   "duplicateChecker": {
     "title": "重复卡片检测",

@@ -6,7 +6,7 @@ import type { NavHubSyncData } from './types';
  *
  * Bump this value when the persisted sync payload structure changes.
  */
-export const NAVHUB_SYNC_DATA_SCHEMA_VERSION = 1;
+export const NAVHUB_SYNC_DATA_SCHEMA_VERSION = 2;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -50,6 +50,39 @@ const isValidCategory = (item: unknown): boolean => {
   );
 };
 
+const isValidCountdownRecurrence = (value: unknown): boolean => {
+  return (
+    value === 'once' ||
+    value === 'daily' ||
+    value === 'weekly' ||
+    value === 'monthly' ||
+    value === 'yearly'
+  );
+};
+
+/**
+ * 验证 CountdownItem 必须字段
+ */
+const isValidCountdownItem = (item: unknown): boolean => {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+  const countdown = item as UnknownRecord;
+
+  const targetDate = countdown.targetDate;
+  const targetMs = typeof targetDate === 'string' ? new Date(targetDate).getTime() : NaN;
+
+  return (
+    typeof countdown.id === 'string' &&
+    countdown.id.length > 0 &&
+    typeof countdown.title === 'string' &&
+    countdown.title.length > 0 &&
+    typeof targetDate === 'string' &&
+    Number.isFinite(targetMs) &&
+    isValidCountdownRecurrence(countdown.recurrence) &&
+    typeof countdown.createdAt === 'number' &&
+    Number.isFinite(countdown.createdAt)
+  );
+};
+
 /**
  * 验证可选的字符串字段
  */
@@ -84,6 +117,12 @@ export const normalizeNavHubSyncData = (value: unknown): NavHubSyncData | null =
   // 过滤无效的 category 项
   const categories = rawCategories.filter(isValidCategory);
 
+  // countdowns 可选字段：允许空数组（表示清空）
+  const rawCountdowns = record.countdowns;
+  const countdowns = Array.isArray(rawCountdowns)
+    ? rawCountdowns.filter(isValidCountdownItem)
+    : undefined;
+
   // 规范化 meta
   const meta = normalizeSyncMeta(record.meta);
 
@@ -91,6 +130,7 @@ export const normalizeNavHubSyncData = (value: unknown): NavHubSyncData | null =
     schemaVersion: ensureNavHubSyncDataSchemaVersion(record.schemaVersion),
     links,
     categories,
+    countdowns,
     meta,
     // 可选字段验证
     searchConfig: normalizeOptionalObject(record.searchConfig),

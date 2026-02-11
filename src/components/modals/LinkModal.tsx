@@ -1,4 +1,4 @@
-import { Loader2, Pin, Sparkles, Star, Tag, Trash2, Upload, Wand2, X } from 'lucide-react';
+import { Loader2, Pin, Plus, Sparkles, Star, Tag, Trash2, Upload, Wand2, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LINK_MODAL_AUTO_FETCH_ICON_DELAY_MS,
@@ -18,8 +18,11 @@ import {
   getHostnameFromUrlInput,
 } from '../../utils/faviconExtractor';
 import { getIconToneStyle, normalizeHexColor } from '../../utils/iconTone';
+import { generateId } from '../../utils/id';
 import { normalizeHttpUrl } from '../../utils/url';
 import { useDialog } from '../ui/DialogProvider';
+
+type AlternativeUrlRow = { id: string; url: string };
 
 interface LinkModalProps {
   isOpen: boolean;
@@ -63,6 +66,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
   const [batchMode, setBatchMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [alternativeUrls, setAlternativeUrls] = useState<AlternativeUrlRow[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const { notify } = useDialog();
@@ -126,6 +130,14 @@ const LinkModal: React.FC<LinkModalProps> = ({
         const nextIconTone = typeof initialData.iconTone === 'string' ? initialData.iconTone : '';
         setIconTone(nextIconTone);
         setIconToneInput(nextIconTone);
+        setAlternativeUrls(
+          Array.isArray(initialData.alternativeUrls)
+            ? initialData.alternativeUrls
+                .filter((u): u is string => typeof u === 'string' && u.trim() !== '')
+                .slice(0, 5)
+                .map((url) => ({ id: generateId(), url }))
+            : [],
+        );
       } else {
         setTitle('');
         setUrl('');
@@ -138,6 +150,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
         setIcon('');
         setIconTone('');
         setIconToneInput('');
+        setAlternativeUrls([]);
       }
     }
   }, [isOpen, initialData, categories, defaultCategoryId]);
@@ -271,6 +284,12 @@ const LinkModal: React.FC<LinkModalProps> = ({
 
     const nextTags = normalizeTags([...tags, ...parseTags(tagInput)]);
 
+    // Filter and validate alternative URLs
+    const validAlternativeUrls = alternativeUrls
+      .map((row) => normalizeHttpUrl(row.url.trim()))
+      .filter((u): u is string => u !== null);
+    const uniqueAlternativeUrls = Array.from(new Set(validAlternativeUrls));
+
     // 保存链接数据
     onSave({
       title,
@@ -282,6 +301,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
       categoryId,
       pinned,
       recommended,
+      alternativeUrls: uniqueAlternativeUrls.length > 0 ? uniqueAlternativeUrls : undefined,
     });
 
     // 如果有自定义图标URL，缓存到本地
@@ -302,6 +322,7 @@ const LinkModal: React.FC<LinkModalProps> = ({
       setPinned(false);
       setIconTone('');
       setIconToneInput('');
+      setAlternativeUrls([]);
       // 如果开启自动获取图标，尝试获取新图标
       if (autoFetchIcon && finalUrl) {
         handleFetchIcon();
@@ -841,6 +862,56 @@ const LinkModal: React.FC<LinkModalProps> = ({
               >
                 {t('modals.link.tagHint')}
               </p>
+            </div>
+
+            {/* Alternative URLs */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {t('modals.link.alternativeUrls')}
+                </span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  {t('modals.link.alternativeUrlsHint')}
+                </span>
+              </div>
+              {alternativeUrls.map((altUrl) => (
+                <div key={altUrl.id} className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={altUrl.url}
+                    onChange={(e) => {
+                      setAlternativeUrls((prev) =>
+                        prev.map((row) =>
+                          row.id === altUrl.id ? { ...row, url: e.target.value } : row,
+                        ),
+                      );
+                    }}
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-mono"
+                    placeholder={t('modals.link.alternativeUrlPlaceholder')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlternativeUrls((prev) => prev.filter((row) => row.id !== altUrl.id));
+                    }}
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              {alternativeUrls.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAlternativeUrls((prev) => [...prev, { id: generateId(), url: '' }])
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-accent hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors border border-dashed border-slate-200 dark:border-slate-700"
+                >
+                  <Plus size={12} />
+                  {t('modals.link.addAlternativeUrl')}
+                </button>
+              )}
             </div>
           </div>
 

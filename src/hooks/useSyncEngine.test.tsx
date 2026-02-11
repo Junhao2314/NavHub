@@ -61,6 +61,7 @@ describe('buildSyncData', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
       privacyConfig,
       'light',
       'encrypted',

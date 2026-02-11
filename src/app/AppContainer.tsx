@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import LinkSections from '../components/layout/LinkSections';
 import MainHeader from '../components/layout/MainHeader';
 import Sidebar from '../components/layout/Sidebar';
+import CountdownModal from '../components/modals/CountdownModal';
 
 import { GITHUB_REPO_URL, PRIVATE_CATEGORY_ID } from '../utils/constants';
 import { AppBackground } from './AppBackground';
@@ -30,6 +31,7 @@ function App({ onReady }: AppProps) {
     meta,
     appearance,
     admin,
+    countdown,
   } = controller;
 
   const { links, categories } = core;
@@ -148,11 +150,40 @@ function App({ onReady }: AppProps) {
             onPrivateUnlock={privacy.handleUnlockPrivateVault}
             privateUnlockHint={privacy.privateUnlockHint}
             privateUnlockSubHint={privacy.privateUnlockSubHint}
+            countdowns={countdown.countdowns}
+            isAdmin={isAdmin}
+            onCountdownAdd={() => {
+              countdown.setEditingCountdown(null);
+              countdown.setIsCountdownModalOpen(true);
+            }}
+            onCountdownEdit={(item) => {
+              countdown.setEditingCountdown(item);
+              countdown.setIsCountdownModalOpen(true);
+            }}
+            onCountdownDelete={countdown.deleteCountdown}
+            onCountdownToggleHidden={countdown.toggleCountdownHidden}
           />
         </div>
       </main>
 
       <AppBottomOverlays controller={controller} />
+
+      <CountdownModal
+        isOpen={countdown.isCountdownModalOpen}
+        onClose={() => {
+          countdown.setIsCountdownModalOpen(false);
+          countdown.setEditingCountdown(null);
+        }}
+        onSave={(data) => {
+          if (countdown.editingCountdown) {
+            countdown.updateCountdown({ ...data, id: countdown.editingCountdown.id });
+          } else {
+            countdown.addCountdown(data);
+          }
+        }}
+        initialData={countdown.editingCountdown || undefined}
+        closeOnBackdrop={appearance.closeOnBackdrop}
+      />
     </div>
   );
 }

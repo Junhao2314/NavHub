@@ -19,6 +19,7 @@ import { NAVHUB_SYNC_DATA_SCHEMA_VERSION } from '../../shared/syncApi/navHubSync
 import {
   AIConfig,
   Category,
+  CountdownItem,
   CustomFaviconCache,
   LinkItem,
   NavHubSyncData,
@@ -167,6 +168,7 @@ export function useSyncEngine(options: UseSyncEngineOptions = {}): UseSyncEngine
 export function buildSyncData(
   links: LinkItem[],
   categories: Category[],
+  countdowns?: CountdownItem[],
   searchConfig?: SearchConfig,
   aiConfig?: AIConfig,
   siteSettings?: SiteSettings,
@@ -180,6 +182,7 @@ export function buildSyncData(
     schemaVersion: NAVHUB_SYNC_DATA_SCHEMA_VERSION,
     links,
     categories,
+    countdowns,
     searchConfig,
     aiConfig,
     siteSettings,

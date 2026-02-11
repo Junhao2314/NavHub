@@ -3,6 +3,7 @@ import i18n from '../../../config/i18n';
 import type {
   AIConfig,
   Category,
+  CountdownItem,
   ExternalSearchSource,
   LinkItem,
   NavHubSyncData,
@@ -41,6 +42,7 @@ export const applyCloudDataToLocalState = (args: {
   role: SyncRole;
 
   updateData: (links: LinkItem[], categories: Category[]) => void;
+  restoreCountdowns: (items: CountdownItem[]) => void;
   restoreSearchConfigRef: MutableRefObject<
     ((config: { mode: SearchMode; externalSources: ExternalSearchSource[] }) => void) | null
   >;
@@ -77,6 +79,9 @@ export const applyCloudDataToLocalState = (args: {
 
   if (data.links && data.categories) {
     args.updateData(data.links, data.categories);
+  }
+  if (data.countdowns && Array.isArray(data.countdowns)) {
+    args.restoreCountdowns(data.countdowns);
   }
   if (data.searchConfig) {
     args.restoreSearchConfigRef.current?.(data.searchConfig);

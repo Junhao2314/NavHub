@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
 import {
   useBatchEdit,
@@ -11,7 +11,9 @@ import {
   useSorting,
   useTheme,
 } from '../hooks';
-import type { NavHubSyncData } from '../types';
+import { useCountdownReminders } from '../hooks/useCountdownReminders';
+import { useCountdownStore } from '../hooks/useCountdownStore';
+import type { CountdownItem, NavHubSyncData } from '../types';
 import { PRIVATE_CATEGORY_ID } from '../utils/constants';
 import { applyCloudDataToLocalState } from './useAppController/kvSync/applyCloudData';
 import { useAdminAccess } from './useAppController/useAdminAccess';
@@ -170,6 +172,21 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     setIsSearchConfigModalOpen,
   } = useModals();
 
+  // === Countdown ===
+  const {
+    countdowns,
+    isLoaded: isCountdownLoaded,
+    addCountdown,
+    updateCountdown,
+    deleteCountdown,
+    toggleHidden: toggleCountdownHidden,
+    replaceCountdowns,
+  } = useCountdownStore();
+  const [isCountdownModalOpen, setIsCountdownModalOpen] = useState(false);
+  const [editingCountdown, setEditingCountdown] = useState<CountdownItem | null>(null);
+
+  const isAllLoaded = isLoaded && isCountdownLoaded;
+
   const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
 
   const {
@@ -193,10 +210,12 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     handleDeleteBackup,
     handleSaveSettings,
   } = useKvSync({
-    isLoaded,
+    isLoaded: isAllLoaded,
     links,
     categories,
+    countdowns,
     updateData,
+    restoreCountdowns: replaceCountdowns,
     selectedCategory,
     setSelectedCategory,
     searchMode,
@@ -231,6 +250,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     confirm,
   });
 
+  useCountdownReminders({ countdowns, isAdmin, notify });
+
   // === 初始同步完成后隐藏加载动画 ===
   // 等待本地数据加载完成 + 云端初始同步完成后，才隐藏加载遮罩
   // 这样可以避免用户看到"主数据缺失时回退到历史记录"的过渡状态
@@ -249,6 +270,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
         data: data as NavHubSyncData,
         role: 'admin',
         updateData,
+        restoreCountdowns: replaceCountdowns,
         restoreSearchConfigRef,
         restoreSiteSettings,
         applyFromSync,
@@ -277,6 +299,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     },
     [
       updateData,
+      replaceCountdowns,
       restoreSiteSettings,
       applyFromSync,
       aiConfig,
@@ -682,6 +705,17 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       backgroundImage,
       useCustomBackground,
       backgroundMotion,
+    },
+    countdown: {
+      countdowns,
+      addCountdown,
+      updateCountdown,
+      deleteCountdown,
+      toggleCountdownHidden,
+      isCountdownModalOpen,
+      setIsCountdownModalOpen,
+      editingCountdown,
+      setEditingCountdown,
     },
   };
 };

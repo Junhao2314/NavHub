@@ -24,7 +24,7 @@ import {
 } from '../../config/ui';
 import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
-import { Category, LinkItem } from '../../types';
+import { Category, CountdownItem, LinkItem } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
 import { type HitokotoPayload, isHitokotoPayload } from '../../utils/typeGuards';
@@ -32,6 +32,7 @@ import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
 import SortableLinkCard from '../ui/SortableLinkCard';
+import CountdownSection from './CountdownSection';
 
 const HITOKOTO_CACHE_KEY = 'navhub_hitokoto_cache_v1';
 
@@ -66,6 +67,12 @@ interface LinkSectionsProps {
   onPrivateUnlock: (password?: string) => Promise<boolean>;
   privateUnlockHint: string;
   privateUnlockSubHint?: string;
+  countdowns?: CountdownItem[];
+  isAdmin?: boolean;
+  onCountdownAdd?: () => void;
+  onCountdownEdit?: (item: CountdownItem) => void;
+  onCountdownDelete?: (id: string) => void;
+  onCountdownToggleHidden?: (id: string) => void;
 }
 
 const ClockWidget: React.FC = () => {
@@ -124,6 +131,12 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   onPrivateUnlock,
   privateUnlockHint,
   privateUnlockSubHint,
+  countdowns,
+  isAdmin,
+  onCountdownAdd,
+  onCountdownEdit,
+  onCountdownDelete,
+  onCountdownToggleHidden,
 }) => {
   const { t } = useI18n();
   const selectedCategory = useAppStore((s) => s.selectedCategory);
@@ -725,6 +738,23 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
             )}
           </section>
         )}
+
+        {/* Countdown Section */}
+        {countdowns &&
+          onCountdownAdd &&
+          onCountdownEdit &&
+          onCountdownDelete &&
+          onCountdownToggleHidden &&
+          (countdowns.length > 0 || isAdmin) && (
+            <CountdownSection
+              countdowns={countdowns}
+              isAdmin={!!isAdmin}
+              onAdd={onCountdownAdd}
+              onEdit={onCountdownEdit}
+              onDelete={onCountdownDelete}
+              onToggleHidden={onCountdownToggleHidden}
+            />
+          )}
 
         {/* Footer - Pushed to bottom */}
         <footer className="mt-auto pt-6 pb-3 flex justify-center animate-in fade-in duration-700 delay-300">

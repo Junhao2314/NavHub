@@ -1,4 +1,4 @@
-import { Settings } from 'lucide-react';
+import { ChevronDown, ExternalLink, Settings } from 'lucide-react';
 import React from 'react';
 import { useI18n } from '../../hooks/useI18n';
 import { LinkItem } from '../../types';
@@ -50,6 +50,22 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
     const { notify } = useDialog();
     const [descExpanded, setDescExpanded] = React.useState(false);
     const [analyzedBg, setAnalyzedBg] = React.useState<{ bg: string; text: string } | null>(null);
+    const [altUrlsOpen, setAltUrlsOpen] = React.useState(false);
+
+    const safeAlternativeUrls = React.useMemo(() => {
+      if (!Array.isArray(link.alternativeUrls)) return [];
+      const seen = new Set<string>();
+      const result: string[] = [];
+      for (const raw of link.alternativeUrls) {
+        if (typeof raw !== 'string') continue;
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+        if (seen.has(trimmed)) continue;
+        seen.add(trimmed);
+        result.push(trimmed);
+      }
+      return result;
+    }, [link.alternativeUrls]);
 
     // 判断是否有标签，用于调整描述扩展窗口的高度
     const hasTags = visibleTags.length > 0;
@@ -225,6 +241,49 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
                 <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[11px] font-medium border border-slate-200 dark:border-slate-700/50">
                   +{remainingTagsCount}
                 </span>
+              )}
+            </div>
+          )}
+          {/* Alternative URLs indicator */}
+          {isDetailedView && safeAlternativeUrls.length > 0 && (
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setAltUrlsOpen(!altUrlsOpen)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-accent hover:border-accent/30 transition-colors"
+              >
+                <ExternalLink size={10} />
+                {t('linkCard.alternativeUrls', { count: safeAlternativeUrls.length })}
+                <ChevronDown
+                  size={10}
+                  className={cn('transition-transform', altUrlsOpen && 'rotate-180')}
+                />
+              </button>
+              {altUrlsOpen && (
+                <div className="absolute z-20 left-0 mt-1 w-full min-w-[200px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                  {safeAlternativeUrls.map((altUrl) => {
+                    const normalized = normalizeHttpUrl(altUrl);
+                    return (
+                      <a
+                        key={altUrl}
+                        href={normalized || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!normalized) {
+                            e.preventDefault();
+                            notify(t('linkCard.invalidUrl'), 'error');
+                          }
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors truncate"
+                      >
+                        <ExternalLink size={11} className="shrink-0 text-slate-400" />
+                        <span className="truncate">{altUrl}</span>
+                      </a>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}

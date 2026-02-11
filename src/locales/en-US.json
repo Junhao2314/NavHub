@@ -125,7 +125,7 @@
     "startSorting": "Start sorting"
   },
   "sidebar": {
-    "pinnedSites": "Pinned Sites",
+    "pinnedSites": "Pinned",
     "categoryDirectory": "Categories",
     "manageCategories": "Manage categories",
     "privacyGroup": "Privacy Group",
@@ -360,7 +360,11 @@
       "iconSizeError": "Icon file size cannot exceed 2MB",
       "configureAiFirst": "Please click the settings icon in the bottom left of sidebar to configure AI API Key first",
       "aiRecommendCategory": "AI recommended category: {{category}} (can manually switch in top right)",
-      "aiFillFailed": "AI generation failed, please check AI configuration or view console logs"
+      "aiFillFailed": "AI generation failed, please check AI configuration or view console logs",
+      "alternativeUrls": "Alternative URLs",
+      "alternativeUrlsHint": "Add up to 5 alternative URLs",
+      "addAlternativeUrl": "Add alternative URL",
+      "alternativeUrlPlaceholder": "https://mirror.example.com"
     },
     "category": {
       "title": "Category Management",
@@ -450,6 +454,42 @@
     },
     "confirm": {
       "defaultTitle": "Please confirm"
+    },
+    "countdown": {
+      "sectionTitle": "Countdown",
+      "addCountdown": "Add Countdown",
+      "editCountdown": "Edit Countdown",
+      "title": "Title",
+      "note": "Note",
+      "notePlaceholder": "Add a note (optional)",
+      "targetDate": "Target Date",
+      "recurrence": "Recurrence",
+      "once": "Once",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "reminders": "Reminders",
+      "remindersHint": "N minutes early (0 = at time)",
+      "atTime": "At time",
+      "reminderChip": "{{minutes}} min",
+      "reminderPlaceholder": "Minutes, e.g. 30",
+      "addReminder": "Add reminder",
+      "daysLeft": "{{count}} days",
+      "hoursLeft": "{{count}} hours",
+      "minutesLeft": "{{count}} min",
+      "secondsLeft": "{{count}} sec",
+      "expired": "Expired",
+      "today": "Today",
+      "deleteConfirmTitle": "Delete Countdown",
+      "deleteConfirmMessage": "Are you sure you want to delete \"{{title}}\"?",
+      "noCountdowns": "No countdowns",
+      "hidden": "Hidden",
+      "toggleVisibility": "Toggle visibility",
+      "saveCountdown": "Save Countdown",
+      "reminderTitle": "Countdown reminder",
+      "reminderBefore": "\"{{title}}\" in {{minutes}} min",
+      "reminderDue": "\"{{title}}\" is due now"
     }
   },
   "errors": {
@@ -570,7 +610,8 @@
   "linkCard": {
     "invalidUrl": "Invalid URL (only http/https supported), blocked from opening.",
     "edit": "Edit",
-    "category": "Category: {{category}}"
+    "category": "Category: {{category}}",
+    "alternativeUrls": "{{count}} alternative URLs"
   },
   "duplicateChecker": {
     "title": "Duplicate checker",

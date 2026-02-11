@@ -23,6 +23,7 @@ export interface LinkItem {
   recommendedOrder?: number; // 手动推荐排序（越小越靠前）
   adminClicks?: number; // 管理员模式点击次数（用于自动推荐）
   adminLastClickedAt?: number; // 管理员最近点击时间戳（毫秒）
+  alternativeUrls?: string[]; // 备选网址
 }
 
 export interface Category {
@@ -73,6 +74,22 @@ export interface AIConfig {
 
 // 搜索模式类型
 export type SearchMode = 'internal' | 'external';
+
+// 倒计时重复类型
+export type CountdownRecurrence = 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+// 倒计时项
+export interface CountdownItem {
+  id: string;
+  title: string;
+  note?: string;
+  targetDate: string; // ISO 8601
+  recurrence: CountdownRecurrence;
+  reminderMinutes?: number[]; // 提醒（提前 N 分钟；可包含 0 = 到点提醒）
+  hidden?: boolean; // 管理员控制可见性
+  createdAt: number;
+  order?: number;
+}
 
 // 外部搜索源配置
 export interface ExternalSearchSource {
@@ -165,6 +182,7 @@ export interface NavHubSyncData {
   schemaVersion?: number;
   links: LinkItem[];
   categories: Category[];
+  countdowns?: CountdownItem[];
   searchConfig?: SearchConfig;
   aiConfig?: AIConfig;
   siteSettings?: SiteSettings;

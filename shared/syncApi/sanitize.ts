@@ -32,6 +32,9 @@ export const sanitizePublicData = (data: NavHubSyncData): NavHubSyncData => {
   const links = data.links.filter(
     (link) => link.categoryId !== PRIVATE_CATEGORY_ID && !hiddenCategoryIds.has(link.categoryId),
   );
+  const countdowns = Array.isArray(data.countdowns)
+    ? data.countdowns.filter((item) => !item.hidden)
+    : data.countdowns;
 
   return {
     ...data,
@@ -41,5 +44,6 @@ export const sanitizePublicData = (data: NavHubSyncData): NavHubSyncData => {
     privacyConfig: undefined,
     categories,
     links,
+    countdowns,
   };
 };

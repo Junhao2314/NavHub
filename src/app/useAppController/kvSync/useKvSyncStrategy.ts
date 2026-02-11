@@ -4,6 +4,7 @@ import type { PullResult } from '../../../hooks/sync/useSyncApi';
 import type {
   AIConfig,
   Category,
+  CountdownItem,
   ExternalSearchSource,
   LinkItem,
   NavHubSyncData,
@@ -30,6 +31,7 @@ export const useKvSyncStrategy = (args: {
   isLoaded: boolean;
   links: LinkItem[];
   categories: Category[];
+  countdowns: CountdownItem[];
   searchMode: SearchMode;
   externalSearchSources: ExternalSearchSource[];
   aiConfig: AIConfig;
@@ -66,6 +68,7 @@ export const useKvSyncStrategy = (args: {
     isLoaded,
     links,
     categories,
+    countdowns,
     searchMode,
     externalSearchSources,
     aiConfig,
@@ -247,6 +250,7 @@ export const useKvSyncStrategy = (args: {
             const localData = buildLocalSyncPayload({
               links,
               categories,
+              countdowns,
               searchMode,
               externalSearchSources,
               aiConfig,
@@ -284,6 +288,7 @@ export const useKvSyncStrategy = (args: {
             const localData = buildLocalSyncPayload({
               links,
               categories,
+              countdowns,
               searchMode,
               externalSearchSources,
               aiConfig,
@@ -309,6 +314,7 @@ export const useKvSyncStrategy = (args: {
     aiConfig,
     applyCloudData,
     categories,
+    countdowns,
     externalSearchSources,
     getLocalSyncMeta,
     handleSyncConflict,
@@ -343,6 +349,7 @@ export const useKvSyncStrategy = (args: {
       const syncDataBase = buildLocalSyncPayload({
         links,
         categories,
+        countdowns,
         searchMode,
         externalSearchSources,
         aiConfig,
@@ -408,6 +415,7 @@ export const useKvSyncStrategy = (args: {
     aiConfig,
     cancelPendingStatsSync,
     categories,
+    countdowns,
     currentConflict,
     externalSearchSources,
     flushPendingStatsSync,
@@ -464,6 +472,7 @@ export const useKvSyncStrategy = (args: {
       const syncDataBase = buildLocalSyncPayload({
         links,
         categories,
+        countdowns,
         searchMode,
         externalSearchSources,
         aiConfig,
@@ -481,6 +490,7 @@ export const useKvSyncStrategy = (args: {
   }, [
     aiConfig,
     categories,
+    countdowns,
     currentConflict,
     externalSearchSources,
     isAdmin,

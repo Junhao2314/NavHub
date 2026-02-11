@@ -2,6 +2,7 @@ import { buildSyncData } from '../../../hooks';
 import type {
   AIConfig,
   Category,
+  CountdownItem,
   ExternalSearchSource,
   LinkItem,
   SearchMode,
@@ -21,6 +22,7 @@ export type SyncPrivacyConfig = {
 export const buildLocalSyncPayload = (args: {
   links: LinkItem[];
   categories: Category[];
+  countdowns: CountdownItem[];
   searchMode: SearchMode;
   externalSearchSources: ExternalSearchSource[];
   aiConfig: AIConfig;
@@ -34,6 +36,7 @@ export const buildLocalSyncPayload = (args: {
   return buildSyncData(
     args.links,
     args.categories,
+    args.countdowns,
     { mode: args.searchMode, externalSources: args.externalSearchSources },
     args.aiConfig,
     args.siteSettings,

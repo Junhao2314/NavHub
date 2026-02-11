@@ -4,6 +4,7 @@ import { buildSyncData, useSyncEngine } from '../../hooks';
 import type {
   AIConfig,
   Category,
+  CountdownItem,
   ExternalSearchSource,
   LinkItem,
   NavHubSyncData,
@@ -38,7 +39,9 @@ export interface UseKvSyncOptions {
   isLoaded: boolean;
   links: LinkItem[];
   categories: Category[];
+  countdowns: CountdownItem[];
   updateData: (links: LinkItem[], categories: Category[]) => void;
+  restoreCountdowns: (items: CountdownItem[]) => void;
 
   // Sidebar selection is used when applying privacyConfig from cloud
   selectedCategory: string;
@@ -93,7 +96,9 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     isLoaded,
     links,
     categories,
+    countdowns,
     updateData,
+    restoreCountdowns,
     selectedCategory,
     setSelectedCategory,
     searchMode,
@@ -175,6 +180,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         data,
         role,
         updateData,
+        restoreCountdowns,
         restoreSearchConfigRef,
         restoreSiteSettings,
         applyFromSync,
@@ -226,6 +232,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       setSelectedCategory,
       setUseSeparatePrivacyPassword,
       updateData,
+      restoreCountdowns,
     ],
   );
 
@@ -314,6 +321,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     isLoaded,
     links,
     categories,
+    countdowns,
     searchMode,
     externalSearchSources,
     aiConfig,
@@ -374,6 +382,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       const syncData = buildLocalSyncPayload({
         links,
         categories,
+        countdowns,
         searchMode,
         externalSearchSources,
         aiConfig: nextConfig,
@@ -406,6 +415,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       isAdmin,
       links,
       categories,
+      countdowns,
       searchMode,
       externalSearchSources,
       privateVaultCipher,
@@ -496,6 +506,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     const syncData = buildLocalSyncPayload({
       links,
       categories,
+      countdowns,
       searchMode,
       externalSearchSources,
       aiConfig,
@@ -526,6 +537,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     requireAdmin,
     links,
     categories,
+    countdowns,
     searchMode,
     externalSearchSources,
     aiConfig,
@@ -585,6 +597,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         const localData = buildLocalSyncPayload({
           links,
           categories,
+          countdowns,
           searchMode,
           externalSearchSources,
           aiConfig,
@@ -621,6 +634,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       applyCloudData,
       links,
       categories,
+      countdowns,
       searchMode,
       externalSearchSources,
       aiConfig,
@@ -783,6 +797,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       const restoredPayload = buildSyncData(
         restoredData.links,
         restoredData.categories,
+        restoredData.countdowns,
         restoredData.searchConfig,
         restoredData.aiConfig,
         restoredData.siteSettings,
