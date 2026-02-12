@@ -238,8 +238,10 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
   const [checklistInput, setChecklistInput] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showTzPicker, setShowTzPicker] = useState(false);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
+  const tzPickerRef = useRef<HTMLDivElement>(null);
   const linkOptions = useMemo(() => links.slice(0, MAX_LINK_OPTIONS), [links]);
 
   const rule = useMemo(
@@ -430,7 +432,8 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
         (initialData.reminderMinutes &&
           JSON.stringify([...initialData.reminderMinutes].sort()) !==
             JSON.stringify([...DEFAULT_REMINDER_MINUTES].sort())) ||
-        !!initialData.isPrivate;
+        !!initialData.isPrivate ||
+        !!initialData.labelColor;
       setShowAdvanced(!!hasAdvancedData);
     } else {
       const nowZoned = DateTime.now().setZone(DEFAULT_TIME_ZONE).set({ millisecond: 0 });
@@ -479,6 +482,18 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showTemplateDropdown]);
+
+  // Close timezone picker on click outside
+  useEffect(() => {
+    if (!showTzPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (tzPickerRef.current && !tzPickerRef.current.contains(e.target as Node)) {
+        setShowTzPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showTzPicker]);
 
   const handleSelectTemplate = useCallback(
     (entry: HolidayEntry) => {
@@ -902,41 +917,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
               )}
             </div>
 
-            {/* Label Color Marker */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                {t('modals.countdown.labelColor')}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setLabelColor('')}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                    labelColor === ''
-                      ? 'border-accent bg-accent/10 text-accent'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                  }`}
-                >
-                  {t('modals.countdown.labelColorNone')}
-                </button>
-                {LABEL_COLOR_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setLabelColor(opt.value)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                      labelColor === opt.value
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                    }`}
-                  >
-                    <span className={`inline-block w-2 h-2 rounded-full ${opt.className}`} />
-                    {t(opt.labelKey)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Advanced Options Toggle */}
             <button
               type="button"
@@ -957,6 +937,41 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 showAdvanced ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
+              {/* Label Color Marker */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                  {t('modals.countdown.labelColor')}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLabelColor('')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      labelColor === ''
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                    }`}
+                  >
+                    {t('modals.countdown.labelColorNone')}
+                  </button>
+                  {LABEL_COLOR_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setLabelColor(opt.value)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                        labelColor === opt.value
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                      }`}
+                    >
+                      <span className={`inline-block w-2 h-2 rounded-full ${opt.className}`} />
+                      {t(opt.labelKey)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Checklist Section */}
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
@@ -1173,23 +1188,60 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 </div>
               </div>
 
-              <div>
+              <div ref={tzPickerRef} className="relative">
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
                   {t('modals.countdown.timeZone')}
                 </label>
-                <input
-                  type="text"
-                  value={timeZone}
-                  onChange={(e) => setTimeZone(e.target.value)}
-                  list="navhub-timezone-options"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                  placeholder={DEFAULT_TIME_ZONE}
-                />
-                <datalist id="navhub-timezone-options">
-                  {COMMON_TIME_ZONES.map((opt) => (
-                    <option key={opt.value} value={opt.value} label={opt.label} />
-                  ))}
-                </datalist>
+                <div className="relative flex items-center gap-0">
+                  <input
+                    type="text"
+                    value={timeZone}
+                    onChange={(e) => {
+                      setTimeZone(e.target.value);
+                      setShowTzPicker(true);
+                    }}
+                    onFocus={() => setShowTzPicker(true)}
+                    className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-l-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                    placeholder={DEFAULT_TIME_ZONE}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTzPicker((prev) => !prev)}
+                    className="shrink-0 px-3 py-3 bg-slate-50 dark:bg-slate-800/50 border border-l-0 border-slate-200 dark:border-slate-700 rounded-r-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                  >
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform duration-200 ${showTzPicker ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                </div>
+                {showTzPicker && (
+                  <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+                    {COMMON_TIME_ZONES.filter(
+                      (opt) =>
+                        !timeZone.trim() ||
+                        opt.value.toLowerCase().includes(timeZone.trim().toLowerCase()) ||
+                        opt.label.toLowerCase().includes(timeZone.trim().toLowerCase()),
+                    ).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setTimeZone(opt.value);
+                          setShowTzPicker(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
+                          timeZone === opt.value
+                            ? 'text-accent font-medium'
+                            : 'text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        <span className="font-medium">{opt.value}</span>
+                        <span className="ml-2 text-xs text-slate-400">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                   {t('modals.countdown.timeZoneHint')}
                 </div>

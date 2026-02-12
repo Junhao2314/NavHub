@@ -1734,6 +1734,122 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* Status Filter */}
+          <DropdownPanel
+            value={statusFilter}
+            options={[
+              { value: 'all', label: t('modals.countdown.statusAll') },
+              { value: 'active', label: t('modals.countdown.statusActive') },
+              { value: 'expired', label: t('modals.countdown.statusExpired') },
+              { value: 'archived', label: t('modals.countdown.statusArchived') },
+            ]}
+            onChange={(v) => setStatusFilter(v as ReminderStatusFilter)}
+            ariaLabel={t('modals.countdown.status')}
+            title={t('modals.countdown.status')}
+          />
+
+          {/* Date Range */}
+          <div className="flex flex-wrap items-center gap-1">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              aria-label={t('modals.countdown.dateFrom')}
+              title={t('modals.countdown.timeRangeHint')}
+              className="px-2 py-1.5 text-xs font-medium rounded-full border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-accent/50 transition-all"
+            />
+            <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              aria-label={t('modals.countdown.dateTo')}
+              title={t('modals.countdown.timeRangeHint')}
+              className="px-2 py-1.5 text-xs font-medium rounded-full border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-accent/50 transition-all"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
+                aria-label={t('common.clear')}
+                title={t('common.clear')}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* Color Filter Dots */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setSelectedLabelColors([])}
+              aria-pressed={selectedLabelColors.length === 0}
+              className={`px-2 py-1 text-[10px] font-medium rounded-full border transition-all ${
+                selectedLabelColors.length === 0
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 hover:border-accent/50 hover:text-accent bg-white/60 dark:bg-slate-800/60'
+              }`}
+            >
+              {t('modals.countdown.statusAll')}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedLabelColors((prev) => {
+                  if (prev.includes(LABEL_COLOR_NONE_FILTER)) {
+                    return prev.filter((c) => c !== LABEL_COLOR_NONE_FILTER);
+                  }
+                  return [...prev, LABEL_COLOR_NONE_FILTER];
+                })
+              }
+              aria-pressed={selectedLabelColors.includes(LABEL_COLOR_NONE_FILTER)}
+              aria-label={t('modals.countdown.labelColorNone')}
+              title={t('modals.countdown.labelColorNone')}
+              className={`inline-flex items-center justify-center h-6 w-6 rounded-full border backdrop-blur-sm transition-all ${
+                selectedLabelColors.includes(LABEL_COLOR_NONE_FILTER)
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 hover:border-accent/50 hover:text-accent'
+              }`}
+            >
+              <Square size={12} />
+            </button>
+
+            {LABEL_COLOR_ORDER.map((color) => {
+              const isSelected = selectedLabelColors.includes(color);
+              const label = t(labelColorNameKeys[color]);
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() =>
+                    setSelectedLabelColors((prev) => {
+                      if (prev.includes(color)) return prev.filter((c) => c !== color);
+                      return [...prev, color];
+                    })
+                  }
+                  aria-pressed={isSelected}
+                  aria-label={label}
+                  title={label}
+                  className={`inline-flex items-center justify-center h-6 w-6 rounded-full border backdrop-blur-sm transition-all ${
+                    isSelected
+                      ? 'border-accent bg-accent/10'
+                      : 'border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 hover:border-accent/50'
+                  }`}
+                >
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${labelDotClasses[color]} ring-2 ring-white/60 dark:ring-slate-900/60`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+
           {/* View Style Icon Toggle Group */}
           <div className="hidden md:flex items-center p-1 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 backdrop-blur-sm">
             {[
@@ -1800,127 +1916,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
               {t('modals.countdown.addCountdown')}
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="mb-4 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <DropdownPanel
-            value={statusFilter}
-            options={[
-              { value: 'all', label: t('modals.countdown.statusAll') },
-              { value: 'active', label: t('modals.countdown.statusActive') },
-              { value: 'expired', label: t('modals.countdown.statusExpired') },
-              { value: 'archived', label: t('modals.countdown.statusArchived') },
-            ]}
-            onChange={(v) => setStatusFilter(v as ReminderStatusFilter)}
-            ariaLabel={t('modals.countdown.status')}
-            title={t('modals.countdown.status')}
-          />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              aria-label={t('modals.countdown.dateFrom')}
-              title={t('modals.countdown.timeRangeHint')}
-              className="px-3 py-1.5 text-xs font-medium rounded-full border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-accent/50 transition-all"
-            />
-            <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              aria-label={t('modals.countdown.dateTo')}
-              title={t('modals.countdown.timeRangeHint')}
-              className="px-3 py-1.5 text-xs font-medium rounded-full border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-accent/50 transition-all"
-            />
-            {(dateFrom || dateTo) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDateFrom('');
-                  setDateTo('');
-                }}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
-                aria-label={t('common.clear')}
-                title={t('common.clear')}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {t('modals.countdown.labelColor')}:
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setSelectedLabelColors([])}
-            aria-pressed={selectedLabelColors.length === 0}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${
-              selectedLabelColors.length === 0
-                ? 'border-accent bg-accent/10 text-accent'
-                : 'border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 hover:border-accent/50 hover:text-accent bg-white/60 dark:bg-slate-800/60'
-            }`}
-          >
-            {t('modals.countdown.statusAll')}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSelectedLabelColors((prev) => {
-                if (prev.includes(LABEL_COLOR_NONE_FILTER)) {
-                  return prev.filter((c) => c !== LABEL_COLOR_NONE_FILTER);
-                }
-                return [...prev, LABEL_COLOR_NONE_FILTER];
-              })
-            }
-            aria-pressed={selectedLabelColors.includes(LABEL_COLOR_NONE_FILTER)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${
-              selectedLabelColors.includes(LABEL_COLOR_NONE_FILTER)
-                ? 'border-accent bg-accent/10 text-accent'
-                : 'border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 hover:border-accent/50 hover:text-accent bg-white/60 dark:bg-slate-800/60'
-            }`}
-            title={t('modals.countdown.labelColorNone')}
-          >
-            {t('modals.countdown.labelColorNone')}
-          </button>
-
-          {LABEL_COLOR_ORDER.map((color) => {
-            const isSelected = selectedLabelColors.includes(color);
-            const label = t(labelColorNameKeys[color]);
-            return (
-              <button
-                key={color}
-                type="button"
-                onClick={() =>
-                  setSelectedLabelColors((prev) => {
-                    if (prev.includes(color)) return prev.filter((c) => c !== color);
-                    return [...prev, color];
-                  })
-                }
-                aria-pressed={isSelected}
-                aria-label={label}
-                title={label}
-                className={`inline-flex items-center justify-center h-8 w-8 rounded-full border backdrop-blur-sm transition-all ${
-                  isSelected
-                    ? 'border-accent bg-accent/10'
-                    : 'border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 hover:border-accent/50'
-                }`}
-              >
-                <span
-                  className={`inline-block w-3 h-3 rounded-full ${labelDotClasses[color]} ring-2 ring-white/60 dark:ring-slate-900/60`}
-                />
-              </button>
-            );
-          })}
         </div>
       </div>
 

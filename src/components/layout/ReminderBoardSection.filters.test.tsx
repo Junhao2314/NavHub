@@ -226,9 +226,7 @@ describe('ReminderBoardSection (Filters)', () => {
 
     await render({ items });
 
-    const noneBtn = Array.from(container.querySelectorAll('button')).find(
-      (btn) => btn.textContent?.trim() === '无',
-    ) as HTMLButtonElement | undefined;
+    const noneBtn = container.querySelector('button[aria-label="无"]') as HTMLButtonElement | null;
     expect(noneBtn).toBeTruthy();
 
     await act(async () => {
