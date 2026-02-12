@@ -83,7 +83,7 @@ function DropdownPanel<T extends string = string>({
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1.5 z-50 min-w-[140px] py-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-xl animate-in fade-in slide-in-from-top-1 duration-150"
+          className="absolute left-0 top-full mt-1.5 z-[60] min-w-[140px] py-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-xl animate-in fade-in slide-in-from-top-1 duration-150"
           role="listbox"
           aria-activedescendant={value}
         >

@@ -59,6 +59,11 @@ const createItem = (args: { id: string; title: string; tags?: string[] }): Count
 describe('ReminderBoardSection (Batch)', () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
+  const batchEditLabel = i18n.t('modals.countdown.batchEdit');
+  const batchArchiveLabel = i18n.t('modals.countdown.batchArchive');
+  const batchDeleteLabel = i18n.t('modals.countdown.batchDelete');
+  const batchAddTagLabel = i18n.t('modals.countdown.batchAddTag');
+  const batchDeleteConfirmTitle = i18n.t('modals.countdown.batchDeleteConfirmTitle');
 
   const render = async (options: {
     items: CountdownItem[];
@@ -116,7 +121,7 @@ describe('ReminderBoardSection (Batch)', () => {
     await render({ items, onBatchArchive, onBatchDelete: vi.fn(), onBatchUpdateTags: vi.fn() });
 
     const enterBtn = Array.from(container.querySelectorAll('button')).find((btn) =>
-      btn.textContent?.includes('批量编辑'),
+      btn.textContent?.includes(batchEditLabel),
     ) as HTMLButtonElement | undefined;
     expect(enterBtn).toBeTruthy();
 
@@ -136,7 +141,7 @@ describe('ReminderBoardSection (Batch)', () => {
     expect(container.textContent).toContain('已选 1');
 
     const archiveBtn = container.querySelector(
-      'button[aria-label="批量归档"]',
+      `button[aria-label="${batchArchiveLabel}"]`,
     ) as HTMLButtonElement | null;
     expect(archiveBtn).toBeTruthy();
 
@@ -155,7 +160,7 @@ describe('ReminderBoardSection (Batch)', () => {
     await render({ items, onBatchArchive: vi.fn(), onBatchDelete, onBatchUpdateTags: vi.fn() });
 
     const enterBtn = Array.from(container.querySelectorAll('button')).find((btn) =>
-      btn.textContent?.includes('批量编辑'),
+      btn.textContent?.includes(batchEditLabel),
     ) as HTMLButtonElement | undefined;
     expect(enterBtn).toBeTruthy();
 
@@ -173,7 +178,7 @@ describe('ReminderBoardSection (Batch)', () => {
     });
 
     const deleteBtn = container.querySelector(
-      'button[aria-label="批量删除"]',
+      `button[aria-label="${batchDeleteLabel}"]`,
     ) as HTMLButtonElement | null;
     expect(deleteBtn).toBeTruthy();
 
@@ -183,7 +188,7 @@ describe('ReminderBoardSection (Batch)', () => {
 
     expect(mocked.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: '批量删除备忘',
+        title: batchDeleteConfirmTitle,
         variant: 'danger',
       }),
     );
@@ -197,7 +202,7 @@ describe('ReminderBoardSection (Batch)', () => {
     await render({ items, onBatchArchive: vi.fn(), onBatchDelete: vi.fn(), onBatchUpdateTags });
 
     const enterBtn = Array.from(container.querySelectorAll('button')).find((btn) =>
-      btn.textContent?.includes('批量编辑'),
+      btn.textContent?.includes(batchEditLabel),
     ) as HTMLButtonElement | undefined;
     expect(enterBtn).toBeTruthy();
 
@@ -215,7 +220,7 @@ describe('ReminderBoardSection (Batch)', () => {
     });
 
     const tagAddSelect = container.querySelector(
-      'select[aria-label="批量添加标签"]',
+      `select[aria-label="${batchAddTagLabel}"]`,
     ) as HTMLSelectElement | null;
     expect(tagAddSelect).toBeTruthy();
 

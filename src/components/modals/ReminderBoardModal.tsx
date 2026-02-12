@@ -430,7 +430,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
         (initialData.reminderMinutes &&
           JSON.stringify([...initialData.reminderMinutes].sort()) !==
             JSON.stringify([...DEFAULT_REMINDER_MINUTES].sort())) ||
-        !!initialData.labelColor ||
         !!initialData.isPrivate;
       setShowAdvanced(!!hasAdvancedData);
     } else {
@@ -903,6 +902,41 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
               )}
             </div>
 
+            {/* Label Color Marker */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.labelColor')}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLabelColor('')}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    labelColor === ''
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                  }`}
+                >
+                  {t('modals.countdown.labelColorNone')}
+                </button>
+                {LABEL_COLOR_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setLabelColor(opt.value)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      labelColor === opt.value
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                    }`}
+                  >
+                    <span className={`inline-block w-2 h-2 rounded-full ${opt.className}`} />
+                    {t(opt.labelKey)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Advanced Options Toggle */}
             <button
               type="button"
@@ -925,12 +959,16 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
             >
               {/* Checklist Section */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                  {t('modals.countdown.checklist')}
-                </label>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
-                  {t('modals.countdown.checklistHint')}
-                </p>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {t('modals.countdown.checklist')}
+                  </label>
+                  {checklist.length === 0 && (
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                      {t('modals.countdown.checklistEmpty')}
+                    </span>
+                  )}
+                </div>
 
                 {checklist.length > 0 && (
                   <ul className="space-y-1.5 mb-2">
@@ -986,12 +1024,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                   </ul>
                 )}
 
-                {checklist.length === 0 && (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">
-                    {t('modals.countdown.checklistEmpty')}
-                  </p>
-                )}
-
                 {checklist.length < 20 ? (
                   <div className="flex items-center gap-2">
                     <input
@@ -1011,7 +1043,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                         }
                       }}
                       className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                      placeholder={t('modals.countdown.checklistPlaceholder')}
+                      placeholder={t('modals.countdown.checklistHint')}
                     />
                     <button
                       type="button"
@@ -1056,10 +1088,17 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
 
               {isAdmin && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                    {t('modals.countdown.group')}
-                  </label>
-                  {tags.length > 0 ? (
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                      {t('modals.countdown.group')}
+                    </label>
+                    {tags.length === 0 && (
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                        {t('modals.countdown.groupNoneDefault')}
+                      </span>
+                    )}
+                  </div>
+                  {tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
                       {tags.map((tag) => (
                         <button
@@ -1075,10 +1114,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                           </span>
                         </button>
                       ))}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mb-2">
-                      {t('modals.countdown.groupNone')}
                     </div>
                   )}
 
@@ -1189,11 +1224,13 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                  {t('modals.countdown.reminders')}
-                </label>
-                <div className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
-                  {t('modals.countdown.remindersHint')}
+                <div className="flex items-center gap-2 mb-1.5">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {t('modals.countdown.reminders')}
+                  </label>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {t('modals.countdown.remindersHint')}
+                  </span>
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -1237,40 +1274,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                   >
                     {t('modals.countdown.addReminder')}
                   </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                  {t('modals.countdown.labelColor')}
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setLabelColor('')}
-                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                      labelColor === ''
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                    }`}
-                  >
-                    {t('modals.countdown.labelColorNone')}
-                  </button>
-                  {LABEL_COLOR_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setLabelColor(opt.value)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                        labelColor === opt.value
-                          ? 'border-accent bg-accent/10 text-accent'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                      }`}
-                    >
-                      <span className={`inline-block w-2 h-2 rounded-full ${opt.className}`} />
-                      {t(opt.labelKey)}
-                    </button>
-                  ))}
                 </div>
               </div>
 

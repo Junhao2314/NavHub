@@ -12,13 +12,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('loads the home page', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveTitle('NavHub - AI Smart Navigator');
   await expect(page.locator('header input[type="text"]')).toBeVisible();
 });
 
 test('opens and closes settings modal', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.getByTitle('System settings').click();
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   await page.getByRole('button', { name: 'Close settings' }).click();
