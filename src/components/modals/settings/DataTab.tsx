@@ -1,4 +1,5 @@
 import {
+  Calendar,
   Clock,
   Cloud,
   CloudDownload,
@@ -13,11 +14,16 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../hooks/useI18n';
-import { downloadJsonFile } from '../../../services/exportService';
+import {
+  downloadIcsFile,
+  downloadJsonFile,
+  generateIcsContent,
+} from '../../../services/exportService';
 import {
   Category,
+  CountdownItem,
   LinkItem,
   SyncGetBackupResponse,
   SyncListBackupsResponse,
@@ -63,8 +69,10 @@ interface DataTabProps {
   onTogglePrivacyPassword: (enabled: boolean) => void;
   privacyAutoUnlockEnabled: boolean;
   onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
+  isPrivateUnlocked: boolean;
   links?: LinkItem[];
   categories?: Category[];
+  countdownItems?: CountdownItem[];
   onDeleteLink?: (id: string) => void;
   onNavigateToCategory?: (categoryId: string) => void;
 }
@@ -108,8 +116,10 @@ const DataTab: React.FC<DataTabProps> = ({
   onTogglePrivacyPassword,
   privacyAutoUnlockEnabled,
   onTogglePrivacyAutoUnlock,
+  isPrivateUnlocked,
   links = [],
   categories = [],
+  countdownItems = [],
   onDeleteLink,
   onNavigateToCategory,
 }) => {
@@ -136,6 +146,24 @@ const DataTab: React.FC<DataTabProps> = ({
   const [showPrivacyNewPassword, setShowPrivacyNewPassword] = useState(false);
   const [privacyError, setPrivacyError] = useState<string | null>(null);
   const [isSwitchingPrivacyMode, setIsSwitchingPrivacyMode] = useState(false);
+
+  const exportableCountdownItems = useMemo(
+    () =>
+      countdownItems.filter((item) => {
+        if (item.hidden || item.archivedAt) return false;
+        if (syncRole !== 'admin' && item.isPrivate && !isPrivateUnlocked) return false;
+        return true;
+      }),
+    [countdownItems, isPrivateUnlocked, syncRole],
+  );
+
+  const exportableCountdownCount = exportableCountdownItems.length;
+
+  const handleExportIcs = useCallback(() => {
+    if (exportableCountdownItems.length === 0) return;
+    const icsContent = generateIcsContent(exportableCountdownItems);
+    downloadIcsFile(icsContent);
+  }, [exportableCountdownItems]);
 
   useEffect(() => {
     setPassword(getSyncPassword());
@@ -1004,7 +1032,7 @@ const DataTab: React.FC<DataTabProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <button
             onClick={() => {
               if (syncRole !== 'admin') return;
@@ -1027,6 +1055,29 @@ const DataTab: React.FC<DataTabProps> = ({
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {t('settings.data.importDataHint')}
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportIcs}
+            disabled={exportableCountdownCount === 0}
+            className={`flex flex-col items-center justify-center gap-3 p-6 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 transition-all group ${
+              exportableCountdownCount > 0
+                ? 'hover:border-accent hover:bg-accent/5 dark:hover:bg-accent/10'
+                : 'opacity-60 cursor-not-allowed'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:text-accent group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors shadow-sm">
+              <Calendar size={24} />
+            </div>
+            <div className="text-center">
+              <div className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-accent">
+                {t('modals.countdown.exportIcs')}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {t('modals.countdown.exportIcsHint', { count: exportableCountdownCount })}
               </div>
             </div>
           </button>

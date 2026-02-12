@@ -136,7 +136,7 @@ describe('ReminderBoardSection (Filters)', () => {
     vi.restoreAllMocks();
   });
 
-  it('supports full-text search across title and note (AND tokens)', async () => {
+  it('does not render full-text search input in current filter toolbar', async () => {
     const items = [
       createItem({ id: 'a', title: 'Alpha Task', note: 'Hello world', offsetMs: 60_000 }),
       createItem({ id: 'b', title: 'Beta Task', note: 'foo bar', offsetMs: 60_000 }),
@@ -147,31 +147,7 @@ describe('ReminderBoardSection (Filters)', () => {
     const searchInput = container.querySelector(
       'input[aria-label="搜索备忘"]',
     ) as HTMLInputElement | null;
-    expect(searchInput).toBeTruthy();
-
-    await act(async () => {
-      setInputValue(searchInput!, 'Alpha');
-    });
-    expect(container.textContent).toContain('Alpha Task');
-    expect(container.textContent).not.toContain('Beta Task');
-
-    await act(async () => {
-      setInputValue(searchInput!, 'hello');
-    });
-    expect(container.textContent).toContain('Alpha Task');
-    expect(container.textContent).not.toContain('Beta Task');
-
-    await act(async () => {
-      setInputValue(searchInput!, 'foo bar');
-    });
-    expect(container.textContent).toContain('Beta Task');
-    expect(container.textContent).not.toContain('Alpha Task');
-
-    await act(async () => {
-      setInputValue(searchInput!, 'foo baz');
-    });
-    expect(container.textContent).not.toContain('Alpha Task');
-    expect(container.textContent).not.toContain('Beta Task');
+    expect(searchInput).toBeNull();
   });
 
   it('filters by status: active / expired / archived', async () => {

@@ -665,10 +665,10 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800 transition-transform duration-300"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800 transition-transform duration-300 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800/50">
+        <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800/50 shrink-0">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">
             {isEditMode ? t('modals.countdown.editCountdown') : t('modals.countdown.addCountdown')}
           </h3>
@@ -680,575 +680,577 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="p-6 space-y-4">
-          {errorMessage && (
-            <div className="px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm">
-              {errorMessage}
-            </div>
-          )}
+        <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+            {errorMessage && (
+              <div className="px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm">
+                {errorMessage}
+              </div>
+            )}
 
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">
-                {t('modals.countdown.title')}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {t('modals.countdown.title')}
+                </label>
+                {!isEditMode && (
+                  <div className="relative" ref={templateDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplateDropdown((prev) => !prev)}
+                      className="text-xs font-medium text-accent hover:text-accent/80 transition-colors"
+                    >
+                      {t('modals.countdown.templateButton')}
+                    </button>
+                    {showTemplateDropdown && (
+                      <div className="absolute right-0 top-full mt-1 z-50 w-56 max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+                        <div className="p-2">
+                          <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 px-2 py-1">
+                            {t('modals.countdown.templateChinese')}
+                          </div>
+                          {HOLIDAYS.filter((h) => h.category === 'chinese_legal').map((h) => (
+                            <button
+                              key={h.id}
+                              type="button"
+                              onClick={() => handleSelectTemplate(h)}
+                              className="w-full text-left px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            >
+                              {i18n.language === 'zh-CN' ? h.nameZh : h.nameEn}
+                            </button>
+                          ))}
+                          <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 px-2 py-1 mt-1">
+                            {t('modals.countdown.templateInternational')}
+                          </div>
+                          {HOLIDAYS.filter((h) => h.category === 'international').map((h) => (
+                            <button
+                              key={h.id}
+                              type="button"
+                              onClick={() => handleSelectTemplate(h)}
+                              className="w-full text-left px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            >
+                              {i18n.language === 'zh-CN' ? h.nameZh : h.nameEn}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <input
+                type="text"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                placeholder={t('modals.countdown.title')}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.note')}
               </label>
-              {!isEditMode && (
-                <div className="relative" ref={templateDropdownRef}>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm min-h-[60px] resize-none"
+                placeholder={t('modals.countdown.notePlaceholder')}
+              />
+            </div>
+
+            {/* Checklist Section */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                {t('modals.countdown.checklist')}
+              </label>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
+                {t('modals.countdown.checklistHint')}
+              </p>
+
+              {checklist.length > 0 && (
+                <ul className="space-y-1.5 mb-2">
+                  {checklist.map((ci) => (
+                    <li key={ci.id} className="flex items-center gap-2 group">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setChecklist((prev) =>
+                            prev.map((item) =>
+                              item.id === ci.id ? { ...item, done: !item.done } : item,
+                            ),
+                          )
+                        }
+                        className={`shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                          ci.done
+                            ? 'bg-emerald-500 border-emerald-500 text-white'
+                            : 'border-slate-300 dark:border-slate-600 hover:border-emerald-400'
+                        }`}
+                      >
+                        {ci.done && (
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path
+                              d="M2.5 6L5 8.5L9.5 3.5"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                      <span
+                        className={`flex-1 text-sm ${
+                          ci.done
+                            ? 'line-through text-slate-400 dark:text-slate-500'
+                            : 'text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        {ci.text}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setChecklist((prev) => prev.filter((item) => item.id !== ci.id))
+                        }
+                        className="shrink-0 p-1 text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <X size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {checklist.length === 0 && (
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">
+                  {t('modals.countdown.checklistEmpty')}
+                </p>
+              )}
+
+              {checklist.length < 20 ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={checklistInput}
+                    onChange={(e) => setChecklistInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const text = checklistInput.trim();
+                        if (!text) return;
+                        setChecklist((prev) => [...prev, { id: generateId(), text, done: false }]);
+                        setChecklistInput('');
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    placeholder={t('modals.countdown.checklistPlaceholder')}
+                  />
                   <button
                     type="button"
-                    onClick={() => setShowTemplateDropdown((prev) => !prev)}
-                    className="text-xs font-medium text-accent hover:text-accent/80 transition-colors"
-                  >
-                    {t('modals.countdown.templateButton')}
-                  </button>
-                  {showTemplateDropdown && (
-                    <div className="absolute right-0 top-full mt-1 z-50 w-56 max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
-                      <div className="p-2">
-                        <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 px-2 py-1">
-                          {t('modals.countdown.templateChinese')}
-                        </div>
-                        {HOLIDAYS.filter((h) => h.category === 'chinese_legal').map((h) => (
-                          <button
-                            key={h.id}
-                            type="button"
-                            onClick={() => handleSelectTemplate(h)}
-                            className="w-full text-left px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          >
-                            {i18n.language === 'zh-CN' ? h.nameZh : h.nameEn}
-                          </button>
-                        ))}
-                        <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 px-2 py-1 mt-1">
-                          {t('modals.countdown.templateInternational')}
-                        </div>
-                        {HOLIDAYS.filter((h) => h.category === 'international').map((h) => (
-                          <button
-                            key={h.id}
-                            type="button"
-                            onClick={() => handleSelectTemplate(h)}
-                            className="w-full text-left px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                          >
-                            {i18n.language === 'zh-CN' ? h.nameZh : h.nameEn}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-              placeholder={t('modals.countdown.title')}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.note')}
-            </label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm min-h-[60px] resize-none"
-              placeholder={t('modals.countdown.notePlaceholder')}
-            />
-          </div>
-
-          {/* Checklist Section */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-              {t('modals.countdown.checklist')}
-            </label>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
-              {t('modals.countdown.checklistHint')}
-            </p>
-
-            {checklist.length > 0 && (
-              <ul className="space-y-1.5 mb-2">
-                {checklist.map((ci) => (
-                  <li key={ci.id} className="flex items-center gap-2 group">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setChecklist((prev) =>
-                          prev.map((item) =>
-                            item.id === ci.id ? { ...item, done: !item.done } : item,
-                          ),
-                        )
-                      }
-                      className={`shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                        ci.done
-                          ? 'bg-emerald-500 border-emerald-500 text-white'
-                          : 'border-slate-300 dark:border-slate-600 hover:border-emerald-400'
-                      }`}
-                    >
-                      {ci.done && (
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <path
-                            d="M2.5 6L5 8.5L9.5 3.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    </button>
-                    <span
-                      className={`flex-1 text-sm ${
-                        ci.done
-                          ? 'line-through text-slate-400 dark:text-slate-500'
-                          : 'text-slate-700 dark:text-slate-200'
-                      }`}
-                    >
-                      {ci.text}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setChecklist((prev) => prev.filter((item) => item.id !== ci.id))
-                      }
-                      className="shrink-0 p-1 text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                    >
-                      <X size={14} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {checklist.length === 0 && (
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">
-                {t('modals.countdown.checklistEmpty')}
-              </p>
-            )}
-
-            {checklist.length < 20 ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={checklistInput}
-                  onChange={(e) => setChecklistInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
+                    onClick={() => {
                       const text = checklistInput.trim();
                       if (!text) return;
                       setChecklist((prev) => [...prev, { id: generateId(), text, done: false }]);
                       setChecklistInput('');
-                    }
-                  }}
-                  className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                  placeholder={t('modals.countdown.checklistPlaceholder')}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const text = checklistInput.trim();
-                    if (!text) return;
-                    setChecklist((prev) => [...prev, { id: generateId(), text, done: false }]);
-                    setChecklistInput('');
-                  }}
-                  className="shrink-0 px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-accent hover:border-accent/50 transition-all"
-                >
-                  {t('modals.countdown.checklistAdd')}
-                </button>
-              </div>
-            ) : (
-              <p className="text-xs text-amber-500">
-                {t('modals.countdown.checklistMaxReached', { max: 20 })}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.linkedUrl')}
-            </label>
-            <input
-              type="text"
-              value={linkedUrlInput}
-              onChange={(e) => setLinkedUrlInput(e.target.value)}
-              list={linkOptions.length > 0 ? 'navhub-reminder-linked-url-options' : undefined}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-              placeholder={t('modals.countdown.linkedUrlPlaceholder')}
-            />
-            {linkOptions.length > 0 && (
-              <datalist id="navhub-reminder-linked-url-options">
-                {linkOptions.map((link) => (
-                  <option key={link.id} value={link.url} label={link.title} />
-                ))}
-              </datalist>
-            )}
-          </div>
-
-          {isAdmin && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                {t('modals.countdown.group')}
-              </label>
-              {tags.length > 0 ? (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {tags.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600 transition-colors"
-                      title={t('common.delete')}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        <span className="max-w-[180px] truncate">{tag}</span>
-                        <X size={12} />
-                      </span>
-                    </button>
-                  ))}
+                    }}
+                    className="shrink-0 px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-accent hover:border-accent/50 transition-all"
+                  >
+                    {t('modals.countdown.checklistAdd')}
+                  </button>
                 </div>
               ) : (
-                <div className="text-xs text-slate-400 dark:text-slate-500 mb-2">
-                  {t('modals.countdown.groupNone')}
-                </div>
+                <p className="text-xs text-amber-500">
+                  {t('modals.countdown.checklistMaxReached', { max: 20 })}
+                </p>
               )}
+            </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  list={groups.length > 0 ? 'navhub-reminder-tag-options' : undefined}
-                  className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                  placeholder={t('modals.countdown.groupNewPlaceholder')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddTags();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddTags}
-                  className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
-                >
-                  {t('common.add')}
-                </button>
-              </div>
-
-              {groups.length > 0 && (
-                <datalist id="navhub-reminder-tag-options">
-                  {groups.map((tag) => (
-                    <option key={tag} value={tag} />
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.linkedUrl')}
+              </label>
+              <input
+                type="text"
+                value={linkedUrlInput}
+                onChange={(e) => setLinkedUrlInput(e.target.value)}
+                list={linkOptions.length > 0 ? 'navhub-reminder-linked-url-options' : undefined}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                placeholder={t('modals.countdown.linkedUrlPlaceholder')}
+              />
+              {linkOptions.length > 0 && (
+                <datalist id="navhub-reminder-linked-url-options">
+                  {linkOptions.map((link) => (
+                    <option key={link.id} value={link.url} label={link.title} />
                   ))}
                 </datalist>
               )}
             </div>
-          )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.precision')}
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['day', 'hour', 'minute', 'second'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPrecision(p)}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                    precision === p
-                      ? 'border-accent bg-accent/10 text-accent'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                  }`}
-                >
-                  {t(`modals.countdown.precision_${p}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.timeZone')}
-            </label>
-            <input
-              type="text"
-              value={timeZone}
-              onChange={(e) => setTimeZone(e.target.value)}
-              list="navhub-timezone-options"
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-              placeholder={DEFAULT_TIME_ZONE}
-            />
-            <datalist id="navhub-timezone-options">
-              {COMMON_TIME_ZONES.map((opt) => (
-                <option key={opt.value} value={opt.value} label={opt.label} />
-              ))}
-            </datalist>
-            <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-              {t('modals.countdown.timeZoneHint')}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.naturalInput')}
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={naturalInput}
-                onChange={(e) => setNaturalInput(e.target.value)}
-                className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                placeholder={t('modals.countdown.naturalInputPlaceholder')}
-              />
-              <button
-                type="button"
-                onClick={handleApplyNatural}
-                className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
-              >
-                {t('modals.countdown.applyNatural')}
-              </button>
-            </div>
-            {nextOccurrencePreview && (
-              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                {t('modals.countdown.nextOccurrence')}: {nextOccurrencePreview} (
-                {normalizeTimeZone(timeZone)})
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.targetDate')}
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={datePart}
-                onChange={(e) => setDatePart(e.target.value)}
-                className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-              />
-              {precision !== 'day' && (
-                <input
-                  type="time"
-                  step={timeStep}
-                  value={
-                    precision === 'second'
-                      ? normalizeTimePart(timePart)
-                      : precision === 'minute'
-                        ? normalizeTimePart(timePart).slice(0, 5)
-                        : normalizeTimePart(timePart).slice(0, 2) + ':00'
-                  }
-                  onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
-                  className="w-[140px] px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                />
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.recurrence')}
-            </label>
-            <select
-              value={repeatMode}
-              onChange={(e) => setRepeatMode(e.target.value as RepeatMode)}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-            >
-              <option value="once">{t('modals.countdown.once')}</option>
-              <option value="daily">{t('modals.countdown.daily')}</option>
-              <option value="weekly">{t('modals.countdown.weekly')}</option>
-              <option value="biweekly">{t('modals.countdown.biweekly')}</option>
-              <option value="workday">{t('modals.countdown.workday')}</option>
-              <option value="monthly">{t('modals.countdown.monthly')}</option>
-              <option value="quarterly">{t('modals.countdown.quarterly')}</option>
-              <option value="yearly">{t('modals.countdown.yearly')}</option>
-              <option value="cron">{t('modals.countdown.cron')}</option>
-              <option value="lunarYearly">{t('modals.countdown.lunarYearly')}</option>
-              <option value="solarTermYearly">{t('modals.countdown.solarTermYearly')}</option>
-            </select>
-
-            {repeatMode === 'cron' && (
-              <div className="mt-2 space-y-2">
-                <input
-                  type="text"
-                  value={cronExpression}
-                  onChange={(e) => setCronExpression(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                  placeholder={t('modals.countdown.cronPlaceholder')}
-                />
-                <div className="text-[11px] text-slate-400 dark:text-slate-500">
-                  {t('modals.countdown.cronHint')}
-                </div>
-                {cronNextPreview && (
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {t('modals.countdown.nextOccurrence')}: {cronNextPreview} (
-                    {normalizeTimeZone(timeZone)})
+            {isAdmin && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                  {t('modals.countdown.group')}
+                </label>
+                {tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {tags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600 transition-colors"
+                        title={t('common.delete')}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <span className="max-w-[180px] truncate">{tag}</span>
+                          <X size={12} />
+                        </span>
+                      </button>
+                    ))}
                   </div>
+                ) : (
+                  <div className="text-xs text-slate-400 dark:text-slate-500 mb-2">
+                    {t('modals.countdown.groupNone')}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    list={groups.length > 0 ? 'navhub-reminder-tag-options' : undefined}
+                    className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                    placeholder={t('modals.countdown.groupNewPlaceholder')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTags();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTags}
+                    className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
+                  >
+                    {t('common.add')}
+                  </button>
+                </div>
+
+                {groups.length > 0 && (
+                  <datalist id="navhub-reminder-tag-options">
+                    {groups.map((tag) => (
+                      <option key={tag} value={tag} />
+                    ))}
+                  </datalist>
                 )}
               </div>
             )}
 
-            {repeatMode === 'lunarYearly' && (
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <select
-                  value={lunarMonth}
-                  onChange={(e) => setLunarMonth(Number.parseInt(e.target.value, 10))}
-                  className="px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={m}>
-                      {m === 11
-                        ? t('modals.countdown.lunarMonth11')
-                        : m === 12
-                          ? t('modals.countdown.lunarMonth12')
-                          : t('modals.countdown.lunarMonthN', { count: m })}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={lunarDay}
-                  onChange={(e) => setLunarDay(Number.parseInt(e.target.value, 10))}
-                  className="px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm"
-                >
-                  {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d}>
-                      {t('modals.countdown.lunarDayN', { count: d })}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={lunarLeap}
-                    onChange={(e) => setLunarLeap(e.target.checked)}
-                  />
-                  {t('modals.countdown.lunarLeap')}
-                </label>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.precision')}
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {(['day', 'hour', 'minute', 'second'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPrecision(p)}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      precision === p
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                    }`}
+                  >
+                    {t(`modals.countdown.precision_${p}`)}
+                  </button>
+                ))}
               </div>
-            )}
-
-            {repeatMode === 'solarTermYearly' && (
-              <div className="mt-2">
-                <select
-                  value={solarTermKey}
-                  onChange={(e) => setSolarTermKey(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                >
-                  {SOLAR_TERM_ZH_NAMES.map((name) => (
-                    <option key={name} value={SOLAR_TERM_KEY_BY_ZH_NAME[name]}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.reminders')}
-            </label>
-            <div className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
-              {t('modals.countdown.remindersHint')}
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-2">
-              {reminderMinutes.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setReminderMinutes((prev) => prev.filter((x) => x !== m))}
-                  className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600 transition-colors"
-                  title={t('common.delete')}
-                >
-                  {m === 0
-                    ? t('modals.countdown.atTime')
-                    : t('modals.countdown.reminderChip', { minutes: m })}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.timeZone')}
+              </label>
               <input
-                type="number"
-                min={0}
-                value={reminderInput}
-                onChange={(e) => setReminderInput(e.target.value)}
-                className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                placeholder={t('modals.countdown.reminderPlaceholder')}
+                type="text"
+                value={timeZone}
+                onChange={(e) => setTimeZone(e.target.value)}
+                list="navhub-timezone-options"
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                placeholder={DEFAULT_TIME_ZONE}
               />
-              <button
-                type="button"
-                onClick={() => {
-                  const n = Number.parseInt(reminderInput.trim(), 10);
-                  if (!Number.isFinite(n) || n < 0) {
-                    setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
-                    return;
-                  }
-
-                  setReminderMinutes((prev) => normalizeReminderMinutes([...prev, n]));
-                  setReminderInput('');
-                }}
-                className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
-              >
-                {t('modals.countdown.addReminder')}
-              </button>
+              <datalist id="navhub-timezone-options">
+                {COMMON_TIME_ZONES.map((opt) => (
+                  <option key={opt.value} value={opt.value} label={opt.label} />
+                ))}
+              </datalist>
+              <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                {t('modals.countdown.timeZoneHint')}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              {t('modals.countdown.labelColor')}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setLabelColor('')}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                  labelColor === ''
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                }`}
-              >
-                {t('modals.countdown.labelColorNone')}
-              </button>
-              {LABEL_COLOR_OPTIONS.map((opt) => (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.naturalInput')}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={naturalInput}
+                  onChange={(e) => setNaturalInput(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                  placeholder={t('modals.countdown.naturalInputPlaceholder')}
+                />
                 <button
-                  key={opt.value}
                   type="button"
-                  onClick={() => setLabelColor(opt.value)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                    labelColor === opt.value
+                  onClick={handleApplyNatural}
+                  className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
+                >
+                  {t('modals.countdown.applyNatural')}
+                </button>
+              </div>
+              {nextOccurrencePreview && (
+                <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  {t('modals.countdown.nextOccurrence')}: {nextOccurrencePreview} (
+                  {normalizeTimeZone(timeZone)})
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.targetDate')}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={datePart}
+                  onChange={(e) => setDatePart(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                />
+                {precision !== 'day' && (
+                  <input
+                    type="time"
+                    step={timeStep}
+                    value={
+                      precision === 'second'
+                        ? normalizeTimePart(timePart)
+                        : precision === 'minute'
+                          ? normalizeTimePart(timePart).slice(0, 5)
+                          : normalizeTimePart(timePart).slice(0, 2) + ':00'
+                    }
+                    onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
+                    className="w-[140px] px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                  />
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.recurrence')}
+              </label>
+              <select
+                value={repeatMode}
+                onChange={(e) => setRepeatMode(e.target.value as RepeatMode)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+              >
+                <option value="once">{t('modals.countdown.once')}</option>
+                <option value="daily">{t('modals.countdown.daily')}</option>
+                <option value="weekly">{t('modals.countdown.weekly')}</option>
+                <option value="biweekly">{t('modals.countdown.biweekly')}</option>
+                <option value="workday">{t('modals.countdown.workday')}</option>
+                <option value="monthly">{t('modals.countdown.monthly')}</option>
+                <option value="quarterly">{t('modals.countdown.quarterly')}</option>
+                <option value="yearly">{t('modals.countdown.yearly')}</option>
+                <option value="cron">{t('modals.countdown.cron')}</option>
+                <option value="lunarYearly">{t('modals.countdown.lunarYearly')}</option>
+                <option value="solarTermYearly">{t('modals.countdown.solarTermYearly')}</option>
+              </select>
+
+              {repeatMode === 'cron' && (
+                <div className="mt-2 space-y-2">
+                  <input
+                    type="text"
+                    value={cronExpression}
+                    onChange={(e) => setCronExpression(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                    placeholder={t('modals.countdown.cronPlaceholder')}
+                  />
+                  <div className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {t('modals.countdown.cronHint')}
+                  </div>
+                  {cronNextPreview && (
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {t('modals.countdown.nextOccurrence')}: {cronNextPreview} (
+                      {normalizeTimeZone(timeZone)})
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {repeatMode === 'lunarYearly' && (
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <select
+                    value={lunarMonth}
+                    onChange={(e) => setLunarMonth(Number.parseInt(e.target.value, 10))}
+                    className="px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <option key={m} value={m}>
+                        {m === 11
+                          ? t('modals.countdown.lunarMonth11')
+                          : m === 12
+                            ? t('modals.countdown.lunarMonth12')
+                            : t('modals.countdown.lunarMonthN', { count: m })}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={lunarDay}
+                    onChange={(e) => setLunarDay(Number.parseInt(e.target.value, 10))}
+                    className="px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm"
+                  >
+                    {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>
+                        {t('modals.countdown.lunarDayN', { count: d })}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={lunarLeap}
+                      onChange={(e) => setLunarLeap(e.target.checked)}
+                    />
+                    {t('modals.countdown.lunarLeap')}
+                  </label>
+                </div>
+              )}
+
+              {repeatMode === 'solarTermYearly' && (
+                <div className="mt-2">
+                  <select
+                    value={solarTermKey}
+                    onChange={(e) => setSolarTermKey(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                  >
+                    {SOLAR_TERM_ZH_NAMES.map((name) => (
+                      <option key={name} value={SOLAR_TERM_KEY_BY_ZH_NAME[name]}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.reminders')}
+              </label>
+              <div className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
+                {t('modals.countdown.remindersHint')}
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-2">
+                {reminderMinutes.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setReminderMinutes((prev) => prev.filter((x) => x !== m))}
+                    className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600 transition-colors"
+                    title={t('common.delete')}
+                  >
+                    {m === 0
+                      ? t('modals.countdown.atTime')
+                      : t('modals.countdown.reminderChip', { minutes: m })}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={reminderInput}
+                  onChange={(e) => setReminderInput(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                  placeholder={t('modals.countdown.reminderPlaceholder')}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const n = Number.parseInt(reminderInput.trim(), 10);
+                    if (!Number.isFinite(n) || n < 0) {
+                      setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
+                      return;
+                    }
+
+                    setReminderMinutes((prev) => normalizeReminderMinutes([...prev, n]));
+                    setReminderInput('');
+                  }}
+                  className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
+                >
+                  {t('modals.countdown.addReminder')}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.labelColor')}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLabelColor('')}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    labelColor === ''
                       ? 'border-accent bg-accent/10 text-accent'
                       : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
                   }`}
                 >
-                  <span className={`inline-block w-2 h-2 rounded-full ${opt.className}`} />
-                  {t(opt.labelKey)}
+                  {t('modals.countdown.labelColorNone')}
                 </button>
-              ))}
+                {LABEL_COLOR_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setLabelColor(opt.value)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      labelColor === opt.value
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                    }`}
+                  >
+                    <span className={`inline-block w-2 h-2 rounded-full ${opt.className}`} />
+                    {t(opt.labelKey)}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {isAdmin && privacyGroupEnabled && (
+              <label className="flex items-center gap-3 px-1 py-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isPrivate}
+                  onChange={(e) => setIsPrivate(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-200">
+                  {t('modals.countdown.isPrivate')}
+                </span>
+              </label>
+            )}
           </div>
 
-          {isAdmin && privacyGroupEnabled && (
-            <label className="flex items-center gap-3 px-1 py-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPrivate}
-                onChange={(e) => setIsPrivate(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
-              />
-              <span className="text-sm text-slate-700 dark:text-slate-200">
-                {t('modals.countdown.isPrivate')}
-              </span>
-            </label>
-          )}
-
-          <div className="pt-2">
+          <div className="shrink-0 p-6 pt-2 border-t border-slate-100 dark:border-slate-800/50">
             <button
               type="submit"
               className="w-full bg-slate-900 dark:bg-accent text-white font-bold py-3.5 px-4 rounded-xl hover:bg-slate-800 dark:hover:bg-accent/90 transition-all shadow-lg shadow-slate-200 dark:shadow-none active:scale-[0.99] text-sm"

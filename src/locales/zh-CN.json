@@ -622,8 +622,10 @@
       "checklistEmpty": "暂无清单项",
       "checklistMaxReached": "最多 {{max}} 项",
       "exportIcs": "导出日历",
+      "exportIcsHint": "导出 {{count}} 条备忘为 .ics 文件",
       "exportIcsSuccess": "已导出 {{count}} 条备忘为 .ics 文件",
-      "exportIcsEmpty": "没有可导出的备忘"
+      "exportIcsEmpty": "没有可导出的备忘",
+      "boardSettings": "显示设置"
     }
   },
   "errors": {

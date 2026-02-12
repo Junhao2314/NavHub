@@ -633,8 +633,10 @@
       "checklistEmpty": "No checklist items",
       "checklistMaxReached": "Maximum {{max}} items",
       "exportIcs": "Export Calendar",
+      "exportIcsHint": "Export {{count}} reminders as .ics file",
       "exportIcsSuccess": "Exported {{count}} reminders as .ics file",
-      "exportIcsEmpty": "No reminders to export"
+      "exportIcsEmpty": "No reminders to export",
+      "boardSettings": "Settings"
     }
   },
   "errors": {

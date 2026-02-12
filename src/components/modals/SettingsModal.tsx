@@ -5,6 +5,7 @@ import { useI18n } from '../../hooks/useI18n';
 import {
   AIConfig,
   Category,
+  CountdownItem,
   LinkItem,
   SiteSettings,
   SiteSettingsChangeHandler,
@@ -24,6 +25,7 @@ interface SettingsModalProps {
   onSave: (config: AIConfig, siteSettings: SiteSettings) => void;
   links: LinkItem[];
   categories: Category[];
+  countdownItems?: CountdownItem[];
   onUpdateLinks: (links: LinkItem[]) => void;
   onDeleteLink: (id: string) => void;
   onNavigateToCategory?: (categoryId: string) => void;
@@ -47,6 +49,7 @@ interface SettingsModalProps {
   onTogglePrivacyPassword: (enabled: boolean) => void;
   privacyAutoUnlockEnabled: boolean;
   onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
+  isPrivateUnlocked: boolean;
   closeOnBackdrop?: boolean;
 }
 
@@ -58,6 +61,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onSave,
   links,
   categories,
+  countdownItems,
   onUpdateLinks,
   onDeleteLink,
   onNavigateToCategory,
@@ -77,6 +81,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onTogglePrivacyPassword,
   privacyAutoUnlockEnabled,
   onTogglePrivacyAutoUnlock,
+  isPrivateUnlocked,
   closeOnBackdrop = true,
 }) => {
   const { t } = useI18n();
@@ -237,8 +242,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               onTogglePrivacyPassword={onTogglePrivacyPassword}
               privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
               onTogglePrivacyAutoUnlock={onTogglePrivacyAutoUnlock}
+              isPrivateUnlocked={isPrivateUnlocked}
               links={links}
               categories={categories}
+              countdownItems={countdownItems}
               onDeleteLink={onDeleteLink}
               onNavigateToCategory={onNavigateToCategory}
             />

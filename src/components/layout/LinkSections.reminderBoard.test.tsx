@@ -151,6 +151,16 @@ describe('LinkSections (Reminder Board)', () => {
     ];
 
     await render({ pinnedLinks, reminderBoardItems: [], isAdmin: true });
+
+    const settingsButton = Array.from(container.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('显示设置'),
+    ) as HTMLButtonElement | undefined;
+    expect(settingsButton).toBeTruthy();
+
+    await act(async () => {
+      settingsButton?.click();
+    });
+
     expect(container.textContent).toContain('用户显示过期项');
   });
 });
