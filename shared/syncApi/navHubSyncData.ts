@@ -6,7 +6,7 @@ import type { NavHubSyncData } from './types';
  *
  * Bump this value when the persisted sync payload structure changes.
  */
-export const NAVHUB_SYNC_DATA_SCHEMA_VERSION = 2;
+export const NAVHUB_SYNC_DATA_SCHEMA_VERSION = 3;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -60,6 +60,56 @@ const isValidCountdownRecurrence = (value: unknown): boolean => {
   );
 };
 
+const isValidCountdownRule = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as UnknownRecord;
+  const kind = record.kind;
+
+  if (kind === 'once') return true;
+
+  if (kind === 'interval') {
+    return (
+      (record.unit === 'day' ||
+        record.unit === 'week' ||
+        record.unit === 'month' ||
+        record.unit === 'year') &&
+      typeof record.every === 'number' &&
+      Number.isFinite(record.every) &&
+      record.every >= 1
+    );
+  }
+
+  if (kind === 'cron') {
+    return typeof record.expression === 'string' && record.expression.trim().length > 0;
+  }
+
+  if (kind === 'lunarYearly') {
+    return (
+      typeof record.month === 'number' &&
+      Number.isFinite(record.month) &&
+      record.month >= 1 &&
+      record.month <= 12 &&
+      typeof record.day === 'number' &&
+      Number.isFinite(record.day) &&
+      record.day >= 1 &&
+      record.day <= 30 &&
+      (record.isLeapMonth === undefined || typeof record.isLeapMonth === 'boolean')
+    );
+  }
+
+  if (kind === 'solarTermYearly') {
+    return typeof record.term === 'string' && record.term.trim().length > 0;
+  }
+
+  return false;
+};
+
+const normalizeOptionalNonEmptyString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+};
+
 /**
  * 验证 CountdownItem 必须字段
  */
@@ -70,6 +120,9 @@ const isValidCountdownItem = (item: unknown): boolean => {
   const targetDate = countdown.targetDate;
   const targetMs = typeof targetDate === 'string' ? new Date(targetDate).getTime() : NaN;
 
+  const hasValidRecurrence = isValidCountdownRecurrence(countdown.recurrence);
+  const hasValidRule = isValidCountdownRule(countdown.rule);
+
   return (
     typeof countdown.id === 'string' &&
     countdown.id.length > 0 &&
@@ -77,7 +130,7 @@ const isValidCountdownItem = (item: unknown): boolean => {
     countdown.title.length > 0 &&
     typeof targetDate === 'string' &&
     Number.isFinite(targetMs) &&
-    isValidCountdownRecurrence(countdown.recurrence) &&
+    (hasValidRule || hasValidRecurrence) &&
     typeof countdown.createdAt === 'number' &&
     Number.isFinite(countdown.createdAt)
   );
@@ -120,7 +173,19 @@ export const normalizeNavHubSyncData = (value: unknown): NavHubSyncData | null =
   // countdowns 可选字段：允许空数组（表示清空）
   const rawCountdowns = record.countdowns;
   const countdowns = Array.isArray(rawCountdowns)
-    ? rawCountdowns.filter(isValidCountdownItem)
+    ? rawCountdowns.filter(isValidCountdownItem).map((item) => {
+        const countdown = item as UnknownRecord;
+        const normalized: UnknownRecord = { ...countdown };
+
+        const linkedUrl = normalizeOptionalNonEmptyString(countdown.linkedUrl);
+        if (linkedUrl) {
+          normalized.linkedUrl = linkedUrl;
+        } else {
+          delete normalized.linkedUrl;
+        }
+
+        return normalized as unknown as NonNullable<NavHubSyncData['countdowns']>[number];
+      })
     : undefined;
 
   // 规范化 meta

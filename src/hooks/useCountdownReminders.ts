@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import i18n from '../config/i18n';
-import type { CountdownItem, CountdownRecurrence } from '../types';
+import type { CountdownItem } from '../types';
 import type { NotifyFn } from '../types/ui';
-import { getNextOccurrence } from '../utils/countdown';
+import { getNextOccurrence, getPreviousOccurrence } from '../utils/countdown';
 import {
   flushScheduledLocalStorageWrite,
   safeLocalStorageGetItem,
@@ -56,27 +56,6 @@ const normalizeReminderMinutes = (value: unknown): number[] => {
   }
   minutes.sort((a, b) => b - a);
   return minutes;
-};
-
-const getPreviousOccurrence = (next: Date, recurrence: CountdownRecurrence): Date => {
-  const prev = new Date(next);
-  switch (recurrence) {
-    case 'daily':
-      prev.setDate(prev.getDate() - 1);
-      break;
-    case 'weekly':
-      prev.setDate(prev.getDate() - 7);
-      break;
-    case 'monthly':
-      prev.setMonth(prev.getMonth() - 1);
-      break;
-    case 'yearly':
-      prev.setFullYear(prev.getFullYear() - 1);
-      break;
-    case 'once':
-      break;
-  }
-  return prev;
 };
 
 const fireReminder = (args: { item: CountdownItem; minutes: number; notify: NotifyFn }): void => {
@@ -142,28 +121,26 @@ export const useCountdownReminders = (args: {
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
+      const nowDate = new Date(now);
       const visibleCountdowns = args.isAdmin
         ? args.countdowns
         : args.countdowns.filter((item) => !item.hidden);
 
       for (const item of visibleCountdowns) {
-        const baseTarget = new Date(item.targetDate);
-        if (!Number.isFinite(baseTarget.getTime())) continue;
-
-        // Skip expired one-time countdowns.
-        if (item.recurrence === 'once' && baseTarget.getTime() <= now) continue;
-
         const reminderMinutes = normalizeReminderMinutes(item.reminderMinutes);
-        const nextTarget = getNextOccurrence(item.targetDate, item.recurrence);
+        const nextTarget = getNextOccurrence(item, nowDate);
         const nextTargetMs = nextTarget.getTime();
 
         for (const minutes of reminderMinutes) {
           if (minutes === 0) {
-            const dueTimeMs =
-              item.recurrence === 'once'
-                ? baseTarget.getTime()
-                : getPreviousOccurrence(nextTarget, item.recurrence).getTime();
+            const ruleKind = item.rule?.kind ?? (item.recurrence === 'once' ? 'once' : null);
+            const dueTime =
+              ruleKind === 'once'
+                ? new Date(item.targetDate)
+                : getPreviousOccurrence(item, nowDate);
+            const dueTimeMs = dueTime?.getTime() ?? Number.NaN;
 
+            if (!Number.isFinite(dueTimeMs)) continue;
             if (now < dueTimeMs || now - dueTimeMs > AT_TIME_GRACE_MS) continue;
 
             const key = `${item.id}:${dueTimeMs}:0`;

@@ -67,6 +67,12 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
       return result;
     }, [link.alternativeUrls]);
 
+    const visibleAlternativeUrls = safeAlternativeUrls.slice(0, 2);
+    const remainingAlternativeUrlsCount = Math.max(
+      0,
+      safeAlternativeUrls.length - visibleAlternativeUrls.length,
+    );
+
     // 判断是否有标签，用于调整描述扩展窗口的高度
     const hasTags = visibleTags.length > 0;
 
@@ -134,11 +140,12 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
         : 'w-7 h-7 rounded-lg',
     );
 
+    const safeUrl = React.useMemo(() => normalizeHttpUrl(link.url), [link.url]);
+
     const handleCardClick = () => {
       if (isBatchEditMode) {
         onSelect(link.id);
       } else {
-        const safeUrl = normalizeHttpUrl(link.url);
         if (!safeUrl) {
           notify(t('linkCard.invalidUrl'), 'error');
           return;
@@ -190,7 +197,41 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
                 )}
                 title={link.title}
               >
-                {link.title}
+                {isBatchEditMode ? (
+                  link.title
+                ) : (
+                  <a
+                    href={safeUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    draggable={Boolean(safeUrl)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!safeUrl) {
+                        e.preventDefault();
+                        notify(t('linkCard.invalidUrl'), 'error');
+                        return;
+                      }
+                      onOpenLink?.(link);
+                    }}
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      if (!safeUrl) {
+                        e.preventDefault();
+                        notify(t('linkCard.invalidUrl'), 'error');
+                        return;
+                      }
+
+                      e.dataTransfer.setData('text/uri-list', safeUrl);
+                      e.dataTransfer.setData('text/plain', safeUrl);
+                      e.dataTransfer.effectAllowed = 'copyLink';
+                    }}
+                    className="block truncate no-underline text-[inherit]"
+                    title={link.title}
+                  >
+                    {link.title}
+                  </a>
+                )}
               </h3>
               {/* Description - fixed 2 lines height, not clickable */}
               {isDetailedView && (
@@ -246,43 +287,82 @@ const LinkCard: React.FC<LinkCardProps> = React.memo(
           )}
           {/* Alternative URLs indicator */}
           {isDetailedView && safeAlternativeUrls.length > 0 && (
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onClick={() => setAltUrlsOpen(!altUrlsOpen)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-accent hover:border-accent/30 transition-colors"
-              >
-                <ExternalLink size={10} />
-                {t('linkCard.alternativeUrls', { count: safeAlternativeUrls.length })}
-                <ChevronDown
-                  size={10}
-                  className={cn('transition-transform', altUrlsOpen && 'rotate-180')}
-                />
-              </button>
-              {altUrlsOpen && (
-                <div className="absolute z-20 left-0 mt-1 w-full min-w-[200px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                  {safeAlternativeUrls.map((altUrl) => {
-                    const normalized = normalizeHttpUrl(altUrl);
-                    return (
-                      <a
-                        key={altUrl}
-                        href={normalized || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!normalized) {
-                            e.preventDefault();
-                            notify(t('linkCard.invalidUrl'), 'error');
-                          }
-                        }}
-                        className="flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors truncate"
-                      >
-                        <ExternalLink size={11} className="shrink-0 text-slate-400" />
-                        <span className="truncate">{altUrl}</span>
-                      </a>
-                    );
-                  })}
+            <div className="flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+              {visibleAlternativeUrls.map((altUrl) => {
+                const normalized = normalizeHttpUrl(altUrl);
+                let label = altUrl;
+                if (normalized) {
+                  try {
+                    label = new URL(normalized).hostname || altUrl;
+                  } catch {
+                    label = altUrl;
+                  }
+                }
+
+                return (
+                  <a
+                    key={altUrl}
+                    href={normalized || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!normalized) {
+                        e.preventDefault();
+                        notify(t('linkCard.invalidUrl'), 'error');
+                      }
+                    }}
+                    className="inline-flex max-w-[180px] items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border border-dashed border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 dark:border-blue-800/40 dark:bg-blue-900/10 dark:text-blue-300 dark:hover:bg-blue-900/20 transition-colors"
+                    title={altUrl}
+                  >
+                    <ExternalLink size={10} className="shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </a>
+                );
+              })}
+
+              {remainingAlternativeUrlsCount > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setAltUrlsOpen(!altUrlsOpen)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border border-dashed border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 dark:border-blue-800/40 dark:bg-blue-900/10 dark:text-blue-300 dark:hover:bg-blue-900/20 transition-colors"
+                    aria-label={t('linkCard.alternativeUrls', {
+                      count: safeAlternativeUrls.length,
+                    })}
+                  >
+                    +{remainingAlternativeUrlsCount}
+                    <ChevronDown
+                      size={10}
+                      className={cn('transition-transform', altUrlsOpen && 'rotate-180')}
+                    />
+                  </button>
+                  {altUrlsOpen && (
+                    <div className="absolute z-20 left-0 mt-1 w-full min-w-[200px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                      {safeAlternativeUrls.map((altUrl) => {
+                        const normalized = normalizeHttpUrl(altUrl);
+                        return (
+                          <a
+                            key={altUrl}
+                            href={normalized || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!normalized) {
+                                e.preventDefault();
+                                notify(t('linkCard.invalidUrl'), 'error');
+                              }
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors truncate"
+                          >
+                            <ExternalLink size={11} className="shrink-0 text-slate-400" />
+                            <span className="truncate">{altUrl}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

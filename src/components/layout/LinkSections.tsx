@@ -24,7 +24,7 @@ import {
 } from '../../config/ui';
 import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
-import { Category, CountdownItem, LinkItem } from '../../types';
+import { Category, CountdownItem, CountdownTagsBatchOp, LinkItem, SiteSettings } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
 import { type HitokotoPayload, isHitokotoPayload } from '../../utils/typeGuards';
@@ -32,7 +32,7 @@ import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
 import SortableLinkCard from '../ui/SortableLinkCard';
-import CountdownSection from './CountdownSection';
+import ReminderBoardSection from './ReminderBoardSection';
 
 const HITOKOTO_CACHE_KEY = 'navhub_hitokoto_cache_v1';
 
@@ -67,12 +67,21 @@ interface LinkSectionsProps {
   onPrivateUnlock: (password?: string) => Promise<boolean>;
   privateUnlockHint: string;
   privateUnlockSubHint?: string;
-  countdowns?: CountdownItem[];
+  reminderBoardItems?: CountdownItem[];
   isAdmin?: boolean;
-  onCountdownAdd?: () => void;
-  onCountdownEdit?: (item: CountdownItem) => void;
-  onCountdownDelete?: (id: string) => void;
-  onCountdownToggleHidden?: (id: string) => void;
+  onReminderBoardAdd?: () => void;
+  onReminderBoardAddHolidays?: () => void;
+  onReminderBoardEdit?: (item: CountdownItem) => void;
+  onReminderBoardDelete?: (id: string) => void;
+  onReminderBoardToggleHidden?: (id: string) => void;
+  onReminderBoardArchive?: (id: string) => void;
+  onReminderBoardRestore?: (id: string) => void;
+  onReminderBoardReorder?: (activeId: string, overId: string) => void;
+  onReminderBoardBatchDelete?: (ids: string[]) => void;
+  onReminderBoardBatchArchive?: (ids: string[]) => void;
+  onReminderBoardBatchUpdateTags?: (ids: string[], op: CountdownTagsBatchOp) => void;
+  onReminderBoardUpdate?: (data: Partial<CountdownItem> & { id: string }) => void;
+  siteSettings?: SiteSettings;
 }
 
 const ClockWidget: React.FC = () => {
@@ -131,12 +140,21 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   onPrivateUnlock,
   privateUnlockHint,
   privateUnlockSubHint,
-  countdowns,
+  reminderBoardItems,
   isAdmin,
-  onCountdownAdd,
-  onCountdownEdit,
-  onCountdownDelete,
-  onCountdownToggleHidden,
+  onReminderBoardAdd,
+  onReminderBoardAddHolidays,
+  onReminderBoardEdit,
+  onReminderBoardDelete,
+  onReminderBoardToggleHidden,
+  onReminderBoardArchive,
+  onReminderBoardRestore,
+  onReminderBoardReorder,
+  onReminderBoardBatchDelete,
+  onReminderBoardBatchArchive,
+  onReminderBoardBatchUpdateTags,
+  onReminderBoardUpdate,
+  siteSettings: siteSettingsProp,
 }) => {
   const { t } = useI18n();
   const selectedCategory = useAppStore((s) => s.selectedCategory);
@@ -492,6 +510,33 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
                 ))}
               </div>
             )}
+
+            {/* Reminder Board Section */}
+            {reminderBoardItems &&
+              onReminderBoardAdd &&
+              onReminderBoardEdit &&
+              onReminderBoardDelete &&
+              onReminderBoardToggleHidden &&
+              (reminderBoardItems.length > 0 || isAdmin) && (
+                <ReminderBoardSection
+                  items={reminderBoardItems}
+                  isAdmin={!!isAdmin}
+                  isPrivateUnlocked={isPrivateUnlocked}
+                  onAdd={onReminderBoardAdd}
+                  onAddHolidays={onReminderBoardAddHolidays}
+                  onEdit={onReminderBoardEdit}
+                  onDelete={onReminderBoardDelete}
+                  onToggleHidden={onReminderBoardToggleHidden}
+                  onArchive={onReminderBoardArchive}
+                  onRestore={onReminderBoardRestore}
+                  onReorder={onReminderBoardReorder}
+                  onBatchDelete={onReminderBoardBatchDelete}
+                  onBatchArchive={onReminderBoardBatchArchive}
+                  onBatchUpdateTags={onReminderBoardBatchUpdateTags}
+                  onUpdate={onReminderBoardUpdate}
+                  siteSettings={siteSettingsProp}
+                />
+              )}
           </section>
         )}
 
@@ -738,23 +783,6 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
             )}
           </section>
         )}
-
-        {/* Countdown Section */}
-        {countdowns &&
-          onCountdownAdd &&
-          onCountdownEdit &&
-          onCountdownDelete &&
-          onCountdownToggleHidden &&
-          (countdowns.length > 0 || isAdmin) && (
-            <CountdownSection
-              countdowns={countdowns}
-              isAdmin={!!isAdmin}
-              onAdd={onCountdownAdd}
-              onEdit={onCountdownEdit}
-              onDelete={onCountdownDelete}
-              onToggleHidden={onCountdownToggleHidden}
-            />
-          )}
 
         {/* Footer - Pushed to bottom */}
         <footer className="mt-auto pt-6 pb-3 flex justify-center animate-in fade-in duration-700 delay-300">

@@ -1,8 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import LinkSections from '../components/layout/LinkSections';
 import MainHeader from '../components/layout/MainHeader';
 import Sidebar from '../components/layout/Sidebar';
-import CountdownModal from '../components/modals/CountdownModal';
+import HolidayBatchModal from '../components/modals/HolidayBatchModal';
+import ReminderBoardModal from '../components/modals/ReminderBoardModal';
 
 import { GITHUB_REPO_URL, PRIVATE_CATEGORY_ID } from '../utils/constants';
 import { AppBackground } from './AppBackground';
@@ -31,7 +32,7 @@ function App({ onReady }: AppProps) {
     meta,
     appearance,
     admin,
-    countdown,
+    reminderBoard,
   } = controller;
 
   const { links, categories } = core;
@@ -41,6 +42,11 @@ function App({ onReady }: AppProps) {
   const { startSorting: startCategorySorting } = sorting;
 
   const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
+
+  const existingReminderTitles = useMemo(
+    () => reminderBoard.items.map((item) => item.title),
+    [reminderBoard.items],
+  );
 
   const handleOpenSettings = useCallback(
     () => setIsSettingsModalOpen(true),
@@ -150,38 +156,61 @@ function App({ onReady }: AppProps) {
             onPrivateUnlock={privacy.handleUnlockPrivateVault}
             privateUnlockHint={privacy.privateUnlockHint}
             privateUnlockSubHint={privacy.privateUnlockSubHint}
-            countdowns={countdown.countdowns}
+            reminderBoardItems={reminderBoard.items}
             isAdmin={isAdmin}
-            onCountdownAdd={() => {
-              countdown.setEditingCountdown(null);
-              countdown.setIsCountdownModalOpen(true);
+            onReminderBoardAdd={() => {
+              reminderBoard.setEditingItem(null);
+              reminderBoard.setIsModalOpen(true);
             }}
-            onCountdownEdit={(item) => {
-              countdown.setEditingCountdown(item);
-              countdown.setIsCountdownModalOpen(true);
+            onReminderBoardAddHolidays={() => {
+              reminderBoard.setIsHolidayBatchModalOpen(true);
             }}
-            onCountdownDelete={countdown.deleteCountdown}
-            onCountdownToggleHidden={countdown.toggleCountdownHidden}
+            onReminderBoardEdit={(item) => {
+              reminderBoard.setEditingItem(item);
+              reminderBoard.setIsModalOpen(true);
+            }}
+            onReminderBoardDelete={reminderBoard.deleteItem}
+            onReminderBoardToggleHidden={reminderBoard.toggleItemHidden}
+            onReminderBoardArchive={reminderBoard.archiveItem}
+            onReminderBoardRestore={reminderBoard.restoreItem}
+            onReminderBoardReorder={reminderBoard.reorderItems}
+            onReminderBoardBatchDelete={reminderBoard.deleteItems}
+            onReminderBoardBatchArchive={reminderBoard.archiveItems}
+            onReminderBoardBatchUpdateTags={reminderBoard.updateItemsTags}
+            onReminderBoardUpdate={reminderBoard.updateItem}
+            siteSettings={config.siteSettings}
           />
         </div>
       </main>
 
       <AppBottomOverlays controller={controller} />
 
-      <CountdownModal
-        isOpen={countdown.isCountdownModalOpen}
+      <ReminderBoardModal
+        isOpen={reminderBoard.isModalOpen}
         onClose={() => {
-          countdown.setIsCountdownModalOpen(false);
-          countdown.setEditingCountdown(null);
+          reminderBoard.setIsModalOpen(false);
+          reminderBoard.setEditingItem(null);
         }}
         onSave={(data) => {
-          if (countdown.editingCountdown) {
-            countdown.updateCountdown({ ...data, id: countdown.editingCountdown.id });
+          if (reminderBoard.editingItem) {
+            reminderBoard.updateItem({ ...data, id: reminderBoard.editingItem.id });
           } else {
-            countdown.addCountdown(data);
+            reminderBoard.addItem(data);
           }
         }}
-        initialData={countdown.editingCountdown || undefined}
+        initialData={reminderBoard.editingItem || undefined}
+        closeOnBackdrop={appearance.closeOnBackdrop}
+        isAdmin={isAdmin}
+        privacyGroupEnabled={privacy.privacyGroupEnabled}
+        groups={config.siteSettings.reminderBoardGroups ?? []}
+        links={links}
+      />
+
+      <HolidayBatchModal
+        isOpen={reminderBoard.isHolidayBatchModalOpen}
+        onClose={() => reminderBoard.setIsHolidayBatchModalOpen(false)}
+        onBatchAdd={reminderBoard.addItems}
+        existingTitles={existingReminderTitles}
         closeOnBackdrop={appearance.closeOnBackdrop}
       />
     </div>

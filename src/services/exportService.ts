@@ -13,7 +13,7 @@
  */
 
 import i18n from '../config/i18n';
-import { Category, LinkItem } from '../types';
+import type { Category, CountdownItem, LinkItem } from '../types';
 
 /**
  * Generate Netscape Bookmark HTML string
@@ -146,5 +146,180 @@ export const downloadHtmlFile = (content: string, filename: string = 'bookmarks.
 export const downloadJsonFile = (data: unknown, filename: string = 'navhub_backup.json') => {
   const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   const blob = new Blob([content], { type: 'application/json' });
+  triggerDownload(blob, filename);
+};
+
+/**
+ * Fold long lines per RFC 5545 (max 75 octets per line).
+ */
+const foldLine = (line: string): string => {
+  if (line.length <= 75) return line;
+  const parts: string[] = [];
+  let i = 0;
+  while (i < line.length) {
+    if (i === 0) {
+      parts.push(line.slice(0, 75));
+      i = 75;
+    } else {
+      parts.push(' ' + line.slice(i, i + 74));
+      i += 74;
+    }
+  }
+  return parts.join('\r\n');
+};
+
+/**
+ * Escape text for ICS property values per RFC 5545.
+ */
+const escapeIcsText = (text: string): string =>
+  text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+
+/**
+ * Format a Date as ICS UTC datetime: 20260215T093000Z
+ */
+const formatIcsDateTimeUtc = (date: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
+    `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`
+  );
+};
+
+/**
+ * Format a date-only ICS value: 20260215
+ */
+const formatIcsDate = (isoString: string): string => {
+  const d = new Date(isoString);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+};
+
+/**
+ * Map CountdownRule to RRULE string. Returns empty string if no mapping.
+ */
+const ruleToRrule = (rule: CountdownItem['rule']): string => {
+  if (rule.kind === 'once') return '';
+  if (rule.kind !== 'interval') return ''; // cron, lunarYearly, solarTermYearly have no ICS equivalent
+
+  const unitMap: Record<string, string> = {
+    day: 'DAILY',
+    week: 'WEEKLY',
+    month: 'MONTHLY',
+    year: 'YEARLY',
+  };
+  const freq = unitMap[rule.unit];
+  if (!freq) return '';
+  return rule.every === 1 ? `RRULE:FREQ=${freq}` : `RRULE:FREQ=${freq};INTERVAL=${rule.every}`;
+};
+
+/**
+ * Generate iCalendar (ICS) content from CountdownItem array.
+ *
+ * Follows RFC 5545. Excludes archived and hidden items by default.
+ *
+ * @param items - Countdown items to export
+ * @returns ICS file content string
+ */
+export const generateIcsContent = (items: CountdownItem[]): string => {
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//NavHub//Reminder Board//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+  ];
+
+  const now = formatIcsDateTimeUtc(new Date());
+
+  for (const item of items) {
+    lines.push('BEGIN:VEVENT');
+
+    // UID
+    lines.push(foldLine(`UID:${item.id}@navhub`));
+
+    // DTSTAMP (required)
+    lines.push(`DTSTAMP:${now}`);
+
+    // DTSTART / DTEND
+    if (item.precision === 'day') {
+      // All-day event
+      const dateStr = formatIcsDate(item.targetDate);
+      lines.push(`DTSTART;VALUE=DATE:${dateStr}`);
+      // DTEND next day for a single all-day event
+      const endDate = new Date(item.targetDate);
+      endDate.setUTCDate(endDate.getUTCDate() + 1);
+      const endStr = formatIcsDate(endDate.toISOString());
+      lines.push(`DTEND;VALUE=DATE:${endStr}`);
+    } else {
+      // Timed event
+      const dt = formatIcsDateTimeUtc(new Date(item.targetDate));
+      lines.push(`DTSTART:${dt}`);
+      // 1-hour default duration
+      const endDate = new Date(item.targetDate);
+      endDate.setUTCHours(endDate.getUTCHours() + 1);
+      lines.push(`DTEND:${formatIcsDateTimeUtc(endDate)}`);
+    }
+
+    // CREATED
+    lines.push(`CREATED:${formatIcsDateTimeUtc(new Date(item.createdAt))}`);
+
+    // SUMMARY
+    lines.push(foldLine(`SUMMARY:${escapeIcsText(item.title)}`));
+
+    // DESCRIPTION (note + checklist)
+    const descParts: string[] = [];
+    if (item.note) descParts.push(item.note);
+    if (item.checklist && item.checklist.length > 0) {
+      if (descParts.length > 0) descParts.push('');
+      for (const ci of item.checklist) {
+        descParts.push(`${ci.done ? '[x]' : '[ ]'} ${ci.text}`);
+      }
+    }
+    if (descParts.length > 0) {
+      lines.push(foldLine(`DESCRIPTION:${escapeIcsText(descParts.join('\n'))}`));
+    }
+
+    // URL
+    if (item.linkedUrl) {
+      lines.push(foldLine(`URL:${item.linkedUrl}`));
+    }
+
+    // CATEGORIES (tags)
+    if (item.tags && item.tags.length > 0) {
+      lines.push(foldLine(`CATEGORIES:${item.tags.map(escapeIcsText).join(',')}`));
+    }
+
+    // RRULE
+    const rrule = ruleToRrule(item.rule);
+    if (rrule) {
+      lines.push(rrule);
+    }
+
+    // VALARM (reminders)
+    if (item.reminderMinutes && item.reminderMinutes.length > 0) {
+      for (const minutes of item.reminderMinutes) {
+        lines.push('BEGIN:VALARM');
+        lines.push('ACTION:DISPLAY');
+        lines.push(foldLine(`DESCRIPTION:${escapeIcsText(item.title)}`));
+        lines.push(`TRIGGER:-PT${minutes}M`);
+        lines.push('END:VALARM');
+      }
+    }
+
+    lines.push('END:VEVENT');
+  }
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+};
+
+/**
+ * Download ICS file
+ *
+ * @param content - ICS content string
+ * @param filename - Download filename
+ */
+export const downloadIcsFile = (content: string, filename: string = 'navhub_reminders.ics') => {
+  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
   triggerDownload(blob, filename);
 };

@@ -172,20 +172,30 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     setIsSearchConfigModalOpen,
   } = useModals();
 
-  // === Countdown ===
+  // === Reminder Board (countdown data) ===
   const {
-    countdowns,
-    isLoaded: isCountdownLoaded,
-    addCountdown,
-    updateCountdown,
-    deleteCountdown,
-    toggleHidden: toggleCountdownHidden,
-    replaceCountdowns,
+    countdowns: reminderBoardItems,
+    isLoaded: isReminderBoardLoaded,
+    addCountdown: addReminderBoardItem,
+    addCountdowns: addReminderBoardItems,
+    updateCountdown: updateReminderBoardItem,
+    deleteCountdown: deleteReminderBoardItem,
+    deleteCountdowns: deleteReminderBoardItems,
+    toggleHidden: toggleReminderBoardItemHidden,
+    archiveCountdown: archiveReminderBoardItem,
+    archiveCountdowns: archiveReminderBoardItems,
+    restoreCountdown: restoreReminderBoardItem,
+    reorderCountdowns: reorderReminderBoardItems,
+    updateCountdownsTags: updateReminderBoardItemsTags,
+    replaceCountdowns: replaceReminderBoardItems,
   } = useCountdownStore();
-  const [isCountdownModalOpen, setIsCountdownModalOpen] = useState(false);
-  const [editingCountdown, setEditingCountdown] = useState<CountdownItem | null>(null);
+  const [isReminderBoardModalOpen, setIsReminderBoardModalOpen] = useState(false);
+  const [isHolidayBatchModalOpen, setIsHolidayBatchModalOpen] = useState(false);
+  const [editingReminderBoardItem, setEditingReminderBoardItem] = useState<CountdownItem | null>(
+    null,
+  );
 
-  const isAllLoaded = isLoaded && isCountdownLoaded;
+  const isAllLoaded = isLoaded && isReminderBoardLoaded;
 
   const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
 
@@ -213,9 +223,9 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     isLoaded: isAllLoaded,
     links,
     categories,
-    countdowns,
+    countdowns: reminderBoardItems,
     updateData,
-    restoreCountdowns: replaceCountdowns,
+    restoreCountdowns: replaceReminderBoardItems,
     selectedCategory,
     setSelectedCategory,
     searchMode,
@@ -250,7 +260,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     confirm,
   });
 
-  useCountdownReminders({ countdowns, isAdmin, notify });
+  useCountdownReminders({ countdowns: reminderBoardItems, isAdmin, notify });
 
   // === 初始同步完成后隐藏加载动画 ===
   // 等待本地数据加载完成 + 云端初始同步完成后，才隐藏加载遮罩
@@ -270,7 +280,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
         data: data as NavHubSyncData,
         role: 'admin',
         updateData,
-        restoreCountdowns: replaceCountdowns,
+        restoreCountdowns: replaceReminderBoardItems,
         restoreSearchConfigRef,
         restoreSiteSettings,
         applyFromSync,
@@ -299,7 +309,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     },
     [
       updateData,
-      replaceCountdowns,
+      replaceReminderBoardItems,
       restoreSiteSettings,
       applyFromSync,
       aiConfig,
@@ -706,16 +716,25 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       useCustomBackground,
       backgroundMotion,
     },
-    countdown: {
-      countdowns,
-      addCountdown,
-      updateCountdown,
-      deleteCountdown,
-      toggleCountdownHidden,
-      isCountdownModalOpen,
-      setIsCountdownModalOpen,
-      editingCountdown,
-      setEditingCountdown,
+    reminderBoard: {
+      items: reminderBoardItems,
+      addItem: addReminderBoardItem,
+      addItems: addReminderBoardItems,
+      updateItem: updateReminderBoardItem,
+      deleteItem: deleteReminderBoardItem,
+      deleteItems: deleteReminderBoardItems,
+      toggleItemHidden: toggleReminderBoardItemHidden,
+      archiveItem: archiveReminderBoardItem,
+      archiveItems: archiveReminderBoardItems,
+      restoreItem: restoreReminderBoardItem,
+      reorderItems: reorderReminderBoardItems,
+      updateItemsTags: updateReminderBoardItemsTags,
+      isModalOpen: isReminderBoardModalOpen,
+      setIsModalOpen: setIsReminderBoardModalOpen,
+      isHolidayBatchModalOpen,
+      setIsHolidayBatchModalOpen,
+      editingItem: editingReminderBoardItem,
+      setEditingItem: setEditingReminderBoardItem,
     },
   };
 };

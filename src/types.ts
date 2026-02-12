@@ -39,6 +39,14 @@ export interface SiteSettings {
   navTitle: string;
   favicon: string;
   cardStyle: 'detailed' | 'simple';
+  /**
+   * Reminder board: in forward timer mode, whether non-admin users can see overdue one-time items.
+   * 备忘板：正计时模式下，非管理员是否可见已到期的一次性备忘。
+   */
+  reminderBoardShowOverdueForUsers?: boolean;
+  reminderBoardGroups?: string[]; // 备忘板预定义标签/可选标签
+  reminderBoardArchiveMode?: 'immediate' | 'delay'; // 自动归档模式
+  reminderBoardArchiveDelayMinutes?: number; // 延迟归档分钟数
   accentColor?: string; // RGB values e.g. "99 102 241"
   grayScale?: 'slate' | 'zinc' | 'neutral'; // Background tone
   closeOnBackdrop?: boolean; // Allow closing modals by clicking the backdrop
@@ -75,21 +83,91 @@ export interface AIConfig {
 // 搜索模式类型
 export type SearchMode = 'internal' | 'external';
 
-// 倒计时重复类型
+// 倒计时重复类型（Legacy v1）
+// NOTE: 新实现使用 CountdownRule；该字段仅用于兼容旧数据。
 export type CountdownRecurrence = 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+// 倒计时显示精度
+export type CountdownPrecision = 'day' | 'hour' | 'minute' | 'second';
+
+export type CountdownRule =
+  | { kind: 'once' }
+  | { kind: 'interval'; unit: 'day' | 'week' | 'month' | 'year'; every: number }
+  | { kind: 'cron'; expression: string }
+  | { kind: 'lunarYearly'; month: number; day: number; isLeapMonth?: boolean }
+  | { kind: 'solarTermYearly'; term: string };
+
+// 备忘板颜色标记（类似日历事件颜色）
+export type CountdownLabelColor =
+  | 'red'
+  | 'orange'
+  | 'amber'
+  | 'yellow'
+  | 'green'
+  | 'emerald'
+  | 'blue'
+  | 'indigo'
+  | 'violet'
+  | 'pink'
+  | 'slate';
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
 
 // 倒计时项
 export interface CountdownItem {
   id: string;
   title: string;
   note?: string;
-  targetDate: string; // ISO 8601
-  recurrence: CountdownRecurrence;
+  linkedUrl?: string;
+  /**
+   * Tags (multi-label). A reminder can belong to multiple tags, e.g. ["Work", "Important"].
+   */
+  tags?: string[];
+  /**
+   * UTC instant (ISO 8601) for the anchor/target.
+   * - once: the target time
+   * - recurring: an anchor time (may be used as UI default)
+   */
+  targetDate: string;
+  /**
+   * Local datetime without offset for editing/anchoring, e.g. "2026-02-11T09:30:00".
+   * Interpreted in `timeZone`.
+   */
+  targetLocal: string;
+  /**
+   * IANA timezone. Default: Asia/Shanghai.
+   */
+  timeZone: string;
+  /**
+   * Display precision. Default: minute.
+   */
+  precision: CountdownPrecision;
+  /**
+   * Recurrence rule (new).
+   */
+  rule: CountdownRule;
+  /**
+   * Legacy field. Will be migrated to `rule`.
+   */
+  recurrence?: CountdownRecurrence;
   reminderMinutes?: number[]; // 提醒（提前 N 分钟；可包含 0 = 到点提醒）
+  labelColor?: CountdownLabelColor; // 颜色标记（用于分类区分）
   hidden?: boolean; // 管理员控制可见性
+  isPrivate?: boolean; // 私密项（需密码解锁才可见）
+  archivedAt?: number; // 归档时间戳（undefined = 活跃）
   createdAt: number;
   order?: number;
+  checklist?: ChecklistItem[];
 }
+
+export type CountdownTagsBatchOp =
+  | { kind: 'add'; tag: string }
+  | { kind: 'remove'; tag: string }
+  | { kind: 'clear' };
 
 // 外部搜索源配置
 export interface ExternalSearchSource {
