@@ -175,6 +175,7 @@
     "tabs": {
       "site": "网站设置",
       "ai": "AI 助手",
+      "reminderBoard": "备忘板",
       "appearance": "外观",
       "data": "数据"
     },
@@ -625,7 +626,13 @@
       "exportIcsHint": "导出 {{count}} 条备忘为 .ics 文件",
       "exportIcsSuccess": "已导出 {{count}} 条备忘为 .ics 文件",
       "exportIcsEmpty": "没有可导出的备忘",
-      "boardSettings": "显示设置"
+      "boardSettings": "显示设置",
+      "advancedOptions": "高级选项",
+      "settingsViewStyle": "显示样式",
+      "settingsTimerMode": "计时模式",
+      "settingsExpiredEffect": "过期效果",
+      "settingsAutoArchive": "自动归档",
+      "settingsOverdueVisibility": "用户可见过期项"
     }
   },
   "errors": {

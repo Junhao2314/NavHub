@@ -136,7 +136,7 @@ describe('LinkSections (Reminder Board)', () => {
     expect(container.textContent).not.toContain('备忘板');
   });
 
-  it('shows overdue visibility toggle for admins in forward mode', async () => {
+  it('does not render inline board settings toggle in forward mode', async () => {
     localStorage.setItem('navhub_reminder_board_timer_mode_v1', 'forward');
 
     const pinnedLinks: LinkItem[] = [
@@ -155,12 +155,6 @@ describe('LinkSections (Reminder Board)', () => {
     const settingsButton = Array.from(container.querySelectorAll('button')).find((btn) =>
       btn.textContent?.includes('显示设置'),
     ) as HTMLButtonElement | undefined;
-    expect(settingsButton).toBeTruthy();
-
-    await act(async () => {
-      settingsButton?.click();
-    });
-
-    expect(container.textContent).toContain('用户显示过期项');
+    expect(settingsButton).toBeUndefined();
   });
 });

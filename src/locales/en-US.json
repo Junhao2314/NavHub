@@ -178,6 +178,7 @@
     "tabs": {
       "site": "Site Settings",
       "ai": "AI Assistant",
+      "reminderBoard": "Reminder Board",
       "appearance": "Appearance",
       "data": "Data"
     },
@@ -636,7 +637,13 @@
       "exportIcsHint": "Export {{count}} reminders as .ics file",
       "exportIcsSuccess": "Exported {{count}} reminders as .ics file",
       "exportIcsEmpty": "No reminders to export",
-      "boardSettings": "Settings"
+      "boardSettings": "Settings",
+      "advancedOptions": "Advanced Options",
+      "settingsViewStyle": "View Style",
+      "settingsTimerMode": "Timer Mode",
+      "settingsExpiredEffect": "Overdue Effect",
+      "settingsAutoArchive": "Auto Archive",
+      "settingsOverdueVisibility": "Show Overdue for Users"
     }
   },
   "errors": {

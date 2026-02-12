@@ -164,30 +164,45 @@ describe('ReminderBoardSection (Filters)', () => {
 
     await render({ items });
 
-    const statusSelect = container.querySelector(
-      'select[aria-label="状态"]',
-    ) as HTMLSelectElement | null;
-    expect(statusSelect).toBeTruthy();
+    const statusButton = container.querySelector(
+      'button[aria-label="状态"]',
+    ) as HTMLButtonElement | null;
+    expect(statusButton).toBeTruthy();
 
     await act(async () => {
-      statusSelect!.value = 'active';
-      statusSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      statusButton?.click();
+    });
+    await act(async () => {
+      const activeOption = container.querySelector(
+        'button[role="option"]#active',
+      ) as HTMLButtonElement | null;
+      activeOption?.click();
     });
     expect(container.textContent).toContain('Future');
     expect(container.textContent).not.toContain('Past');
     expect(container.textContent).not.toContain('Archived');
 
     await act(async () => {
-      statusSelect!.value = 'expired';
-      statusSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      statusButton?.click();
+    });
+    await act(async () => {
+      const expiredOption = container.querySelector(
+        'button[role="option"]#expired',
+      ) as HTMLButtonElement | null;
+      expiredOption?.click();
     });
     expect(container.textContent).toContain('Past');
     expect(container.textContent).not.toContain('Future');
     expect(container.textContent).not.toContain('Archived');
 
     await act(async () => {
-      statusSelect!.value = 'archived';
-      statusSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      statusButton?.click();
+    });
+    await act(async () => {
+      const archivedOption = container.querySelector(
+        'button[role="option"]#archived',
+      ) as HTMLButtonElement | null;
+      archivedOption?.click();
     });
     expect(container.textContent).toContain('Archived');
     expect(container.textContent).not.toContain('Future');
@@ -223,7 +238,7 @@ describe('ReminderBoardSection (Filters)', () => {
     expect(container.textContent).not.toContain('Red item');
 
     const allBtn = Array.from(container.querySelectorAll('button')).find(
-      (btn) => btn.textContent?.trim() === '全部',
+      (btn) => btn.textContent?.trim() === '全部' && btn.getAttribute('aria-label') !== '状态',
     ) as HTMLButtonElement | undefined;
     expect(allBtn).toBeTruthy();
 

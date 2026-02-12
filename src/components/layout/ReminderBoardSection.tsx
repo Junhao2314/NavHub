@@ -17,21 +17,26 @@ import {
   CheckSquare,
   ChevronDown,
   ChevronRight,
+  Circle,
   Clock,
   Edit3,
   ExternalLink,
   Eye,
   EyeOff,
+  LayoutGrid,
+  List,
   Plus,
   RotateCcw,
-  SlidersHorizontal,
   Square,
+  Timer,
   Trash2,
   X,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildDefaultSiteSettings } from '../../config/defaults';
+import type React from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../hooks/useI18n';
+import type { ReminderExpiredEffect, ReminderTimerMode } from '../../hooks/useReminderBoardPrefs';
+import { useReminderBoardPrefs } from '../../hooks/useReminderBoardPrefs';
 import { useAppStore } from '../../stores/useAppStore';
 import type {
   ChecklistItem,
@@ -41,7 +46,6 @@ import type {
   CountdownTagsBatchOp,
   SiteSettings,
 } from '../../types';
-import { SITE_SETTINGS_KEY } from '../../utils/constants';
 import {
   type CountdownProgress,
   type CountdownRemaining,
@@ -58,6 +62,7 @@ import {
 } from '../../utils/storage';
 import { normalizeHttpUrl } from '../../utils/url';
 import { useDialog } from '../ui/DialogProvider';
+import DropdownPanel from '../ui/DropdownPanel';
 import SortableReminderCard from '../ui/SortableReminderCard';
 
 interface ReminderBoardSectionProps {
@@ -79,19 +84,11 @@ interface ReminderBoardSectionProps {
   siteSettings?: SiteSettings;
 }
 
-type ReminderViewStyle = 'compact' | 'card' | 'ring' | 'flip';
-type ReminderTimerMode = 'cycle' | 'forward';
-type ReminderExpiredEffect = 'dim' | 'blink';
 type ReminderVisualState = CountdownUrgency | 'expired';
-type ReminderSortMode = 'remaining' | 'created' | 'custom';
 type ReminderTagFilterMode = 'any' | 'all';
 type ReminderStatusFilter = 'all' | 'active' | 'expired' | 'archived';
 type ReminderLabelColorFilter = CountdownLabelColor | '__none__';
 
-const REMINDER_VIEW_STYLE_KEY = 'navhub_reminder_board_view_style_v1';
-const REMINDER_TIMER_MODE_KEY = 'navhub_reminder_board_timer_mode_v1';
-const REMINDER_EXPIRED_EFFECT_KEY = 'navhub_reminder_board_expired_effect_v1';
-const REMINDER_SORT_MODE_KEY = 'navhub_reminder_board_sort_mode_v1';
 const REMINDER_SELECTED_TAGS_KEY = 'navhub_reminder_board_selected_tags_v1';
 const REMINDER_TAG_FILTER_MODE_KEY = 'navhub_reminder_board_tag_filter_mode_v1';
 const REMINDER_SELECTED_GROUP_KEY = 'navhub_reminder_board_selected_group_v1'; // legacy (read-only)
@@ -102,18 +99,6 @@ const REMINDER_DATE_TO_KEY = 'navhub_reminder_board_date_to_v1';
 const BATCH_TAG_PLACEHOLDER = '__navhub_reminder_board_batch_tag_placeholder__';
 const BATCH_REMOVE_TAG_PLACEHOLDER = '__navhub_reminder_board_batch_remove_tag_placeholder__';
 const LABEL_COLOR_NONE_FILTER: ReminderLabelColorFilter = '__none__';
-
-const isReminderViewStyle = (value: string | null): value is ReminderViewStyle =>
-  value === 'compact' || value === 'card' || value === 'ring' || value === 'flip';
-
-const isReminderTimerMode = (value: string | null): value is ReminderTimerMode =>
-  value === 'cycle' || value === 'forward';
-
-const isReminderExpiredEffect = (value: string | null): value is ReminderExpiredEffect =>
-  value === 'dim' || value === 'blink';
-
-const isReminderSortMode = (value: string | null): value is ReminderSortMode =>
-  value === 'remaining' || value === 'created' || value === 'custom';
 
 const isReminderTagFilterMode = (value: string | null): value is ReminderTagFilterMode =>
   value === 'any' || value === 'all';
@@ -1005,15 +990,13 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   const [tick, setTick] = useState(0);
 
   const siteSettings = useAppStore((s) => s.siteSettings);
-  const setSiteSettings = useAppStore((s) => s.setSiteSettings);
 
   const effectiveSettings = siteSettingsProp ?? siteSettings;
   void onUpdate;
+  void onAddHolidays;
 
-  const [viewStyle, setViewStyle] = useState<ReminderViewStyle>('card');
-  const [timerMode, setTimerMode] = useState<ReminderTimerMode>('cycle');
-  const [expiredEffect, setExpiredEffect] = useState<ReminderExpiredEffect>('dim');
-  const [sortMode, setSortMode] = useState<ReminderSortMode>('remaining');
+  const { viewStyle, setViewStyle, timerMode, expiredEffect, sortMode, setSortMode } =
+    useReminderBoardPrefs();
   const [statusFilter, setStatusFilter] = useState<ReminderStatusFilter>('all');
   const [selectedLabelColors, setSelectedLabelColors] = useState<ReminderLabelColorFilter[]>([]);
   const [dateFrom, setDateFrom] = useState('');
@@ -1029,8 +1012,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   );
   const [isCreatingBatchTag, setIsCreatingBatchTag] = useState(false);
   const [newBatchTagName, setNewBatchTagName] = useState('');
-  const [showSettingsPopover, setShowSettingsPopover] = useState(false);
-  const settingsPopoverRef = useRef<HTMLDivElement>(null);
 
   const now = useMemo(() => {
     void tick;
@@ -1050,27 +1031,8 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const updateSiteSettings = useCallback(
-    (updates: Partial<SiteSettings>) => {
-      setSiteSettings((prev) => {
-        const nextSettings = {
-          ...buildDefaultSiteSettings(),
-          ...prev,
-          ...updates,
-        } satisfies SiteSettings;
-        safeLocalStorageSetItem(SITE_SETTINGS_KEY, JSON.stringify(nextSettings));
-        return nextSettings;
-      });
-    },
-    [setSiteSettings],
-  );
-
   // Load persisted local preferences
   useEffect(() => {
-    const storedStyle = safeLocalStorageGetItem(REMINDER_VIEW_STYLE_KEY);
-    const storedMode = safeLocalStorageGetItem(REMINDER_TIMER_MODE_KEY);
-    const storedEffect = safeLocalStorageGetItem(REMINDER_EXPIRED_EFFECT_KEY);
-    const storedSortMode = safeLocalStorageGetItem(REMINDER_SORT_MODE_KEY);
     const storedStatusFilter = safeLocalStorageGetItem(REMINDER_STATUS_FILTER_KEY);
     const storedSelectedLabelColors = safeLocalStorageGetItem(REMINDER_SELECTED_LABEL_COLORS_KEY);
     const storedDateFrom = safeLocalStorageGetItem(REMINDER_DATE_FROM_KEY);
@@ -1079,10 +1041,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
     const storedTagFilterMode = safeLocalStorageGetItem(REMINDER_TAG_FILTER_MODE_KEY);
     const legacyStoredGroup = safeLocalStorageGetItem(REMINDER_SELECTED_GROUP_KEY);
 
-    if (isReminderViewStyle(storedStyle)) setViewStyle(storedStyle);
-    if (isReminderTimerMode(storedMode)) setTimerMode(storedMode);
-    if (isReminderExpiredEffect(storedEffect)) setExpiredEffect(storedEffect);
-    if (isReminderSortMode(storedSortMode)) setSortMode(storedSortMode);
     if (isReminderTagFilterMode(storedTagFilterMode)) setTagFilterMode(storedTagFilterMode);
     if (isReminderStatusFilter(storedStatusFilter)) setStatusFilter(storedStatusFilter);
     if (isValidDateInputValue(storedDateFrom)) setDateFrom(storedDateFrom);
@@ -1148,18 +1106,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
 
   // Persist local preferences
   useEffect(() => {
-    safeLocalStorageSetItem(REMINDER_VIEW_STYLE_KEY, viewStyle);
-  }, [viewStyle]);
-  useEffect(() => {
-    safeLocalStorageSetItem(REMINDER_TIMER_MODE_KEY, timerMode);
-  }, [timerMode]);
-  useEffect(() => {
-    safeLocalStorageSetItem(REMINDER_EXPIRED_EFFECT_KEY, expiredEffect);
-  }, [expiredEffect]);
-  useEffect(() => {
-    safeLocalStorageSetItem(REMINDER_SORT_MODE_KEY, sortMode);
-  }, [sortMode]);
-  useEffect(() => {
     safeLocalStorageSetItem(REMINDER_STATUS_FILTER_KEY, statusFilter);
   }, [statusFilter]);
   useEffect(() => {
@@ -1180,18 +1126,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   useEffect(() => {
     safeLocalStorageSetItem(REMINDER_TAG_FILTER_MODE_KEY, tagFilterMode);
   }, [tagFilterMode]);
-
-  // Close settings popover on click outside
-  useEffect(() => {
-    if (!showSettingsPopover) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (settingsPopoverRef.current && !settingsPopoverRef.current.contains(e.target as Node)) {
-        setShowSettingsPopover(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showSettingsPopover]);
 
   // Tick every second
   useEffect(() => {
@@ -1708,7 +1642,7 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
     })();
 
     if (!isBatchMode) {
-      return <React.Fragment key={item.id}>{cardElement}</React.Fragment>;
+      return <Fragment key={item.id}>{cardElement}</Fragment>;
     }
 
     const isSelected = selectedIds.has(item.id);
@@ -1800,177 +1734,48 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <select
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value as ReminderSortMode)}
-            className="px-3 py-1.5 text-xs font-medium rounded-full border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-accent/50 transition-all appearance-none cursor-pointer"
-            aria-label={t('modals.countdown.sortMode')}
-            title={t('modals.countdown.sortMode')}
-          >
-            <option value="remaining">{t('modals.countdown.sortByRemaining')}</option>
-            <option value="created">{t('modals.countdown.sortByCreated')}</option>
-            <option value="custom">{t('modals.countdown.sortByCustom')}</option>
-          </select>
-
-          {isAdmin && (
-            <div className="relative" ref={settingsPopoverRef}>
+          {/* View Style Icon Toggle Group */}
+          <div className="hidden md:flex items-center p-1 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 backdrop-blur-sm">
+            {[
+              { value: 'compact' as const, icon: <List size={14} /> },
+              { value: 'card' as const, icon: <LayoutGrid size={14} /> },
+              { value: 'ring' as const, icon: <Circle size={14} /> },
+              { value: 'flip' as const, icon: <Timer size={14} /> },
+            ].map((vs) => (
               <button
+                key={vs.value}
                 type="button"
-                onClick={() => setShowSettingsPopover((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${
-                  showSettingsPopover
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-accent hover:border-accent/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm'
+                onClick={() => setViewStyle(vs.value)}
+                className={`p-1.5 rounded-lg transition-all ${
+                  viewStyle === vs.value
+                    ? 'bg-white dark:bg-slate-700 text-accent shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
                 }`}
-                title={t('modals.countdown.boardSettings')}
-                aria-label={t('modals.countdown.boardSettings')}
+                title={t(
+                  `modals.countdown.style${vs.value.charAt(0).toUpperCase() + vs.value.slice(1)}` as 'modals.countdown.styleCompact',
+                )}
+                aria-label={t(
+                  `modals.countdown.style${vs.value.charAt(0).toUpperCase() + vs.value.slice(1)}` as 'modals.countdown.styleCompact',
+                )}
+                aria-pressed={viewStyle === vs.value}
               >
-                <SlidersHorizontal size={12} />
-                {t('modals.countdown.boardSettings')}
+                {vs.icon}
               </button>
+            ))}
+          </div>
 
-              {showSettingsPopover && (
-                <div className="absolute right-0 top-full mt-2 z-50 w-72 p-4 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-xl space-y-4">
-                  <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {t('modals.countdown.boardSettings')}
-                  </h3>
-
-                  {/* View Style */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {t('modals.countdown.viewStyle')}
-                    </label>
-                    <select
-                      value={viewStyle}
-                      onChange={(e) => setViewStyle(e.target.value as ReminderViewStyle)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 appearance-none cursor-pointer"
-                    >
-                      <option value="compact">{t('modals.countdown.styleCompact')}</option>
-                      <option value="card">{t('modals.countdown.styleCard')}</option>
-                      <option value="ring">{t('modals.countdown.styleRing')}</option>
-                      <option value="flip">{t('modals.countdown.styleFlip')}</option>
-                    </select>
-                  </div>
-
-                  {/* Timer Mode */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {t('modals.countdown.timerMode')}
-                    </label>
-                    <select
-                      value={timerMode}
-                      onChange={(e) => setTimerMode(e.target.value as ReminderTimerMode)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 appearance-none cursor-pointer"
-                    >
-                      <option value="cycle">{t('modals.countdown.timerModeCycle')}</option>
-                      <option value="forward">{t('modals.countdown.timerModeForward')}</option>
-                    </select>
-                  </div>
-
-                  {/* Expired Effect */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {t('modals.countdown.expiredEffect')}
-                    </label>
-                    <select
-                      value={expiredEffect}
-                      onChange={(e) => setExpiredEffect(e.target.value as ReminderExpiredEffect)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 appearance-none cursor-pointer"
-                    >
-                      <option value="dim">{t('modals.countdown.expiredEffectDim')}</option>
-                      <option value="blink">{t('modals.countdown.expiredEffectBlink')}</option>
-                    </select>
-                  </div>
-
-                  {/* Auto Archive */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {t('modals.countdown.archiveMode')}
-                    </label>
-                    <select
-                      value={archiveMode ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        updateSiteSettings({
-                          reminderBoardArchiveMode:
-                            val === 'immediate' || val === 'delay' ? val : undefined,
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 appearance-none cursor-pointer"
-                    >
-                      <option value="">{t('modals.countdown.archiveModeDisabled')}</option>
-                      <option value="immediate">
-                        {t('modals.countdown.archiveModeImmediate')}
-                      </option>
-                      <option value="delay">{t('modals.countdown.archiveModeDelay')}</option>
-                    </select>
-                    {archiveMode === 'delay' && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {t('modals.countdown.archiveDelayMinutes')}:
-                        </span>
-                        <input
-                          type="number"
-                          min={1}
-                          value={archiveDelayMinutes}
-                          onChange={(e) => {
-                            const val = Number.parseInt(e.target.value, 10);
-                            if (Number.isFinite(val) && val >= 1) {
-                              updateSiteSettings({ reminderBoardArchiveDelayMinutes: val });
-                            }
-                          }}
-                          className="w-20 px-2 py-1 text-xs rounded-lg border border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Overdue Visibility Toggle (only in forward mode) */}
-                  {timerMode === 'forward' && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                        {t('modals.countdown.overdueVisibilityForUsers')}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateSiteSettings({
-                            reminderBoardShowOverdueForUsers: !showOverdueForUsers,
-                          })
-                        }
-                        className={`relative w-10 h-6 rounded-full transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-accent/20 ${
-                          showOverdueForUsers ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                        aria-label={showOverdueForUsers ? t('common.show') : t('common.hide')}
-                        title={showOverdueForUsers ? t('common.show') : t('common.hide')}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                            showOverdueForUsers ? 'translate-x-4' : ''
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Batch Add Holidays */}
-                  {onAddHolidays && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSettingsPopover(false);
-                        onAddHolidays();
-                      }}
-                      className="flex items-center gap-1.5 w-full px-3 py-2 text-xs font-medium rounded-lg border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-accent hover:border-accent/50 bg-white/60 dark:bg-slate-800/60 transition-all"
-                    >
-                      <Clock size={12} />
-                      {t('modals.countdown.holidaysBatchTitle')}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Sort Mode Dropdown */}
+          <DropdownPanel
+            value={sortMode}
+            options={[
+              { value: 'remaining', label: t('modals.countdown.sortByRemaining') },
+              { value: 'created', label: t('modals.countdown.sortByCreated') },
+              { value: 'custom', label: t('modals.countdown.sortByCustom') },
+            ]}
+            onChange={setSortMode}
+            ariaLabel={t('modals.countdown.sortMode')}
+            title={t('modals.countdown.sortMode')}
+          />
 
           {statusFilter !== 'archived' && isAdmin && !isBatchMode && (
             <button
@@ -2001,18 +1806,18 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
       {/* Filters */}
       <div className="mb-4 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <DropdownPanel
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as ReminderStatusFilter)}
-            className="px-3 py-1.5 text-xs font-medium rounded-full border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-accent/50 transition-all appearance-none cursor-pointer"
-            aria-label={t('modals.countdown.status')}
+            options={[
+              { value: 'all', label: t('modals.countdown.statusAll') },
+              { value: 'active', label: t('modals.countdown.statusActive') },
+              { value: 'expired', label: t('modals.countdown.statusExpired') },
+              { value: 'archived', label: t('modals.countdown.statusArchived') },
+            ]}
+            onChange={(v) => setStatusFilter(v as ReminderStatusFilter)}
+            ariaLabel={t('modals.countdown.status')}
             title={t('modals.countdown.status')}
-          >
-            <option value="all">{t('modals.countdown.statusAll')}</option>
-            <option value="active">{t('modals.countdown.statusActive')}</option>
-            <option value="expired">{t('modals.countdown.statusExpired')}</option>
-            <option value="archived">{t('modals.countdown.statusArchived')}</option>
-          </select>
+          />
 
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -2509,4 +2314,4 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   );
 };
 
-export default React.memo(ReminderBoardSection);
+export default memo(ReminderBoardSection);
