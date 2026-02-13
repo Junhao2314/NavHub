@@ -209,31 +209,65 @@ describe('ReminderBoardSection (Filters)', () => {
     expect(container.textContent).not.toContain('Past');
   });
 
-  it('filters by label color (multi-select + none)', async () => {
+  it('filters by tags (any/all + clear)', async () => {
     const items = [
       createItem({
-        id: 'red',
-        title: 'Red item',
+        id: 'work',
+        title: 'Work only',
         offsetMs: 60_000,
-        labelColor: 'red',
+        tags: ['work'],
       }),
       createItem({
-        id: 'none',
-        title: 'No color item',
+        id: 'home',
+        title: 'Home only',
         offsetMs: 60_000,
+        tags: ['home'],
+      }),
+      createItem({
+        id: 'both',
+        title: 'Both tags',
+        offsetMs: 60_000,
+        tags: ['work', 'home'],
       }),
     ];
 
     await render({ items });
 
-    const noneBtn = container.querySelector('button[aria-label="无"]') as HTMLButtonElement | null;
-    expect(noneBtn).toBeTruthy();
+    const workBtn = Array.from(container.querySelectorAll('button')).find(
+      (btn) => btn.textContent?.trim() === 'work',
+    ) as HTMLButtonElement | undefined;
+    expect(workBtn).toBeTruthy();
 
     await act(async () => {
-      noneBtn?.click();
+      workBtn?.click();
     });
-    expect(container.textContent).toContain('No color item');
-    expect(container.textContent).not.toContain('Red item');
+    expect(container.textContent).toContain('Work only');
+    expect(container.textContent).toContain('Both tags');
+    expect(container.textContent).not.toContain('Home only');
+
+    const homeBtn = Array.from(container.querySelectorAll('button')).find(
+      (btn) => btn.textContent?.trim() === 'home',
+    ) as HTMLButtonElement | undefined;
+    expect(homeBtn).toBeTruthy();
+
+    await act(async () => {
+      homeBtn?.click();
+    });
+    expect(container.textContent).toContain('Work only');
+    expect(container.textContent).toContain('Home only');
+    expect(container.textContent).toContain('Both tags');
+
+    const allModeBtn = Array.from(container.querySelectorAll('button')).find(
+      (btn) => btn.getAttribute('title') === '交集',
+    ) as HTMLButtonElement | undefined;
+    expect(allModeBtn).toBeTruthy();
+
+    await act(async () => {
+      allModeBtn?.click();
+    });
+    expect(container.textContent).not.toContain('Work only');
+    expect(container.textContent).not.toContain('Home only');
+    expect(container.textContent).toContain('Both tags');
 
     const allBtn = Array.from(container.querySelectorAll('button')).find(
       (btn) => btn.textContent?.trim() === '全部' && btn.getAttribute('aria-label') !== '状态',
@@ -243,15 +277,9 @@ describe('ReminderBoardSection (Filters)', () => {
     await act(async () => {
       allBtn?.click();
     });
-
-    const redBtn = container.querySelector('button[aria-label="红色"]') as HTMLButtonElement | null;
-    expect(redBtn).toBeTruthy();
-
-    await act(async () => {
-      redBtn?.click();
-    });
-    expect(container.textContent).toContain('Red item');
-    expect(container.textContent).not.toContain('No color item');
+    expect(container.textContent).toContain('Work only');
+    expect(container.textContent).toContain('Home only');
+    expect(container.textContent).toContain('Both tags');
   });
 
   it('filters by date range (target/next occurrence)', async () => {

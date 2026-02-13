@@ -155,7 +155,7 @@ export interface CountdownItem {
    */
   recurrence?: CountdownRecurrence;
   reminderMinutes?: number[]; // 提醒（提前 N 分钟；可包含 0 = 到点提醒）
-  labelColor?: CountdownLabelColor; // 颜色标记（用于分类区分）
+  labelColor?: CountdownLabelColor | string; // 颜色标记（预设名或自定义 hex 值）
   hidden?: boolean; // 管理员控制可见性
   isPrivate?: boolean; // 私密项（需密码解锁才可见）
   archivedAt?: number; // 归档时间戳（undefined = 活跃）

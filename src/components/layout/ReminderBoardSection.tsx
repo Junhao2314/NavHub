@@ -87,18 +87,15 @@ interface ReminderBoardSectionProps {
 type ReminderVisualState = CountdownUrgency | 'expired';
 type ReminderTagFilterMode = 'any' | 'all';
 type ReminderStatusFilter = 'all' | 'active' | 'expired' | 'archived';
-type ReminderLabelColorFilter = CountdownLabelColor | '__none__';
 
 const REMINDER_SELECTED_TAGS_KEY = 'navhub_reminder_board_selected_tags_v1';
 const REMINDER_TAG_FILTER_MODE_KEY = 'navhub_reminder_board_tag_filter_mode_v1';
 const REMINDER_SELECTED_GROUP_KEY = 'navhub_reminder_board_selected_group_v1'; // legacy (read-only)
 const REMINDER_STATUS_FILTER_KEY = 'navhub_reminder_board_status_filter_v1';
-const REMINDER_SELECTED_LABEL_COLORS_KEY = 'navhub_reminder_board_selected_label_colors_v1';
 const REMINDER_DATE_FROM_KEY = 'navhub_reminder_board_date_from_v1';
 const REMINDER_DATE_TO_KEY = 'navhub_reminder_board_date_to_v1';
 const BATCH_TAG_PLACEHOLDER = '__navhub_reminder_board_batch_tag_placeholder__';
 const BATCH_REMOVE_TAG_PLACEHOLDER = '__navhub_reminder_board_batch_remove_tag_placeholder__';
-const LABEL_COLOR_NONE_FILTER: ReminderLabelColorFilter = '__none__';
 
 const isReminderTagFilterMode = (value: string | null): value is ReminderTagFilterMode =>
   value === 'any' || value === 'all';
@@ -121,34 +118,6 @@ const labelDotClasses: Record<CountdownLabelColor, string> = {
   violet: 'bg-violet-500',
   pink: 'bg-pink-500',
   slate: 'bg-slate-500',
-};
-
-const LABEL_COLOR_ORDER: CountdownLabelColor[] = [
-  'red',
-  'orange',
-  'amber',
-  'yellow',
-  'green',
-  'emerald',
-  'blue',
-  'indigo',
-  'violet',
-  'pink',
-  'slate',
-];
-
-const labelColorNameKeys: Record<CountdownLabelColor, string> = {
-  red: 'modals.countdown.labelColorRed',
-  orange: 'modals.countdown.labelColorOrange',
-  amber: 'modals.countdown.labelColorAmber',
-  yellow: 'modals.countdown.labelColorYellow',
-  green: 'modals.countdown.labelColorGreen',
-  emerald: 'modals.countdown.labelColorEmerald',
-  blue: 'modals.countdown.labelColorBlue',
-  indigo: 'modals.countdown.labelColorIndigo',
-  violet: 'modals.countdown.labelColorViolet',
-  pink: 'modals.countdown.labelColorPink',
-  slate: 'modals.countdown.labelColorSlate',
 };
 
 const stateTextClasses: Record<ReminderVisualState, string> = {
@@ -183,9 +152,6 @@ const getReminderAttentionClass = (args: {
   }
   return args.isExpiredOnce ? 'opacity-60' : '';
 };
-
-const isCountdownLabelColor = (value: unknown): value is CountdownLabelColor =>
-  typeof value === 'string' && Object.hasOwn(labelDotClasses, value);
 
 const parseDateInputValue = (
   value: string,
@@ -230,7 +196,16 @@ const formatDurationByPrecision = (
   precision: CountdownPrecision,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string => {
-  const parts = [t('modals.countdown.daysLeft', { count: remaining.days })];
+  const years = Math.floor(remaining.days / 365);
+  const remainDays = remaining.days % 365;
+  const parts: string[] = [];
+
+  if (years > 0) {
+    parts.push(t('modals.countdown.yearsLeft', { count: years }));
+    parts.push(t('modals.countdown.daysLeft', { count: remainDays }));
+  } else {
+    parts.push(t('modals.countdown.daysLeft', { count: remaining.days }));
+  }
   if (precision === 'day') return parts.join(' ');
   parts.push(t('modals.countdown.hoursLeft', { count: remaining.hours }));
   if (precision === 'hour') return parts.join(' ');
@@ -238,6 +213,29 @@ const formatDurationByPrecision = (
   if (precision === 'minute') return parts.join(' ');
   parts.push(t('modals.countdown.secondsLeft', { count: remaining.seconds }));
   return parts.join(' ');
+};
+
+const formatRingDuration = (
+  remaining: CountdownRemaining,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string => {
+  const years = Math.floor(remaining.days / 365);
+  const remainDays = remaining.days % 365;
+  const units: string[] = [];
+
+  if (years > 0) units.push(t('modals.countdown.yearsLeft', { count: years }));
+  if (remaining.days > 0) {
+    units.push(t('modals.countdown.daysLeft', { count: years > 0 ? remainDays : remaining.days }));
+  }
+  if (units.length < 2 && remaining.hours > 0)
+    units.push(t('modals.countdown.hoursLeft', { count: remaining.hours }));
+  if (units.length < 2 && remaining.minutes > 0)
+    units.push(t('modals.countdown.minutesLeft', { count: remaining.minutes }));
+  if (units.length < 2 && remaining.seconds > 0)
+    units.push(t('modals.countdown.secondsLeft', { count: remaining.seconds }));
+  if (units.length === 0) units.push(t('modals.countdown.secondsLeft', { count: 0 }));
+
+  return units.slice(0, 2).join('\n');
 };
 
 const formatRemaining = (
@@ -296,11 +294,20 @@ const formatElapsedOfTotal = (
   return t('modals.countdown.elapsedOfTotal', { elapsed, total });
 };
 
-const LabelDot: React.FC<{ color?: CountdownLabelColor }> = ({ color }) => {
+const LabelDot: React.FC<{ color?: string }> = ({ color }) => {
   if (!color) return null;
+  const presetClass = labelDotClasses[color as CountdownLabelColor];
+  if (presetClass) {
+    return (
+      <span
+        className={`inline-block w-2 h-2 rounded-full ${presetClass} ring-2 ring-white/60 dark:ring-slate-900/60`}
+      />
+    );
+  }
   return (
     <span
-      className={`inline-block w-2 h-2 rounded-full ${labelDotClasses[color]} ring-2 ring-white/60 dark:ring-slate-900/60`}
+      className="inline-block w-2 h-2 rounded-full ring-2 ring-white/60 dark:ring-slate-900/60"
+      style={{ backgroundColor: color }}
     />
   );
 };
@@ -740,6 +747,7 @@ const ReminderCardCard: React.FC<{
 
 const ReminderCardRing: React.FC<{
   item: CountdownItem;
+  remaining: CountdownRemaining;
   progress: CountdownProgress;
   timerMode: ReminderTimerMode;
   expiredEffect: ReminderExpiredEffect;
@@ -754,6 +762,7 @@ const ReminderCardRing: React.FC<{
   onToggleHidden: (id: string) => void;
 }> = ({
   item,
+  remaining,
   progress,
   timerMode,
   expiredEffect,
@@ -770,6 +779,13 @@ const ReminderCardRing: React.FC<{
   const { t } = useI18n();
 
   const attentionClass = getReminderAttentionClass({ expiredEffect, isExpiredOnce, state });
+
+  const ringText =
+    isExpiredOnce && timerMode === 'cycle'
+      ? t('modals.countdown.expired')
+      : isExpiredOnce && timerMode === 'forward'
+        ? primaryText
+        : formatRingDuration(remaining, t);
 
   return (
     <div
@@ -814,10 +830,10 @@ const ReminderCardRing: React.FC<{
 
       <div className="mt-3 flex items-center gap-3">
         <RingProgress ratio={progress.ratio} state={state}>
-          <div
-            className={`text-[11px] leading-tight font-bold ${stateTextClasses[state]} line-clamp-2`}
-          >
-            {isExpiredOnce && timerMode === 'cycle' ? t('modals.countdown.expired') : primaryText}
+          <div className={`text-[11px] leading-tight font-bold ${stateTextClasses[state]}`}>
+            {ringText.split('\n').map((line) => (
+              <div key={line}>{line}</div>
+            ))}
           </div>
         </RingProgress>
 
@@ -998,7 +1014,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   const { viewStyle, setViewStyle, timerMode, expiredEffect, sortMode, setSortMode } =
     useReminderBoardPrefs();
   const [statusFilter, setStatusFilter] = useState<ReminderStatusFilter>('all');
-  const [selectedLabelColors, setSelectedLabelColors] = useState<ReminderLabelColorFilter[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -1034,7 +1049,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   // Load persisted local preferences
   useEffect(() => {
     const storedStatusFilter = safeLocalStorageGetItem(REMINDER_STATUS_FILTER_KEY);
-    const storedSelectedLabelColors = safeLocalStorageGetItem(REMINDER_SELECTED_LABEL_COLORS_KEY);
     const storedDateFrom = safeLocalStorageGetItem(REMINDER_DATE_FROM_KEY);
     const storedDateTo = safeLocalStorageGetItem(REMINDER_DATE_TO_KEY);
     const storedSelectedTags = safeLocalStorageGetItem(REMINDER_SELECTED_TAGS_KEY);
@@ -1045,32 +1059,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
     if (isReminderStatusFilter(storedStatusFilter)) setStatusFilter(storedStatusFilter);
     if (isValidDateInputValue(storedDateFrom)) setDateFrom(storedDateFrom);
     if (isValidDateInputValue(storedDateTo)) setDateTo(storedDateTo);
-
-    let initialLabelColors: ReminderLabelColorFilter[] = [];
-    if (storedSelectedLabelColors) {
-      try {
-        const parsed = JSON.parse(storedSelectedLabelColors) as unknown;
-        if (Array.isArray(parsed)) {
-          const seen = new Set<ReminderLabelColorFilter>();
-          for (const raw of parsed) {
-            if (raw === LABEL_COLOR_NONE_FILTER) {
-              if (seen.has(LABEL_COLOR_NONE_FILTER)) continue;
-              seen.add(LABEL_COLOR_NONE_FILTER);
-              initialLabelColors.push(LABEL_COLOR_NONE_FILTER);
-              continue;
-            }
-            if (!isCountdownLabelColor(raw)) continue;
-            const next = raw;
-            if (seen.has(next)) continue;
-            seen.add(next);
-            initialLabelColors.push(next);
-          }
-        }
-      } catch {
-        // ignore parse errors
-      }
-    }
-    setSelectedLabelColors(initialLabelColors);
 
     let initialSelectedTags: string[] = [];
     if (storedSelectedTags) {
@@ -1108,12 +1096,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   useEffect(() => {
     safeLocalStorageSetItem(REMINDER_STATUS_FILTER_KEY, statusFilter);
   }, [statusFilter]);
-  useEffect(() => {
-    safeLocalStorageSetItem(
-      REMINDER_SELECTED_LABEL_COLORS_KEY,
-      JSON.stringify(selectedLabelColors),
-    );
-  }, [selectedLabelColors]);
   useEffect(() => {
     safeLocalStorageSetItem(REMINDER_DATE_FROM_KEY, dateFrom);
   }, [dateFrom]);
@@ -1158,11 +1140,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
     return Array.from(tagSet);
   }, [configuredTagOptions, items]);
 
-  const selectedLabelColorSet = useMemo(
-    () => new Set<ReminderLabelColorFilter>(selectedLabelColors),
-    [selectedLabelColors],
-  );
-
   const dateRangeMs = useMemo(() => parseDateRangeMs({ dateFrom, dateTo }), [dateFrom, dateTo]);
   const shouldApplyDateRange = dateRangeMs.fromMs !== undefined || dateRangeMs.toMs !== undefined;
 
@@ -1187,14 +1164,9 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
         }
       }
 
-      if (selectedLabelColorSet.size > 0) {
-        const token: ReminderLabelColorFilter = item.labelColor ?? LABEL_COLOR_NONE_FILTER;
-        if (!selectedLabelColorSet.has(token)) return false;
-      }
-
       return true;
     });
-  }, [baseVisibleActiveItems, selectedTags, tagFilterMode, selectedLabelColorSet]);
+  }, [baseVisibleActiveItems, selectedTags, tagFilterMode]);
 
   const staticFilteredArchivedItems = useMemo(() => {
     return baseVisibleArchivedItems.filter((item) => {
@@ -1207,14 +1179,9 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
         }
       }
 
-      if (selectedLabelColorSet.size > 0) {
-        const token: ReminderLabelColorFilter = item.labelColor ?? LABEL_COLOR_NONE_FILTER;
-        if (!selectedLabelColorSet.has(token)) return false;
-      }
-
       return true;
     });
-  }, [baseVisibleArchivedItems, selectedTags, tagFilterMode, selectedLabelColorSet]);
+  }, [baseVisibleArchivedItems, selectedTags, tagFilterMode]);
 
   const timeFilteredActiveItems = useMemo(() => {
     if (!shouldApplyDateRange) return staticFilteredActiveItems;
@@ -1364,7 +1331,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
     void sortMode;
     void viewStyle;
     void statusFilter;
-    void selectedLabelColors;
     void dateFrom;
     void dateTo;
     if (!isBatchMode) return;
@@ -1380,7 +1346,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
     sortMode,
     viewStyle,
     statusFilter,
-    selectedLabelColors,
     dateFrom,
     dateTo,
   ]);
@@ -1587,6 +1552,7 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
         return (
           <ReminderCardRing
             item={item}
+            remaining={remaining}
             progress={progress}
             timerMode={timerMode}
             expiredEffect={expiredEffect}
@@ -1783,73 +1749,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
             )}
           </div>
 
-          {/* Color Filter Dots */}
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setSelectedLabelColors([])}
-              aria-pressed={selectedLabelColors.length === 0}
-              className={`px-2 py-1 text-[10px] font-medium rounded-full border transition-all ${
-                selectedLabelColors.length === 0
-                  ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 hover:border-accent/50 hover:text-accent bg-white/60 dark:bg-slate-800/60'
-              }`}
-            >
-              {t('modals.countdown.statusAll')}
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setSelectedLabelColors((prev) => {
-                  if (prev.includes(LABEL_COLOR_NONE_FILTER)) {
-                    return prev.filter((c) => c !== LABEL_COLOR_NONE_FILTER);
-                  }
-                  return [...prev, LABEL_COLOR_NONE_FILTER];
-                })
-              }
-              aria-pressed={selectedLabelColors.includes(LABEL_COLOR_NONE_FILTER)}
-              aria-label={t('modals.countdown.labelColorNone')}
-              title={t('modals.countdown.labelColorNone')}
-              className={`inline-flex items-center justify-center h-6 w-6 rounded-full border backdrop-blur-sm transition-all ${
-                selectedLabelColors.includes(LABEL_COLOR_NONE_FILTER)
-                  ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 hover:border-accent/50 hover:text-accent'
-              }`}
-            >
-              <Square size={12} />
-            </button>
-
-            {LABEL_COLOR_ORDER.map((color) => {
-              const isSelected = selectedLabelColors.includes(color);
-              const label = t(labelColorNameKeys[color]);
-              return (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() =>
-                    setSelectedLabelColors((prev) => {
-                      if (prev.includes(color)) return prev.filter((c) => c !== color);
-                      return [...prev, color];
-                    })
-                  }
-                  aria-pressed={isSelected}
-                  aria-label={label}
-                  title={label}
-                  className={`inline-flex items-center justify-center h-6 w-6 rounded-full border backdrop-blur-sm transition-all ${
-                    isSelected
-                      ? 'border-accent bg-accent/10'
-                      : 'border-slate-200/60 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 hover:border-accent/50'
-                  }`}
-                >
-                  <span
-                    className={`inline-block w-2 h-2 rounded-full ${labelDotClasses[color]} ring-2 ring-white/60 dark:ring-slate-900/60`}
-                  />
-                </button>
-              );
-            })}
-          </div>
-
           {/* View Style Icon Toggle Group */}
           <div className="hidden md:flex items-center p-1 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 backdrop-blur-sm">
             {[
@@ -1880,18 +1779,20 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
             ))}
           </div>
 
-          {/* Sort Mode Dropdown */}
-          <DropdownPanel
-            value={sortMode}
-            options={[
-              { value: 'remaining', label: t('modals.countdown.sortByRemaining') },
-              { value: 'created', label: t('modals.countdown.sortByCreated') },
-              { value: 'custom', label: t('modals.countdown.sortByCustom') },
-            ]}
-            onChange={setSortMode}
-            ariaLabel={t('modals.countdown.sortMode')}
-            title={t('modals.countdown.sortMode')}
-          />
+          {/* Sort Mode Dropdown (admin only) */}
+          {isAdmin && (
+            <DropdownPanel
+              value={sortMode}
+              options={[
+                { value: 'remaining', label: t('modals.countdown.sortByRemaining') },
+                { value: 'created', label: t('modals.countdown.sortByCreated') },
+                { value: 'custom', label: t('modals.countdown.sortByCustom') },
+              ]}
+              onChange={setSortMode}
+              ariaLabel={t('modals.countdown.sortMode')}
+              title={t('modals.countdown.sortMode')}
+            />
+          )}
 
           {statusFilter !== 'archived' && isAdmin && !isBatchMode && (
             <button
