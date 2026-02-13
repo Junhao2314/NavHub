@@ -55,14 +55,33 @@ jobs:
         env:
           VITE_LANGUAGE: ${{ secrets.VITE_LANGUAGE }}
 
-      - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: '4.62.0'
-          # 如果设置了同步密码，通过 secrets 注入
-          secrets: |
-            SYNC_PASSWORD
+      - name: Upload optional SYNC_PASSWORD secret
+        if: ${{ secrets.SYNC_PASSWORD != '' }}
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           SYNC_PASSWORD: ${{ secrets.SYNC_PASSWORD }}
+        run: |
+          printf '{"SYNC_PASSWORD":"%s"}\n' "$SYNC_PASSWORD" | npx wrangler@4.65.0 secret bulk --name navhub
+
+      - name: Deploy to Cloudflare Workers (retry on transient API errors)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "Deploy attempt ${attempt}/3"
+            if npx wrangler@4.65.0 deploy; then
+              echo "Deploy succeeded on attempt ${attempt}"
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "Deploy failed after 3 attempts"
+              exit 1
+            fi
+
+            sleep_seconds=$((attempt * 20))
+            echo "Retrying in ${sleep_seconds}s..."
+            sleep "$sleep_seconds"
+          done
