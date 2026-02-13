@@ -465,7 +465,7 @@
       "timeZone": "时区",
       "timeZoneHint": "支持 IANA 时区，例如 Asia/Shanghai、America/New_York",
       "naturalInput": "自然语言",
-      "naturalInputPlaceholder": "例如：下周五、3天后、每月15号、工作日、腊月二十三、立春",
+      "naturalInputPlaceholder": "下周五、3天后、每月15号...",
       "applyNatural": "解析/应用",
       "nextOccurrence": "下次发生",
       "recurrence": "重复方式",

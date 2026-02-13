@@ -1419,6 +1419,7 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   const handleExitBatchMode = () => {
     setIsBatchMode(false);
     resetBatchSelection();
+    if (sortMode === 'custom') setSortMode('remaining');
   };
 
   const toggleSelection = (id: string) => {
@@ -1786,7 +1787,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
               options={[
                 { value: 'remaining', label: t('modals.countdown.sortByRemaining') },
                 { value: 'created', label: t('modals.countdown.sortByCreated') },
-                { value: 'custom', label: t('modals.countdown.sortByCustom') },
               ]}
               onChange={setSortMode}
               ariaLabel={t('modals.countdown.sortMode')}
@@ -1927,7 +1927,7 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
 
       {/* Batch Edit Toolbar (Active Items only) */}
       {statusFilter !== 'archived' && isAdmin && isBatchMode && (
-        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-2xl bg-white/60 dark:bg-slate-800/50 border border-slate-200/60 dark:border-white/8 backdrop-blur-sm">
+        <div className="relative z-10 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-2xl bg-white/60 dark:bg-slate-800/50 border border-slate-200/60 dark:border-white/8 backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
               {t('linkSections.selectedCount', { count: selectedCount })}

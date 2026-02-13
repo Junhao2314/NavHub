@@ -476,7 +476,7 @@
       "timeZone": "Time zone",
       "timeZoneHint": "IANA time zones, e.g. Asia/Shanghai, America/New_York",
       "naturalInput": "Natural language",
-      "naturalInputPlaceholder": "e.g. next Fri, in 3 days, monthly on 15th, weekdays, 腊月二十三, 立春",
+      "naturalInputPlaceholder": "next Fri, in 3 days, monthly 15th...",
       "applyNatural": "Parse/Apply",
       "nextOccurrence": "Next occurrence",
       "recurrence": "Recurrence",
