@@ -588,7 +588,7 @@
       "tagFilterAny": "Any (OR)",
       "tagFilterAll": "All (AND)",
       "batchEdit": "Edit",
-      "exitBatchEdit": "Exit batch",
+      "exitBatchEdit": "Exit Edit",
       "batchArchive": "Batch archive",
       "batchDelete": "Batch delete",
       "batchAddTag": "Batch add tag",

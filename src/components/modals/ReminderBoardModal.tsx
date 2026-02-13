@@ -249,9 +249,19 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTzPicker, setShowTzPicker] = useState(false);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const [showLinkedUrlPicker, setShowLinkedUrlPicker] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
   const tzPickerRef = useRef<HTMLDivElement>(null);
+  const linkedUrlPickerRef = useRef<HTMLDivElement>(null);
   const linkOptions = useMemo(() => links.slice(0, MAX_LINK_OPTIONS), [links]);
+
+  const filteredLinkOptions = useMemo(() => {
+    const q = linkedUrlInput.trim().toLowerCase();
+    if (!q) return linkOptions;
+    return linkOptions.filter(
+      (l) => l.url.toLowerCase().includes(q) || l.title.toLowerCase().includes(q),
+    );
+  }, [linkOptions, linkedUrlInput]);
 
   const rule = useMemo(
     () =>
@@ -558,6 +568,18 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showTzPicker]);
+
+  // Close linked URL picker on click outside
+  useEffect(() => {
+    if (!showLinkedUrlPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (linkedUrlPickerRef.current && !linkedUrlPickerRef.current.contains(e.target as Node)) {
+        setShowLinkedUrlPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showLinkedUrlPicker]);
 
   const handleSelectTemplate = useCallback(
     (entry: HolidayEntry) => {
@@ -1337,24 +1359,40 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 )}
               </div>
 
-              <div>
+              <div ref={linkedUrlPickerRef} className="relative">
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
                   {t('modals.countdown.linkedUrl')}
                 </label>
                 <input
                   type="text"
                   value={linkedUrlInput}
-                  onChange={(e) => setLinkedUrlInput(e.target.value)}
-                  list={linkOptions.length > 0 ? 'navhub-reminder-linked-url-options' : undefined}
+                  onChange={(e) => {
+                    setLinkedUrlInput(e.target.value);
+                    setShowLinkedUrlPicker(true);
+                  }}
+                  onFocus={() => {
+                    if (linkOptions.length > 0) setShowLinkedUrlPicker(true);
+                  }}
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
                   placeholder={t('modals.countdown.linkedUrlPlaceholder')}
                 />
-                {linkOptions.length > 0 && (
-                  <datalist id="navhub-reminder-linked-url-options">
-                    {linkOptions.map((link) => (
-                      <option key={link.id} value={link.url} label={link.title} />
+                {showLinkedUrlPicker && filteredLinkOptions.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+                    {filteredLinkOptions.map((link) => (
+                      <button
+                        key={link.id}
+                        type="button"
+                        onClick={() => {
+                          setLinkedUrlInput(link.url);
+                          setShowLinkedUrlPicker(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-200"
+                      >
+                        <span className="font-medium truncate">{link.title}</span>
+                        <span className="ml-2 text-xs text-slate-400 truncate">{link.url}</span>
+                      </button>
                     ))}
-                  </datalist>
+                  </div>
                 )}
               </div>
 
@@ -1449,29 +1487,17 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
                   {t('modals.countdown.timeZone')}
                 </label>
-                <div className="relative flex items-center gap-0">
-                  <input
-                    type="text"
-                    value={timeZone}
-                    onChange={(e) => {
-                      setTimeZone(e.target.value);
-                      setShowTzPicker(true);
-                    }}
-                    onFocus={() => setShowTzPicker(true)}
-                    className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-l-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                    placeholder={DEFAULT_TIME_ZONE}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowTzPicker((prev) => !prev)}
-                    className="shrink-0 px-3 py-3 bg-slate-50 dark:bg-slate-800/50 border border-l-0 border-slate-200 dark:border-slate-700 rounded-r-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                  >
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform duration-200 ${showTzPicker ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={timeZone}
+                  onChange={(e) => {
+                    setTimeZone(e.target.value);
+                    setShowTzPicker(true);
+                  }}
+                  onFocus={() => setShowTzPicker(true)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                  placeholder={DEFAULT_TIME_ZONE}
+                />
                 {showTzPicker && (
                   <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
                     {COMMON_TIME_ZONES.filter(

@@ -1779,8 +1779,8 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
             ))}
           </div>
 
-          {/* Sort Mode Dropdown (admin only) */}
-          {isAdmin && (
+          {/* Sort Mode Dropdown (admin only, hidden in batch mode) */}
+          {isAdmin && !isBatchMode && (
             <DropdownPanel
               value={sortMode}
               options={[
@@ -1943,6 +1943,18 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
               <CheckSquare size={14} />
               {isAllSelected ? t('common.deselectAll') : t('common.selectAll')}
             </button>
+
+            <DropdownPanel
+              value={sortMode}
+              options={[
+                { value: 'remaining', label: t('modals.countdown.sortByRemaining') },
+                { value: 'created', label: t('modals.countdown.sortByCreated') },
+                { value: 'custom', label: t('modals.countdown.sortByCustom') },
+              ]}
+              onChange={setSortMode}
+              ariaLabel={t('modals.countdown.sortMode')}
+              title={t('modals.countdown.sortMode')}
+            />
 
             <button
               type="button"

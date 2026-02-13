@@ -577,7 +577,7 @@
       "tagFilterAny": "并集",
       "tagFilterAll": "交集",
       "batchEdit": "编辑",
-      "exitBatchEdit": "退出批量",
+      "exitBatchEdit": "退出编辑",
       "batchArchive": "批量归档",
       "batchDelete": "批量删除",
       "batchAddTag": "批量添加标签",
