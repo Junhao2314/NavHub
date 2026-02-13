@@ -56,13 +56,16 @@ jobs:
           VITE_LANGUAGE: ${{ secrets.VITE_LANGUAGE }}
 
       - name: Upload optional SYNC_PASSWORD secret
-        if: ${{ secrets.SYNC_PASSWORD != '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           SYNC_PASSWORD: ${{ secrets.SYNC_PASSWORD }}
         run: |
-          printf '{"SYNC_PASSWORD":"%s"}\n' "$SYNC_PASSWORD" | npx wrangler@4.65.0 secret bulk --name navhub
+          if [ -n "${SYNC_PASSWORD:-}" ]; then
+            printf '{"SYNC_PASSWORD":"%s"}\n' "$SYNC_PASSWORD" | npx wrangler@4.65.0 secret bulk --name navhub
+          else
+            echo "SYNC_PASSWORD is empty, skipping secret upload"
+          fi
 
       - name: Deploy to Cloudflare Workers (retry on transient API errors)
         env:
