@@ -1419,7 +1419,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
   const handleExitBatchMode = () => {
     setIsBatchMode(false);
     resetBatchSelection();
-    if (sortMode === 'custom') setSortMode('remaining');
   };
 
   const toggleSelection = (id: string) => {
@@ -1787,6 +1786,7 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
               options={[
                 { value: 'remaining', label: t('modals.countdown.sortByRemaining') },
                 { value: 'created', label: t('modals.countdown.sortByCreated') },
+                { value: 'custom', label: t('modals.countdown.sortByCustom') },
               ]}
               onChange={setSortMode}
               ariaLabel={t('modals.countdown.sortMode')}
@@ -1943,18 +1943,6 @@ const ReminderBoardSection: React.FC<ReminderBoardSectionProps> = ({
               <CheckSquare size={14} />
               {isAllSelected ? t('common.deselectAll') : t('common.selectAll')}
             </button>
-
-            <DropdownPanel
-              value={sortMode}
-              options={[
-                { value: 'remaining', label: t('modals.countdown.sortByRemaining') },
-                { value: 'created', label: t('modals.countdown.sortByCreated') },
-                { value: 'custom', label: t('modals.countdown.sortByCustom') },
-              ]}
-              onChange={setSortMode}
-              ariaLabel={t('modals.countdown.sortMode')}
-              title={t('modals.countdown.sortMode')}
-            />
 
             <button
               type="button"
