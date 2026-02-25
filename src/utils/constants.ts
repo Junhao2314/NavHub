@@ -34,6 +34,7 @@ export const PRIVACY_AUTO_UNLOCK_KEY = 'navhub_privacy_auto_unlock';
 export const PRIVACY_SESSION_UNLOCKED_KEY = 'navhub_privacy_session_unlocked';
 export const COMMON_CATEGORY_ID = 'common';
 export const PRIVATE_CATEGORY_ID = '__private__';
+export const COUNTDOWN_STORAGE_KEY = 'navhub_countdowns_v1';
 
 // Sync Configuration
 // 默认值偏保守：Cloudflare KV 免费额度写入较紧张，降低自动同步频率以减少 Write operations。

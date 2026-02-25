@@ -1,7 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import LinkSections from '../components/layout/LinkSections';
 import MainHeader from '../components/layout/MainHeader';
 import Sidebar from '../components/layout/Sidebar';
+import HolidayBatchModal from '../components/modals/HolidayBatchModal';
+import ReminderBoardModal from '../components/modals/ReminderBoardModal';
 
 import { GITHUB_REPO_URL, PRIVATE_CATEGORY_ID } from '../utils/constants';
 import { AppBackground } from './AppBackground';
@@ -30,6 +32,7 @@ function App({ onReady }: AppProps) {
     meta,
     appearance,
     admin,
+    reminderBoard,
   } = controller;
 
   const { links, categories } = core;
@@ -39,6 +42,11 @@ function App({ onReady }: AppProps) {
   const { startSorting: startCategorySorting } = sorting;
 
   const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
+
+  const existingReminderTitles = useMemo(
+    () => reminderBoard.items.map((item) => item.title),
+    [reminderBoard.items],
+  );
 
   const handleOpenSettings = useCallback(
     () => setIsSettingsModalOpen(true),
@@ -96,7 +104,7 @@ function App({ onReady }: AppProps) {
           backgroundMotion={appearance.backgroundMotion}
         />
 
-        <div className="relative z-10 flex flex-col h-full">
+        <div className="relative z-10 flex flex-col h-full min-h-0">
           <MainHeader
             canEdit={isAdmin}
             canSortPinned={sorting.canSortPinned}
@@ -148,11 +156,63 @@ function App({ onReady }: AppProps) {
             onPrivateUnlock={privacy.handleUnlockPrivateVault}
             privateUnlockHint={privacy.privateUnlockHint}
             privateUnlockSubHint={privacy.privateUnlockSubHint}
+            reminderBoardItems={reminderBoard.items}
+            isAdmin={isAdmin}
+            onReminderBoardAdd={() => {
+              reminderBoard.setEditingItem(null);
+              reminderBoard.setIsModalOpen(true);
+            }}
+            onReminderBoardAddHolidays={() => {
+              reminderBoard.setIsHolidayBatchModalOpen(true);
+            }}
+            onReminderBoardEdit={(item) => {
+              reminderBoard.setEditingItem(item);
+              reminderBoard.setIsModalOpen(true);
+            }}
+            onReminderBoardDelete={reminderBoard.deleteItem}
+            onReminderBoardToggleHidden={reminderBoard.toggleItemHidden}
+            onReminderBoardArchive={reminderBoard.archiveItem}
+            onReminderBoardRestore={reminderBoard.restoreItem}
+            onReminderBoardReorder={reminderBoard.reorderItems}
+            onReminderBoardBatchDelete={reminderBoard.deleteItems}
+            onReminderBoardBatchArchive={reminderBoard.archiveItems}
+            onReminderBoardBatchUpdateTags={reminderBoard.updateItemsTags}
+            onReminderBoardUpdate={reminderBoard.updateItem}
+            siteSettings={config.siteSettings}
           />
         </div>
       </main>
 
       <AppBottomOverlays controller={controller} />
+
+      <ReminderBoardModal
+        isOpen={reminderBoard.isModalOpen}
+        onClose={() => {
+          reminderBoard.setIsModalOpen(false);
+          reminderBoard.setEditingItem(null);
+        }}
+        onSave={(data) => {
+          if (reminderBoard.editingItem) {
+            reminderBoard.updateItem({ ...data, id: reminderBoard.editingItem.id });
+          } else {
+            reminderBoard.addItem(data);
+          }
+        }}
+        initialData={reminderBoard.editingItem || undefined}
+        closeOnBackdrop={appearance.closeOnBackdrop}
+        isAdmin={isAdmin}
+        privacyGroupEnabled={privacy.privacyGroupEnabled}
+        groups={config.siteSettings.reminderBoardGroups ?? []}
+        links={links}
+      />
+
+      <HolidayBatchModal
+        isOpen={reminderBoard.isHolidayBatchModalOpen}
+        onClose={() => reminderBoard.setIsHolidayBatchModalOpen(false)}
+        onBatchAdd={reminderBoard.addItems}
+        existingTitles={existingReminderTitles}
+        closeOnBackdrop={appearance.closeOnBackdrop}
+      />
     </div>
   );
 }

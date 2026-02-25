@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDialog } from '../components/ui/DialogProvider';
 import {
   useBatchEdit,
@@ -11,7 +11,9 @@ import {
   useSorting,
   useTheme,
 } from '../hooks';
-import type { NavHubSyncData } from '../types';
+import { useCountdownReminders } from '../hooks/useCountdownReminders';
+import { useCountdownStore } from '../hooks/useCountdownStore';
+import type { CountdownItem, NavHubSyncData } from '../types';
 import { PRIVATE_CATEGORY_ID } from '../utils/constants';
 import { applyCloudDataToLocalState } from './useAppController/kvSync/applyCloudData';
 import { useAdminAccess } from './useAppController/useAdminAccess';
@@ -170,6 +172,31 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     setIsSearchConfigModalOpen,
   } = useModals();
 
+  // === Reminder Board (countdown data) ===
+  const {
+    countdowns: reminderBoardItems,
+    isLoaded: isReminderBoardLoaded,
+    addCountdown: addReminderBoardItem,
+    addCountdowns: addReminderBoardItems,
+    updateCountdown: updateReminderBoardItem,
+    deleteCountdown: deleteReminderBoardItem,
+    deleteCountdowns: deleteReminderBoardItems,
+    toggleHidden: toggleReminderBoardItemHidden,
+    archiveCountdown: archiveReminderBoardItem,
+    archiveCountdowns: archiveReminderBoardItems,
+    restoreCountdown: restoreReminderBoardItem,
+    reorderCountdowns: reorderReminderBoardItems,
+    updateCountdownsTags: updateReminderBoardItemsTags,
+    replaceCountdowns: replaceReminderBoardItems,
+  } = useCountdownStore();
+  const [isReminderBoardModalOpen, setIsReminderBoardModalOpen] = useState(false);
+  const [isHolidayBatchModalOpen, setIsHolidayBatchModalOpen] = useState(false);
+  const [editingReminderBoardItem, setEditingReminderBoardItem] = useState<CountdownItem | null>(
+    null,
+  );
+
+  const isAllLoaded = isLoaded && isReminderBoardLoaded;
+
   const isPrivateView = selectedCategory === PRIVATE_CATEGORY_ID;
 
   const {
@@ -193,10 +220,12 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     handleDeleteBackup,
     handleSaveSettings,
   } = useKvSync({
-    isLoaded,
+    isLoaded: isAllLoaded,
     links,
     categories,
+    countdowns: reminderBoardItems,
     updateData,
+    restoreCountdowns: replaceReminderBoardItems,
     selectedCategory,
     setSelectedCategory,
     searchMode,
@@ -231,6 +260,8 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     confirm,
   });
 
+  useCountdownReminders({ countdowns: reminderBoardItems, isAdmin, notify });
+
   // === 初始同步完成后隐藏加载动画 ===
   // 等待本地数据加载完成 + 云端初始同步完成后，才隐藏加载遮罩
   // 这样可以避免用户看到"主数据缺失时回退到历史记录"的过渡状态
@@ -249,6 +280,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
         data: data as NavHubSyncData,
         role: 'admin',
         updateData,
+        restoreCountdowns: replaceReminderBoardItems,
         restoreSearchConfigRef,
         restoreSiteSettings,
         applyFromSync,
@@ -277,6 +309,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     },
     [
       updateData,
+      replaceReminderBoardItems,
       restoreSiteSettings,
       applyFromSync,
       aiConfig,
@@ -682,6 +715,26 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       backgroundImage,
       useCustomBackground,
       backgroundMotion,
+    },
+    reminderBoard: {
+      items: reminderBoardItems,
+      addItem: addReminderBoardItem,
+      addItems: addReminderBoardItems,
+      updateItem: updateReminderBoardItem,
+      deleteItem: deleteReminderBoardItem,
+      deleteItems: deleteReminderBoardItems,
+      toggleItemHidden: toggleReminderBoardItemHidden,
+      archiveItem: archiveReminderBoardItem,
+      archiveItems: archiveReminderBoardItems,
+      restoreItem: restoreReminderBoardItem,
+      reorderItems: reorderReminderBoardItems,
+      updateItemsTags: updateReminderBoardItemsTags,
+      isModalOpen: isReminderBoardModalOpen,
+      setIsModalOpen: setIsReminderBoardModalOpen,
+      isHolidayBatchModalOpen,
+      setIsHolidayBatchModalOpen,
+      editingItem: editingReminderBoardItem,
+      setEditingItem: setEditingReminderBoardItem,
     },
   };
 };

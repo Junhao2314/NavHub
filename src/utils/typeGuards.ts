@@ -93,6 +93,35 @@ export const isPartialSiteSettings = (value: unknown): value is Partial<SiteSett
   if ('cardStyle' in value && value.cardStyle !== 'detailed' && value.cardStyle !== 'simple') {
     return false;
   }
+  if (
+    'reminderBoardShowOverdueForUsers' in value &&
+    value.reminderBoardShowOverdueForUsers !== undefined &&
+    !isBoolean(value.reminderBoardShowOverdueForUsers)
+  ) {
+    return false;
+  }
+  if (
+    'reminderBoardGroups' in value &&
+    value.reminderBoardGroups !== undefined &&
+    !Array.isArray(value.reminderBoardGroups)
+  ) {
+    return false;
+  }
+  if (
+    'reminderBoardArchiveMode' in value &&
+    value.reminderBoardArchiveMode !== undefined &&
+    value.reminderBoardArchiveMode !== 'immediate' &&
+    value.reminderBoardArchiveMode !== 'delay'
+  ) {
+    return false;
+  }
+  if (
+    'reminderBoardArchiveDelayMinutes' in value &&
+    value.reminderBoardArchiveDelayMinutes !== undefined &&
+    typeof value.reminderBoardArchiveDelayMinutes !== 'number'
+  ) {
+    return false;
+  }
   if ('accentColor' in value && value.accentColor !== undefined && !isString(value.accentColor)) {
     return false;
   }

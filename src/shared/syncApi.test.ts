@@ -291,6 +291,99 @@ describe('navHubSyncData schema normalization', () => {
     expect(normalized?.searchConfig).toEqual({ mode: 'internal', externalSources: [] });
     expect(normalized?.aiConfig?.provider).toBe('gemini');
   });
+
+  it('accepts countdown items with rule without recurrence', () => {
+    const input = {
+      links: [],
+      categories: [],
+      countdowns: [
+        {
+          id: 'countdown-1',
+          title: 'Deadline',
+          targetDate: '2026-01-01T00:00:00.000Z',
+          createdAt: 1,
+          rule: { kind: 'once' },
+        },
+      ],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.countdowns).toHaveLength(1);
+    expect(normalized?.countdowns?.[0]?.id).toBe('countdown-1');
+  });
+
+  it('preserves countdown linkedUrl when present', () => {
+    const input = {
+      links: [],
+      categories: [],
+      countdowns: [
+        {
+          id: 'countdown-1',
+          title: 'Deadline',
+          targetDate: '2026-01-01T00:00:00.000Z',
+          createdAt: 1,
+          rule: { kind: 'once' },
+          linkedUrl: 'https://example.com',
+        },
+      ],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.countdowns).toHaveLength(1);
+    expect(normalized?.countdowns?.[0]?.linkedUrl).toBe('https://example.com');
+  });
+
+  it('drops countdown linkedUrl when blank or non-string', () => {
+    const input = {
+      links: [],
+      categories: [],
+      countdowns: [
+        {
+          id: 'countdown-1',
+          title: 'Deadline',
+          targetDate: '2026-01-01T00:00:00.000Z',
+          createdAt: 1,
+          rule: { kind: 'once' },
+          linkedUrl: '   ',
+        },
+        {
+          id: 'countdown-2',
+          title: 'Deadline 2',
+          targetDate: '2026-01-01T00:00:00.000Z',
+          createdAt: 2,
+          rule: { kind: 'once' },
+          linkedUrl: 123,
+        },
+      ],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.countdowns).toHaveLength(2);
+    expect(normalized?.countdowns?.[0]?.linkedUrl).toBeUndefined();
+    expect(normalized?.countdowns?.[1]?.linkedUrl).toBeUndefined();
+  });
+
+  it('filters out countdown items missing both recurrence and rule', () => {
+    const input = {
+      links: [],
+      categories: [],
+      countdowns: [
+        {
+          id: 'countdown-1',
+          title: 'Deadline',
+          targetDate: '2026-01-01T00:00:00.000Z',
+          createdAt: 1,
+        },
+      ],
+      meta: { updatedAt: 1, deviceId: 'device-1', version: 1 },
+    };
+
+    const normalized = normalizeNavHubSyncData(input);
+    expect(normalized?.countdowns).toHaveLength(0);
+  });
 });
 
 describe('syncApi history keys', () => {

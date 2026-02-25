@@ -90,6 +90,7 @@ describe('useConfig', () => {
       navTitle: 'MyNav',
       favicon: 'https://example.com/favicon.ico',
       cardStyle: 'simple',
+      reminderBoardShowOverdueForUsers: false,
       accentColor: '1 2 3',
       grayScale: 'zinc',
       closeOnBackdrop: true,
@@ -102,11 +103,15 @@ describe('useConfig', () => {
     localStorage.setItem(SITE_SETTINGS_KEY, JSON.stringify(savedSiteSettings));
 
     const { get } = await renderConfig();
+    const expectedSiteSettings = {
+      ...buildDefaultSiteSettings(APP_LANGUAGE),
+      ...savedSiteSettings,
+    } satisfies SiteSettings;
 
     expect(get().aiConfig).toEqual(savedAIConfig);
     expect(sessionStorage.getItem(AI_API_KEY_SESSION_KEY)).toBe('k');
     expect(JSON.parse(localStorage.getItem(AI_CONFIG_KEY) ?? '{}').apiKey).toBe('');
-    expect(get().siteSettings).toEqual(savedSiteSettings);
+    expect(get().siteSettings).toEqual(expectedSiteSettings);
     expect(get().navTitleText).toBe('MyNav');
     expect(get().navTitleShort).toBe('My');
     expect(document.title).toBe('My Title');

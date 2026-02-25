@@ -222,6 +222,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
     }
 
     const backupData: Partial<NavHubSyncData> = {
+      countdowns: data.countdowns,
       siteSettings: data.siteSettings,
       privateVault: data.privateVault,
       privacyConfig: data.privacyConfig,

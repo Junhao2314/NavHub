@@ -1,18 +1,9 @@
 ﻿import { closestCorners, DndContext, DragEndEvent, SensorDescriptor } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
-import {
-  AlertTriangle,
-  CheckSquare,
-  Pin,
-  RefreshCw,
-  Search,
-  Trash2,
-  Upload,
-  X,
-} from 'lucide-react';
+import { AlertTriangle, CheckSquare, Pin, Search, Trash2, Upload, X } from 'lucide-react';
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { VirtuosoGrid } from 'react-virtuoso';
+import { type GridComponents, VirtuosoGrid } from 'react-virtuoso';
 import {
   CLOCK_TICK_MS,
   MOVE_MENU_CLOSE_DELAY_MS,
@@ -24,7 +15,7 @@ import {
 } from '../../config/ui';
 import { useI18n } from '../../hooks/useI18n';
 import { useAppStore } from '../../stores/useAppStore';
-import { Category, LinkItem } from '../../types';
+import { Category, CountdownItem, CountdownTagsBatchOp, LinkItem, SiteSettings } from '../../types';
 import { PRIVATE_CATEGORY_ID } from '../../utils/constants';
 import { safeLocalStorageGetItem, safeLocalStorageSetItem } from '../../utils/storage';
 import { type HitokotoPayload, isHitokotoPayload } from '../../utils/typeGuards';
@@ -32,8 +23,11 @@ import { useDialog } from '../ui/DialogProvider';
 import Icon from '../ui/Icon';
 import LinkCard from '../ui/LinkCard';
 import SortableLinkCard from '../ui/SortableLinkCard';
+import DailyQuoteFooter from './DailyQuoteFooter';
+import ReminderBoardSection from './ReminderBoardSection';
 
 const HITOKOTO_CACHE_KEY = 'navhub_hitokoto_cache_v1';
+const VIRTUOSO_FOOTER_SPACER_CLASS = 'h-14';
 
 const getTodayKey = () => {
   return new Date().toLocaleDateString('sv-SE');
@@ -66,6 +60,21 @@ interface LinkSectionsProps {
   onPrivateUnlock: (password?: string) => Promise<boolean>;
   privateUnlockHint: string;
   privateUnlockSubHint?: string;
+  reminderBoardItems?: CountdownItem[];
+  isAdmin?: boolean;
+  onReminderBoardAdd?: () => void;
+  onReminderBoardAddHolidays?: () => void;
+  onReminderBoardEdit?: (item: CountdownItem) => void;
+  onReminderBoardDelete?: (id: string) => void;
+  onReminderBoardToggleHidden?: (id: string) => void;
+  onReminderBoardArchive?: (id: string) => void;
+  onReminderBoardRestore?: (id: string) => void;
+  onReminderBoardReorder?: (activeId: string, overId: string) => void;
+  onReminderBoardBatchDelete?: (ids: string[]) => void;
+  onReminderBoardBatchArchive?: (ids: string[]) => void;
+  onReminderBoardBatchUpdateTags?: (ids: string[], op: CountdownTagsBatchOp) => void;
+  onReminderBoardUpdate?: (data: Partial<CountdownItem> & { id: string }) => void;
+  siteSettings?: SiteSettings;
 }
 
 const ClockWidget: React.FC = () => {
@@ -124,6 +133,21 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   onPrivateUnlock,
   privateUnlockHint,
   privateUnlockSubHint,
+  reminderBoardItems,
+  isAdmin,
+  onReminderBoardAdd,
+  onReminderBoardAddHolidays,
+  onReminderBoardEdit,
+  onReminderBoardDelete,
+  onReminderBoardToggleHidden,
+  onReminderBoardArchive,
+  onReminderBoardRestore,
+  onReminderBoardReorder,
+  onReminderBoardBatchDelete,
+  onReminderBoardBatchArchive,
+  onReminderBoardBatchUpdateTags,
+  onReminderBoardUpdate,
+  siteSettings: siteSettingsProp,
 }) => {
   const { t } = useI18n();
   const selectedCategory = useAppStore((s) => s.selectedCategory);
@@ -285,7 +309,7 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     return categories.find((c) => c.id === selectedCategory) || null;
   }, [categories, isPrivateCategory, selectedCategory, t]);
 
-  const handleCopyHitokoto = async () => {
+  const handleCopyHitokoto = React.useCallback(async () => {
     if (!hitokotoText) return;
     const textToCopy = hitokotoAuthor ? `${hitokotoText} — ${hitokotoAuthor}` : hitokotoText;
     try {
@@ -294,7 +318,15 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
     } catch (_error) {
       notify(t('linkSections.copyFailed'), 'warning');
     }
-  };
+  }, [hitokotoText, hitokotoAuthor, notify, t]);
+
+  // VirtuosoGrid: keep a small tail spacer for visual breathing room at list end
+  const virtuosoGridComponents = React.useMemo<GridComponents>(
+    () => ({
+      Footer: () => <div className={VIRTUOSO_FOOTER_SPACER_CLASS} aria-hidden="true" />,
+    }),
+    [],
+  );
 
   const updateMoveMenuPosition = React.useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -362,405 +394,417 @@ const LinkSections: React.FC<LinkSectionsProps> = ({
   }, [isBatchEditMode]);
 
   return (
-    <div
-      ref={setScrollParentRef}
-      className="flex-1 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide"
-    >
-      {/* Content wrapper with max-width - Added min-h and flex to push footer to bottom */}
-      <div className="max-w-[1600px] mx-auto min-h-full flex flex-col">
-        {/* Dashboard Header / Greeting */}
-        {!searchQuery && selectedCategory === 'all' && (
-          <div className="pt-8 pb-4 flex items-end justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
-                {getGreeting()}
-                {t('linkSections.greetingSeparator')}
-                <span className="text-accent">{siteTitle}</span>
-              </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">
-                {t('linkSections.productivePrompt')}
-              </p>
-            </div>
-            {/* Clock Widget */}
-            <div className="hidden sm:block text-right">
-              <ClockWidget />
-            </div>
-          </div>
-        )}
-
-        {/* Pinned Section */}
-        {showPinnedSection && (
-          <section className="pt-6">
-            {/* Section Header with Stats Badge */}
-            <div className="relative z-30 flex items-center justify-between mb-6 pb-4 border-b border-slate-200/50 dark:border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-accent/10">
-                  <Pin size={16} className="text-accent" />
-                </div>
-                <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-100 dark:to-slate-400">
-                  {t('linkSections.pinnedSectionTitle')}
-                </h2>
+    <div className="flex-1 min-h-0 flex flex-col">
+      <div
+        ref={setScrollParentRef}
+        className="flex-1 min-h-0 overflow-y-auto px-4 lg:px-8 pb-0 scrollbar-hide"
+      >
+        {/* Content wrapper with max-width */}
+        <div className="max-w-[1600px] mx-auto min-h-full">
+          {/* Dashboard Header / Greeting */}
+          {!searchQuery && selectedCategory === 'all' && (
+            <div className="pt-8 pb-4 flex items-end justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
+                  {getGreeting()}
+                  {t('linkSections.greetingSeparator')}
+                  <span className="text-accent">{siteTitle}</span>
+                </h1>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">
+                  {t('linkSections.productivePrompt')}
+                </p>
               </div>
-              {/* Stats as badge */}
-              <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
-                  {t('linkSections.stats.sites', { count: linksCount })}
-                </span>
-                <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
-                  {t('linkSections.stats.categories', { count: categories.length })}
-                </span>
-                <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">
-                  {t('linkSections.stats.pinned', { count: pinnedLinks.length })}
-                </span>
+              {/* Clock Widget */}
+              <div className="hidden sm:block text-right">
+                <ClockWidget />
               </div>
             </div>
+          )}
 
-            {isSortingPinned ? (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCorners}
-                onDragEnd={onPinnedDragEnd}
-              >
-                <SortableContext
-                  items={pinnedLinks.map((link) => link.id)}
-                  strategy={rectSortingStrategy}
-                >
-                  <div className={`grid ${gridGap} ${gridClassName}`}>
-                    {pinnedLinks.map((link) => (
-                      <SortableLinkCard
-                        key={link.id}
-                        link={link}
-                        siteCardStyle={siteCardStyle}
-                        isDarkMode={isDarkMode}
-                        isSortingMode={false}
-                        isSortingPinned={isSortingPinned}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            ) : pinnedLinks.length > PINNED_VIRTUALIZATION_THRESHOLD && scrollParent ? (
-              <VirtuosoGrid
-                customScrollParent={scrollParent}
-                data={pinnedLinks}
-                computeItemKey={(_, link) => link.id}
-                listClassName={`grid ${gridGap} ${gridClassName}`}
-                itemClassName="min-w-0"
-                increaseViewportBy={{ top: 400, bottom: 600 }}
-                itemContent={(_, link) => (
-                  <LinkCard
-                    link={link}
-                    siteCardStyle={siteCardStyle}
-                    isDarkMode={isDarkMode}
-                    isBatchEditMode={isBatchEditMode}
-                    isSelected={selectedLinks.has(link.id)}
-                    onSelect={onLinkSelect}
-                    onContextMenu={onLinkContextMenu}
-                    onEdit={onLinkEdit}
-                    onOpenLink={onLinkOpen}
-                  />
-                )}
-              />
-            ) : (
-              <div className={`grid ${gridGap} ${gridClassName}`}>
-                {pinnedLinks.map((link) => (
-                  <LinkCard
-                    key={link.id}
-                    link={link}
-                    siteCardStyle={siteCardStyle}
-                    isDarkMode={isDarkMode}
-                    isBatchEditMode={isBatchEditMode}
-                    isSelected={selectedLinks.has(link.id)}
-                    onSelect={onLinkSelect}
-                    onContextMenu={onLinkContextMenu}
-                    onEdit={onLinkEdit}
-                    onOpenLink={onLinkOpen}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Main Section */}
-        {showMainSection && (
-          <section className="pt-6">
-            {/* Section Header */}
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200/50 dark:border-white/5">
-              <div className="flex items-center gap-3">
-                {selectedCategory !== 'all' && (
+          {/* Pinned Section */}
+          {showPinnedSection && (
+            <section className="pt-6">
+              {/* Section Header with Stats Badge */}
+              <div className="relative z-30 flex items-center justify-between mb-6 pb-4 border-b border-slate-200/50 dark:border-white/5">
+                <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-accent/10">
-                    <Icon
-                      name={activeCategory?.icon || 'Folder'}
-                      size={16}
-                      className="text-accent"
-                    />
+                    <Pin size={16} className="text-accent" />
                   </div>
-                )}
-                <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">
-                  {selectedCategory === 'all'
-                    ? searchQuery
-                      ? t('linkSections.searchResults')
-                      : t('linkSections.allLinks')
-                    : activeCategory?.name || t('linkSections.unnamedCategory')}
-                </h2>
-                {displayedLinks.length > 0 && (
-                  <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full">
-                    {displayedLinks.length}
+                  <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-100 dark:to-slate-400">
+                    {t('linkSections.pinnedSectionTitle')}
+                  </h2>
+                </div>
+                {/* Stats as badge */}
+                <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
+                  <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                    {t('linkSections.stats.sites', { count: linksCount })}
                   </span>
-                )}
+                  <span className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
+                    {t('linkSections.stats.categories', { count: categories.length })}
+                  </span>
+                  <span className="px-2 py-1 rounded-full bg-accent/10 dark:bg-accent/20 text-accent">
+                    {t('linkSections.stats.pinned', { count: pinnedLinks.length })}
+                  </span>
+                </div>
               </div>
 
-              {/* Batch Edit Controls */}
-              {selectedCategory !== 'all' && !isSortingMode && !isPrivateCategory && (
-                <div className="flex items-center gap-2">
-                  {!isBatchEditMode ? (
-                    <button
-                      onClick={onToggleBatchEditMode}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-accent hover:border-accent/50 focus:ring-accent/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
-                      title={t('linkSections.batchEdit')}
-                    >
-                      {t('linkSections.batchEdit')}
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 shadow-sm backdrop-blur-sm">
-                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        {t('linkSections.batchEdit')}
-                      </span>
-                      <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                        {t('linkSections.selectedCount', { count: selectedLinksCount })}
-                      </span>
-                      <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                      <button
-                        onClick={onBatchPin}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
-                        title={t('linkSections.batchPin')}
-                        aria-label={t('linkSections.batchPin')}
-                      >
-                        <Pin size={13} />
-                        <span>{t('modals.link.pinned')}</span>
-                      </button>
-                      <button
-                        onClick={onBatchDelete}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title={t('linkSections.batchDelete')}
-                        aria-label={t('linkSections.batchDelete')}
-                      >
-                        <Trash2 size={13} />
-                        <span>{t('common.delete')}</span>
-                      </button>
-                      <button
-                        onClick={onSelectAll}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                        title={t('linkSections.selectDeselectAll')}
-                        aria-label={t('linkSections.selectDeselectAll')}
-                      >
-                        <CheckSquare size={13} />
-                        <span>
-                          {selectedLinksCount === displayedLinks.length
-                            ? t('common.deselectAll')
-                            : t('common.selectAll')}
-                        </span>
-                      </button>
-                      <div
-                        className="relative"
-                        onMouseEnter={openMoveMenu}
-                        onMouseLeave={scheduleCloseMoveMenu}
-                      >
-                        <button
-                          ref={moveMenuButtonRef}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
-                          title={t('linkSections.batchMove')}
-                          aria-label={t('linkSections.batchMove')}
-                          aria-haspopup="menu"
-                          aria-expanded={moveMenuOpen}
-                        >
-                          <Upload size={13} />
-                          <span>{t('contextMenu.moveToCategory')}</span>
-                        </button>
-                      </div>
-                      <button
-                        onClick={onToggleBatchEditMode}
-                        className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title={t('linkSections.exitBatchEdit')}
-                        aria-label={t('linkSections.exitBatchEdit')}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {isPrivateCategory && !isPrivateUnlocked ? (
-              <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-                  <Icon name="Lock" size={28} className="text-slate-400" />
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300">{privateUnlockHint}</p>
-                {privateUnlockSubHint && (
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                    {privateUnlockSubHint}
-                  </p>
-                )}
-                <div className="mt-4 w-full max-w-xs">
-                  <input
-                    type="password"
-                    value={privatePassword}
-                    onChange={(e) => setPrivatePassword(e.target.value)}
-                    placeholder={t('linkSections.enterPassword')}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
-                    aria-label={t('linkSections.enterPassword')}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handlePrivateUnlock();
-                      }
-                    }}
-                  />
-                  {privateUnlockError && (
-                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
-                      {privateUnlockError}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handlePrivateUnlock}
-                    disabled={isPrivateUnlocking}
-                    className="mt-3 w-full px-3 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isPrivateUnlocking ? t('linkSections.unlocking') : t('linkSections.unlock')}
-                  </button>
-                </div>
-              </div>
-            ) : displayedLinks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-                  <Search size={32} className="opacity-40" />
-                </div>
-                <p className="text-sm">{t('linkSections.noContent')}</p>
-                {selectedCategory !== 'all' && (
-                  <button
-                    onClick={onAddLink}
-                    className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded"
-                  >
-                    {t('linkSections.addOne')}
-                  </button>
-                )}
-              </div>
-            ) : isSortingMode === selectedCategory ? (
-              <>
-                {displayedLinks.length > SORTING_MODE_WARNING_THRESHOLD && (
-                  <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-amber-700 dark:text-amber-300 text-sm">
-                    <AlertTriangle size={16} className="shrink-0" />
-                    <span>
-                      {t('linkSections.sortingPerformanceWarning', {
-                        count: displayedLinks.length,
-                        threshold: SORTING_MODE_WARNING_THRESHOLD,
-                      })}
-                    </span>
-                  </div>
-                )}
+              {isSortingPinned ? (
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCorners}
-                  onDragEnd={onDragEnd}
+                  onDragEnd={onPinnedDragEnd}
                 >
                   <SortableContext
-                    items={displayedLinks.map((link) => link.id)}
+                    items={pinnedLinks.map((link) => link.id)}
                     strategy={rectSortingStrategy}
                   >
                     <div className={`grid ${gridGap} ${gridClassName}`}>
-                      {displayedLinks.map((link) => (
+                      {pinnedLinks.map((link) => (
                         <SortableLinkCard
                           key={link.id}
                           link={link}
                           siteCardStyle={siteCardStyle}
                           isDarkMode={isDarkMode}
-                          isSortingMode={true}
-                          isSortingPinned={false}
+                          isSortingMode={false}
+                          isSortingPinned={isSortingPinned}
                         />
                       ))}
                     </div>
                   </SortableContext>
                 </DndContext>
-              </>
-            ) : scrollParent ? (
-              <VirtuosoGrid
-                customScrollParent={scrollParent}
-                data={displayedLinks}
-                computeItemKey={(_, link) => link.id}
-                listClassName={`grid ${gridGap} ${gridClassName}`}
-                itemClassName="min-w-0"
-                increaseViewportBy={{ top: 600, bottom: 800 }}
-                itemContent={(_, link) => (
-                  <LinkCard
-                    link={link}
-                    siteCardStyle={siteCardStyle}
-                    isDarkMode={isDarkMode}
-                    isBatchEditMode={isBatchEditMode}
-                    isSelected={selectedLinks.has(link.id)}
-                    categoryName={
-                      isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined
-                    }
-                    onSelect={onLinkSelect}
-                    onContextMenu={onLinkContextMenu}
-                    onEdit={onLinkEdit}
-                    onOpenLink={onLinkOpen}
+              ) : pinnedLinks.length > PINNED_VIRTUALIZATION_THRESHOLD && scrollParent ? (
+                <VirtuosoGrid
+                  customScrollParent={scrollParent}
+                  data={pinnedLinks}
+                  computeItemKey={(_, link) => link.id}
+                  listClassName={`grid ${gridGap} ${gridClassName}`}
+                  itemClassName="min-w-0"
+                  increaseViewportBy={{ top: 400, bottom: 600 }}
+                  itemContent={(_, link) => (
+                    <LinkCard
+                      link={link}
+                      siteCardStyle={siteCardStyle}
+                      isDarkMode={isDarkMode}
+                      isBatchEditMode={isBatchEditMode}
+                      isSelected={selectedLinks.has(link.id)}
+                      onSelect={onLinkSelect}
+                      onContextMenu={onLinkContextMenu}
+                      onEdit={onLinkEdit}
+                      onOpenLink={onLinkOpen}
+                    />
+                  )}
+                />
+              ) : (
+                <div className={`grid ${gridGap} ${gridClassName}`}>
+                  {pinnedLinks.map((link) => (
+                    <LinkCard
+                      key={link.id}
+                      link={link}
+                      siteCardStyle={siteCardStyle}
+                      isDarkMode={isDarkMode}
+                      isBatchEditMode={isBatchEditMode}
+                      isSelected={selectedLinks.has(link.id)}
+                      onSelect={onLinkSelect}
+                      onContextMenu={onLinkContextMenu}
+                      onEdit={onLinkEdit}
+                      onOpenLink={onLinkOpen}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Reminder Board Section */}
+              {reminderBoardItems &&
+                onReminderBoardAdd &&
+                onReminderBoardEdit &&
+                onReminderBoardDelete &&
+                onReminderBoardToggleHidden &&
+                (reminderBoardItems.length > 0 || isAdmin) && (
+                  <ReminderBoardSection
+                    items={reminderBoardItems}
+                    isAdmin={!!isAdmin}
+                    isPrivateUnlocked={isPrivateUnlocked}
+                    onAdd={onReminderBoardAdd}
+                    onAddHolidays={onReminderBoardAddHolidays}
+                    onEdit={onReminderBoardEdit}
+                    onDelete={onReminderBoardDelete}
+                    onToggleHidden={onReminderBoardToggleHidden}
+                    onArchive={onReminderBoardArchive}
+                    onRestore={onReminderBoardRestore}
+                    onReorder={onReminderBoardReorder}
+                    onBatchDelete={onReminderBoardBatchDelete}
+                    onBatchArchive={onReminderBoardBatchArchive}
+                    onBatchUpdateTags={onReminderBoardBatchUpdateTags}
+                    onUpdate={onReminderBoardUpdate}
+                    siteSettings={siteSettingsProp}
                   />
                 )}
-              />
-            ) : (
-              <div className={`grid ${gridGap} ${gridClassName}`}>
-                {Array.from(
-                  { length: Math.min(displayedLinks.length, 12) },
-                  (_, index) => `skeleton-${index}`,
-                ).map((key) => (
-                  <div
-                    key={key}
-                    className="h-20 rounded-xl bg-slate-100/80 dark:bg-slate-800/40 animate-pulse"
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+            </section>
+          )}
 
-        {/* Footer - Pushed to bottom */}
-        <footer className="mt-auto pt-6 pb-3 flex justify-center animate-in fade-in duration-700 delay-300">
-          <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
-            <button
-              type="button"
-              onClick={handleCopyHitokoto}
-              className="flex min-w-0 max-w-[70vw] items-center gap-1.5 text-left hover:text-slate-500 dark:hover:text-slate-300 transition-colors"
-              title={hitokotoText || t('linkSections.hitokotoLoading')}
-              aria-label={t('linkSections.clickToCopyHitokoto')}
-            >
-              <span className="truncate">
-                {hitokotoText ||
-                  (isHitokotoLoading
-                    ? t('linkSections.hitokotoLoadingEllipsis')
-                    : t('linkSections.clickToRefreshHitokoto'))}
-              </span>
-              {hitokotoText && (
-                <span className="shrink-0 text-slate-400/80 dark:text-slate-500">
-                  — {hitokotoAuthor}
-                </span>
+          {/* Main Section */}
+          {showMainSection && (
+            <section className="pt-6">
+              {/* Section Header */}
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200/50 dark:border-white/5">
+                <div className="flex items-center gap-3">
+                  {selectedCategory !== 'all' && (
+                    <div className="p-2 rounded-lg bg-accent/10">
+                      <Icon
+                        name={activeCategory?.icon || 'Folder'}
+                        size={16}
+                        className="text-accent"
+                      />
+                    </div>
+                  )}
+                  <h2 className="text-base font-semibold text-slate-700 dark:text-slate-200">
+                    {selectedCategory === 'all'
+                      ? searchQuery
+                        ? t('linkSections.searchResults')
+                        : t('linkSections.allLinks')
+                      : activeCategory?.name || t('linkSections.unnamedCategory')}
+                  </h2>
+                  {displayedLinks.length > 0 && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full">
+                      {displayedLinks.length}
+                    </span>
+                  )}
+                </div>
+
+                {/* Batch Edit Controls */}
+                {selectedCategory !== 'all' && !isSortingMode && !isPrivateCategory && (
+                  <div className="flex items-center gap-2">
+                    {!isBatchEditMode ? (
+                      <button
+                        onClick={onToggleBatchEditMode}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-accent hover:border-accent/50 focus:ring-accent/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
+                        title={t('linkSections.batchEdit')}
+                      >
+                        {t('linkSections.batchEdit')}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/60 shadow-sm backdrop-blur-sm">
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                          {t('linkSections.batchEdit')}
+                        </span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                          {t('linkSections.selectedCount', { count: selectedLinksCount })}
+                        </span>
+                        <div className="w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                        <button
+                          onClick={onBatchPin}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
+                          title={t('linkSections.batchPin')}
+                          aria-label={t('linkSections.batchPin')}
+                        >
+                          <Pin size={13} />
+                          <span>{t('modals.link.pinned')}</span>
+                        </button>
+                        <button
+                          onClick={onBatchDelete}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          title={t('linkSections.batchDelete')}
+                          aria-label={t('linkSections.batchDelete')}
+                        >
+                          <Trash2 size={13} />
+                          <span>{t('common.delete')}</span>
+                        </button>
+                        <button
+                          onClick={onSelectAll}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
+                          title={t('linkSections.selectDeselectAll')}
+                          aria-label={t('linkSections.selectDeselectAll')}
+                        >
+                          <CheckSquare size={13} />
+                          <span>
+                            {selectedLinksCount === displayedLinks.length
+                              ? t('common.deselectAll')
+                              : t('common.selectAll')}
+                          </span>
+                        </button>
+                        <div
+                          className="relative"
+                          onMouseEnter={openMoveMenu}
+                          onMouseLeave={scheduleCloseMoveMenu}
+                        >
+                          <button
+                            ref={moveMenuButtonRef}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/60 transition-colors"
+                            title={t('linkSections.batchMove')}
+                            aria-label={t('linkSections.batchMove')}
+                            aria-haspopup="menu"
+                            aria-expanded={moveMenuOpen}
+                          >
+                            <Upload size={13} />
+                            <span>{t('contextMenu.moveToCategory')}</span>
+                          </button>
+                        </div>
+                        <button
+                          onClick={onToggleBatchEditMode}
+                          className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          title={t('linkSections.exitBatchEdit')}
+                          aria-label={t('linkSections.exitBatchEdit')}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {isPrivateCategory && !isPrivateUnlocked ? (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
+                    <Icon name="Lock" size={28} className="text-slate-400" />
+                  </div>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">{privateUnlockHint}</p>
+                  {privateUnlockSubHint && (
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                      {privateUnlockSubHint}
+                    </p>
+                  )}
+                  <div className="mt-4 w-full max-w-xs">
+                    <input
+                      type="password"
+                      value={privatePassword}
+                      onChange={(e) => setPrivatePassword(e.target.value)}
+                      placeholder={t('linkSections.enterPassword')}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                      aria-label={t('linkSections.enterPassword')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handlePrivateUnlock();
+                        }
+                      }}
+                    />
+                    {privateUnlockError && (
+                      <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                        {privateUnlockError}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handlePrivateUnlock}
+                      disabled={isPrivateUnlocking}
+                      className="mt-3 w-full px-3 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isPrivateUnlocking ? t('linkSections.unlocking') : t('linkSections.unlock')}
+                    </button>
+                  </div>
+                </div>
+              ) : displayedLinks.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
+                    <Search size={32} className="opacity-40" />
+                  </div>
+                  <p className="text-sm">{t('linkSections.noContent')}</p>
+                  {selectedCategory !== 'all' && (
+                    <button
+                      onClick={onAddLink}
+                      className="mt-4 text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded"
+                    >
+                      {t('linkSections.addOne')}
+                    </button>
+                  )}
+                </div>
+              ) : isSortingMode === selectedCategory ? (
+                <>
+                  {displayedLinks.length > SORTING_MODE_WARNING_THRESHOLD && (
+                    <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-amber-700 dark:text-amber-300 text-sm">
+                      <AlertTriangle size={16} className="shrink-0" />
+                      <span>
+                        {t('linkSections.sortingPerformanceWarning', {
+                          count: displayedLinks.length,
+                          threshold: SORTING_MODE_WARNING_THRESHOLD,
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCorners}
+                    onDragEnd={onDragEnd}
+                  >
+                    <SortableContext
+                      items={displayedLinks.map((link) => link.id)}
+                      strategy={rectSortingStrategy}
+                    >
+                      <div className={`grid ${gridGap} ${gridClassName}`}>
+                        {displayedLinks.map((link) => (
+                          <SortableLinkCard
+                            key={link.id}
+                            link={link}
+                            siteCardStyle={siteCardStyle}
+                            isDarkMode={isDarkMode}
+                            isSortingMode={true}
+                            isSortingPinned={false}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                </>
+              ) : scrollParent ? (
+                <VirtuosoGrid
+                  customScrollParent={scrollParent}
+                  data={displayedLinks}
+                  computeItemKey={(_, link) => link.id}
+                  listClassName={`grid ${gridGap} ${gridClassName}`}
+                  itemClassName="min-w-0"
+                  increaseViewportBy={{ top: 600, bottom: 800 }}
+                  components={virtuosoGridComponents}
+                  itemContent={(_, link) => (
+                    <LinkCard
+                      link={link}
+                      siteCardStyle={siteCardStyle}
+                      isDarkMode={isDarkMode}
+                      isBatchEditMode={isBatchEditMode}
+                      isSelected={selectedLinks.has(link.id)}
+                      categoryName={
+                        isInternalSearchWithQuery ? categoryMap[link.categoryId] : undefined
+                      }
+                      onSelect={onLinkSelect}
+                      onContextMenu={onLinkContextMenu}
+                      onEdit={onLinkEdit}
+                      onOpenLink={onLinkOpen}
+                    />
+                  )}
+                />
+              ) : (
+                <div className={`grid ${gridGap} ${gridClassName}`}>
+                  {Array.from(
+                    { length: Math.min(displayedLinks.length, 12) },
+                    (_, index) => `skeleton-${index}`,
+                  ).map((key) => (
+                    <div
+                      key={key}
+                      className="h-20 rounded-xl bg-slate-100/80 dark:bg-slate-800/40 animate-pulse"
+                    />
+                  ))}
+                </div>
               )}
-            </button>
-            <button
-              type="button"
-              onClick={() => fetchHitokoto(true)}
-              className="h-6 w-6 inline-flex items-center justify-center rounded-full text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-60"
-              title={t('linkSections.refreshHitokoto')}
-              aria-label={t('linkSections.refreshHitokoto')}
-              disabled={isHitokotoLoading}
-            >
-              <RefreshCw size={13} className={isHitokotoLoading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </footer>
+            </section>
+          )}
+        </div>
       </div>
+
+      <div className="shrink-0 px-4 lg:px-8 pt-4 pb-3">
+        <div className="max-w-[1600px] mx-auto flex justify-center">
+          <DailyQuoteFooter
+            text={hitokotoText}
+            author={hitokotoAuthor}
+            loading={isHitokotoLoading}
+            onCopy={handleCopyHitokoto}
+            onRefresh={() => fetchHitokoto(true)}
+            copyLabel={t('linkSections.clickToCopyHitokoto')}
+            refreshLabel={t('linkSections.refreshHitokoto')}
+            loadingLabel={t('linkSections.hitokotoLoadingEllipsis')}
+            emptyLabel={t('linkSections.clickToRefreshHitokoto')}
+          />
+        </div>
+      </div>
+
       {moveMenuOpen &&
         typeof document !== 'undefined' &&
         createPortal(

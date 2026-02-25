@@ -43,6 +43,7 @@ describe('applyCloudDataToLocalState - encryptedSensitiveConfig', () => {
       } as NavHubSyncData,
       role: 'admin' as SyncRole,
       updateData: vi.fn(),
+      restoreCountdowns: vi.fn(),
       restoreSearchConfigRef: { current: vi.fn() },
       restoreSiteSettings: vi.fn(),
       applyFromSync: vi.fn(),

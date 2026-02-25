@@ -22,6 +22,7 @@ export function AppTopOverlays({ controller }: AppOverlaysProps) {
   const { links, categories, updateData, deleteLink } = core;
   const { isAdmin } = admin;
   const { setSelectedCategory } = sidebar;
+  const { items: reminderBoardItems } = controller.reminderBoard;
 
   return (
     <>
@@ -61,6 +62,7 @@ export function AppTopOverlays({ controller }: AppOverlaysProps) {
             onSave={sync.handleSaveSettings}
             links={links}
             categories={categories}
+            countdownItems={reminderBoardItems}
             onUpdateLinks={(newLinks) => updateData(newLinks, categories)}
             onDeleteLink={deleteLink}
             onNavigateToCategory={(categoryId) => {
@@ -83,6 +85,7 @@ export function AppTopOverlays({ controller }: AppOverlaysProps) {
             onTogglePrivacyPassword={privacy.handleTogglePrivacyPassword}
             privacyAutoUnlockEnabled={privacy.privacyAutoUnlockEnabled}
             onTogglePrivacyAutoUnlock={privacy.handleTogglePrivacyAutoUnlock}
+            isPrivateUnlocked={privacy.isPrivateUnlocked}
             closeOnBackdrop={appearance.closeOnBackdrop}
           />
         )}

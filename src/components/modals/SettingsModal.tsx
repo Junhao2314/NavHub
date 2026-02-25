@@ -1,10 +1,11 @@
-import { Bot, Database, Globe, Palette, Save, X } from 'lucide-react';
+import { Bot, Clock, Database, Globe, Palette, Save, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { buildDefaultSiteSettings } from '../../config/defaults';
 import { useI18n } from '../../hooks/useI18n';
 import {
   AIConfig,
   Category,
+  CountdownItem,
   LinkItem,
   SiteSettings,
   SiteSettingsChangeHandler,
@@ -14,6 +15,7 @@ import {
 import AITab from './settings/AITab';
 import AppearanceTab from './settings/AppearanceTab';
 import DataTab from './settings/DataTab';
+import ReminderBoardTab from './settings/ReminderBoardTab';
 import SiteTab from './settings/SiteTab';
 
 interface SettingsModalProps {
@@ -24,6 +26,7 @@ interface SettingsModalProps {
   onSave: (config: AIConfig, siteSettings: SiteSettings) => void;
   links: LinkItem[];
   categories: Category[];
+  countdownItems?: CountdownItem[];
   onUpdateLinks: (links: LinkItem[]) => void;
   onDeleteLink: (id: string) => void;
   onNavigateToCategory?: (categoryId: string) => void;
@@ -47,7 +50,9 @@ interface SettingsModalProps {
   onTogglePrivacyPassword: (enabled: boolean) => void;
   privacyAutoUnlockEnabled: boolean;
   onTogglePrivacyAutoUnlock: (enabled: boolean) => void;
+  isPrivateUnlocked: boolean;
   closeOnBackdrop?: boolean;
+  onAddHolidays?: () => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -58,6 +63,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onSave,
   links,
   categories,
+  countdownItems,
   onUpdateLinks,
   onDeleteLink,
   onNavigateToCategory,
@@ -77,10 +83,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onTogglePrivacyPassword,
   privacyAutoUnlockEnabled,
   onTogglePrivacyAutoUnlock,
+  isPrivateUnlocked,
   closeOnBackdrop = true,
+  onAddHolidays,
 }) => {
   const { t } = useI18n();
-  const [activeTab, setActiveTab] = useState<'site' | 'ai' | 'appearance' | 'data'>('site');
+  const [activeTab, setActiveTab] = useState<
+    'site' | 'ai' | 'reminderBoard' | 'appearance' | 'data'
+  >('site');
   const [localConfig, setLocalConfig] = useState<AIConfig>(config);
   const [localSiteSettings, setLocalSiteSettings] = useState<SiteSettings>(() => ({
     ...buildDefaultSiteSettings(),
@@ -175,6 +185,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             )}
             <button
+              onClick={() => setActiveTab('reminderBoard')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === 'reminderBoard'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              <Clock size={16} />
+              <span>{t('settings.tabs.reminderBoard')}</span>
+            </button>
+            <button
               onClick={() => setActiveTab('appearance')}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 activeTab === 'appearance'
@@ -218,6 +239,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <AppearanceTab settings={localSiteSettings} onChange={handleSiteChange} />
           )}
 
+          {activeTab === 'reminderBoard' && (
+            <ReminderBoardTab
+              settings={localSiteSettings}
+              onChange={handleSiteChange}
+              onAddHolidays={onAddHolidays}
+            />
+          )}
+
           {activeTab === 'data' && (
             <DataTab
               onOpenImport={onOpenImport}
@@ -237,8 +266,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               onTogglePrivacyPassword={onTogglePrivacyPassword}
               privacyAutoUnlockEnabled={privacyAutoUnlockEnabled}
               onTogglePrivacyAutoUnlock={onTogglePrivacyAutoUnlock}
+              isPrivateUnlocked={isPrivateUnlocked}
               links={links}
               categories={categories}
+              countdownItems={countdownItems}
               onDeleteLink={onDeleteLink}
               onNavigateToCategory={onNavigateToCategory}
             />
