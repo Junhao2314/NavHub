@@ -416,28 +416,43 @@ npm run doctor
 ```
 NavHub/
 ├── src/                    # React 前端源码
+│   ├── app/                # 应用核心逻辑
+│   │   ├── AppContainer.tsx   # 主容器
+│   │   ├── AppBackground.tsx  # 背景渲染
+│   │   └── useAppController/  # 应用控制器
+│   │       └── kvSync/        # KV 同步逻辑
 │   ├── components/         # UI 组件
 │   │   ├── layout/         # 布局组件
-│   │   │   ├── ContextMenu.tsx    # 右键菜单
-│   │   │   ├── LinkSections.tsx   # 链接区块
-│   │   │   ├── MainHeader.tsx     # 主头部
-│   │   │   └── Sidebar.tsx        # 侧边栏
+│   │   │   ├── ContextMenu.tsx      # 右键菜单
+│   │   │   ├── DailyQuoteFooter.tsx  # 每日引言页脚
+│   │   │   ├── LinkSections.tsx     # 链接区块
+│   │   │   ├── MainHeader.tsx       # 主头部
+│   │   │   ├── ReminderBoardSection.tsx # 备忘板区块
+│   │   │   └── Sidebar.tsx          # 侧边栏
 │   │   ├── modals/         # 弹窗组件
-│   │   │   ├── settings/          # 设置子模块
-│   │   │   │   ├── AITab.tsx          # AI 设置
-│   │   │   │   ├── AppearanceTab.tsx  # 外观设置
-│   │   │   │   ├── DataTab.tsx        # 数据设置
-│   │   │   │   ├── DuplicateChecker.tsx # 重复检测
-│   │   │   │   └── SiteTab.tsx        # 站点设置
-│   │   │   ├── LinkModal.tsx      # 链接编辑
-│   │   │   ├── SettingsModal.tsx  # 设置弹窗
-│   │   │   └── ...
+│   │   │   ├── CategoryManagerModal.tsx  # 分类管理
+│   │   │   ├── HolidayBatchModal.tsx     # 节假日批量操作
+│   │   │   ├── ImportModal.tsx           # 导入对话框
+│   │   │   ├── LinkModal.tsx             # 链接编辑
+│   │   │   ├── ReminderBoardModal.tsx    # 备忘板弹窗
+│   │   │   ├── SearchConfigModal.tsx     # 搜索配置
+│   │   │   ├── SettingsModal.tsx         # 设置面板
+│   │   │   ├── SyncConflictModal.tsx     # 同步冲突
+│   │   │   └── settings/                 # 设置子模块
+│   │   │       ├── AITab.tsx             # AI 设置
+│   │   │       ├── AppearanceTab.tsx     # 外观设置
+│   │   │       ├── DataTab.tsx           # 数据设置
+│   │   │       ├── DuplicateChecker.tsx  # 重复检测
+│   │   │       ├── ReminderBoardTab.tsx  # 备忘板设置
+│   │   │       └── SiteTab.tsx           # 站点设置
 │   │   └── ui/             # 通用 UI 组件
 │   │       ├── LinkCard.tsx       # 链接卡片
 │   │       ├── Icon.tsx           # 图标组件
 │   │       ├── IconSelector.tsx   # 图标选择器
 │   │       └── ...
 │   ├── hooks/              # 自定义 Hooks
+│   │   ├── sync/           # 同步子模块
+│   │   ├── useDataStore/   # 数据存储子模块
 │   │   ├── useDataStore.ts    # 数据存储
 │   │   ├── useSyncEngine.ts   # 同步引擎
 │   │   ├── useTheme.ts        # 主题管理
@@ -447,11 +462,16 @@ NavHub/
 │   │   ├── useContextMenu.ts  # 右键菜单
 │   │   ├── useSidebar.ts      # 侧边栏状态
 │   │   ├── useSorting.ts      # 排序功能
-│   │   └── useModals.ts       # 弹窗管理
+│   │   ├── useModals.ts       # 弹窗管理
+│   │   ├── useCountdownStore.ts      # 倒计时数据
+│   │   ├── useCountdownReminders.ts  # 倒计时提醒
+│   │   └── useReminderBoardPrefs.ts  # 备忘板偏好
 │   ├── services/           # 服务层
 │   │   ├── bookmarkParser.ts  # 书签解析
 │   │   ├── exportService.ts   # 导出服务
 │   │   └── geminiService.ts   # AI 服务
+│   ├── stores/             # Zustand 全局状态
+│   │   └── useAppStore.ts    # 统一状态
 │   ├── utils/              # 工具函数
 │   │   ├── privateVault.ts    # 隐私分组加密
 │   │   ├── sensitiveConfig.ts # 敏感配置加密
@@ -459,8 +479,31 @@ NavHub/
 │   │   ├── recommendation.ts  # 推荐算法
 │   │   ├── iconTone.ts        # 图标色调分析
 │   │   ├── tagColors.ts       # 动态标签颜色
+│   │   ├── countdown.ts       # 倒计时逻辑
+│   │   ├── chineseCalendar.ts # 农历日历
 │   │   └── constants.ts       # 常量定义
+│   ├── config/             # 配置
+│   │   ├── defaults.ts       # 默认值
+│   │   ├── i18n.ts           # 国际化初始化
+│   │   ├── sync.ts           # 同步配置
+│   │   └── ui.ts             # UI 配置
+│   ├── locales/            # 国际化翻译文件
+│   │   ├── zh-CN.json
+│   │   └── en-US.json
 │   └── types.ts            # TypeScript 类型定义
+├── shared/                 # 前后端共享代码
+│   ├── syncApi.ts          # 同步 API 入口
+│   ├── aiProxy.ts          # AI 代理
+│   ├── notifications.ts    # 订阅通知处理
+│   ├── syncApi/            # 同步 API 模块
+│   │   ├── handlers/       # 请求处理器（模块化）
+│   │   │   ├── auth.ts     # 认证与防爆破
+│   │   │   ├── backups.ts  # 备份操作
+│   │   │   ├── get.ts      # GET 处理
+│   │   │   ├── post.ts     # POST 处理
+│   │   │   └── limits.ts   # 限流
+│   │   └── ...
+│   └── utils/              # 共享工具
 ├── functions/              # Cloudflare Pages Functions (API)
 │   └── api/
 │       ├── sync.ts         # 同步 API
@@ -511,6 +554,8 @@ interface LinkItem {
   recommendedOrder?: number;  // 推荐排序
   adminClicks?: number;    // 管理员点击次数
   adminLastClickedAt?: number; // 最近点击时间
+  alternativeUrls?: string[];  // 备用 URL 列表
+  translationMeta?: TranslationMeta; // 翻译元数据
 }
 ```
 
@@ -521,6 +566,8 @@ interface Category {
   id: string;
   name: string;
   icon: string;  // Lucide 图标名或 Emoji
+  hidden?: boolean;  // 是否隐藏（仅管理员可见）
+  translationMeta?: TranslationMeta; // 翻译元数据
 }
 ```
 
@@ -538,6 +585,12 @@ interface SiteSettings {
   backgroundImage?: string;   // 自定义背景图
   backgroundImageEnabled?: boolean;  // 启用背景图
   backgroundMotion?: boolean;  // 背景动效
+  reminderBoardShowOverdueForUsers?: boolean;  // 向用户显示过期备忘
+  reminderBoardGroups?: string[];  // 备忘板分组
+  reminderBoardArchiveMode?: 'immediate' | 'delay';  // 归档模式
+  reminderBoardArchiveDelayMinutes?: number;  // 延迟归档分钟数
+  subscriptionNotifications?: SubscriptionNotificationSettings;  // 订阅通知配置
+  translationMeta?: TranslationMeta; // 翻译元数据
 }
 ```
 

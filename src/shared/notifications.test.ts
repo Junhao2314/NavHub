@@ -81,13 +81,31 @@ describe('subscription notifications', () => {
     expect(candidates).toHaveLength(0);
   });
 
-  it('skips non-interval subscription rules', () => {
+  it('collects once (non-recurring) subscription rules at reminder time', () => {
     const candidates = collectSubscriptionNotificationCandidates(
       makeData(makeItem({ rule: { kind: 'once' } })),
       new Date('2026-04-30T00:00:00.000Z'),
     );
 
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.title).toContain('GitHub Pro');
+  });
+
+  it('skips once subscription rules that are outside the lookback window', () => {
+    const candidates = collectSubscriptionNotificationCandidates(
+      makeData(makeItem({ rule: { kind: 'once' } })),
+      new Date('2026-04-29T00:00:00.000Z'), // 2 days before, reminder at 1440min = 1 day before
+    );
+
     expect(candidates).toHaveLength(0);
+  });
+
+  it('skips cron/lunar/solarTerm subscription rules', () => {
+    const cronCandidates = collectSubscriptionNotificationCandidates(
+      makeData(makeItem({ rule: { kind: 'cron', expression: '0 0 9 * * *' } })),
+      new Date('2026-04-30T00:00:00.000Z'),
+    );
+    expect(cronCandidates).toHaveLength(0);
   });
 
   it('sends Telegram, Webhook, Resend, and Bark payloads', async () => {

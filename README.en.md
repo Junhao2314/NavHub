@@ -415,28 +415,43 @@ Try these in order:
 ```
 NavHub/
 ├── src/                    # React frontend source
+│   ├── app/                # App core logic
+│   │   ├── AppContainer.tsx   # Main container
+│   │   ├── AppBackground.tsx  # Background rendering
+│   │   └── useAppController/  # App controller
+│   │       └── kvSync/        # KV sync logic
 │   ├── components/         # UI components
 │   │   ├── layout/         # Layout components
-│   │   │   ├── ContextMenu.tsx    # Context menu
-│   │   │   ├── LinkSections.tsx   # Link sections
-│   │   │   ├── MainHeader.tsx     # Main header
-│   │   │   └── Sidebar.tsx        # Sidebar
+│   │   │   ├── ContextMenu.tsx      # Context menu
+│   │   │   ├── DailyQuoteFooter.tsx  # Daily quote footer
+│   │   │   ├── LinkSections.tsx     # Link sections
+│   │   │   ├── MainHeader.tsx       # Main header
+│   │   │   ├── ReminderBoardSection.tsx # Reminder board section
+│   │   │   └── Sidebar.tsx          # Sidebar
 │   │   ├── modals/         # Modal components
-│   │   │   ├── settings/          # Settings submodules
-│   │   │   │   ├── AITab.tsx          # AI settings
-│   │   │   │   ├── AppearanceTab.tsx  # Appearance settings
-│   │   │   │   ├── DataTab.tsx        # Data settings
-│   │   │   │   ├── DuplicateChecker.tsx # Duplicate detection
-│   │   │   │   └── SiteTab.tsx        # Site settings
-│   │   │   ├── LinkModal.tsx      # Link editor
-│   │   │   ├── SettingsModal.tsx  # Settings modal
-│   │   │   └── ...
+│   │   │   ├── CategoryManagerModal.tsx  # Category manager
+│   │   │   ├── HolidayBatchModal.tsx     # Holiday batch ops
+│   │   │   ├── ImportModal.tsx           # Import dialog
+│   │   │   ├── LinkModal.tsx             # Link editor
+│   │   │   ├── ReminderBoardModal.tsx    # Reminder board modal
+│   │   │   ├── SearchConfigModal.tsx     # Search config
+│   │   │   ├── SettingsModal.tsx         # Settings panel
+│   │   │   ├── SyncConflictModal.tsx     # Sync conflict
+│   │   │   └── settings/                 # Settings submodules
+│   │   │       ├── AITab.tsx             # AI settings
+│   │   │       ├── AppearanceTab.tsx     # Appearance settings
+│   │   │       ├── DataTab.tsx           # Data settings
+│   │   │       ├── DuplicateChecker.tsx  # Duplicate detection
+│   │   │       ├── ReminderBoardTab.tsx  # Reminder board settings
+│   │   │       └── SiteTab.tsx           # Site settings
 │   │   └── ui/             # Common UI components
 │   │       ├── LinkCard.tsx       # Link card
 │   │       ├── Icon.tsx           # Icon component
 │   │       ├── IconSelector.tsx   # Icon selector
 │   │       └── ...
 │   ├── hooks/              # Custom Hooks
+│   │   ├── sync/           # Sync submodules
+│   │   ├── useDataStore/   # Data store submodules
 │   │   ├── useDataStore.ts    # Data storage
 │   │   ├── useSyncEngine.ts   # Sync engine
 │   │   ├── useTheme.ts        # Theme management
@@ -446,11 +461,16 @@ NavHub/
 │   │   ├── useContextMenu.ts  # Context menu
 │   │   ├── useSidebar.ts      # Sidebar state
 │   │   ├── useSorting.ts      # Sorting functionality
-│   │   └── useModals.ts       # Modal management
+│   │   ├── useModals.ts       # Modal management
+│   │   ├── useCountdownStore.ts      # Countdown data
+│   │   ├── useCountdownReminders.ts  # Countdown reminders
+│   │   └── useReminderBoardPrefs.ts  # Reminder board prefs
 │   ├── services/           # Service layer
 │   │   ├── bookmarkParser.ts  # Bookmark parser
 │   │   ├── exportService.ts   # Export service
 │   │   └── geminiService.ts   # AI service
+│   ├── stores/             # Zustand global state
+│   │   └── useAppStore.ts    # Unified state
 │   ├── utils/              # Utility functions
 │   │   ├── privateVault.ts    # Privacy group encryption
 │   │   ├── sensitiveConfig.ts # Sensitive config encryption
@@ -458,8 +478,31 @@ NavHub/
 │   │   ├── recommendation.ts  # Recommendation algorithm
 │   │   ├── iconTone.ts        # Icon tone analysis
 │   │   ├── tagColors.ts       # Dynamic tag colors
+│   │   ├── countdown.ts       # Countdown logic
+│   │   ├── chineseCalendar.ts # Chinese calendar
 │   │   └── constants.ts       # Constants
+│   ├── config/             # Configuration
+│   │   ├── defaults.ts       # Default values
+│   │   ├── i18n.ts           # i18n initialization
+│   │   ├── sync.ts           # Sync config
+│   │   └── ui.ts             # UI config
+│   ├── locales/            # i18n translation files
+│   │   ├── zh-CN.json
+│   │   └── en-US.json
 │   └── types.ts            # TypeScript type definitions
+├── shared/                 # Frontend-backend shared code
+│   ├── syncApi.ts          # Sync API entry
+│   ├── aiProxy.ts          # AI proxy
+│   ├── notifications.ts    # Subscription notification handler
+│   ├── syncApi/            # Sync API modules
+│   │   ├── handlers/       # Request handlers (modular)
+│   │   │   ├── auth.ts     # Auth & anti-brute-force
+│   │   │   ├── backups.ts  # Backup operations
+│   │   │   ├── get.ts      # GET handler
+│   │   │   ├── post.ts     # POST handler
+│   │   │   └── limits.ts   # Rate limiting
+│   │   └── ...
+│   └── utils/              # Shared utilities
 ├── functions/              # Cloudflare Pages Functions (API)
 │   └── api/
 │       ├── sync.ts         # Sync API
@@ -510,6 +553,8 @@ interface LinkItem {
   recommendedOrder?: number;  // Recommendation order
   adminClicks?: number;    // Admin click count
   adminLastClickedAt?: number; // Last click time
+  alternativeUrls?: string[];  // Alternative URL list
+  translationMeta?: TranslationMeta; // Translation metadata
 }
 ```
 
@@ -520,6 +565,8 @@ interface Category {
   id: string;
   name: string;
   icon: string;  // Lucide icon name or Emoji
+  hidden?: boolean;  // Whether hidden (admin-only visible)
+  translationMeta?: TranslationMeta; // Translation metadata
 }
 ```
 
@@ -537,6 +584,12 @@ interface SiteSettings {
   backgroundImage?: string;   // Custom background image
   backgroundImageEnabled?: boolean;  // Enable background image
   backgroundMotion?: boolean;  // Background motion effect
+  reminderBoardShowOverdueForUsers?: boolean;  // Show overdue reminders to users
+  reminderBoardGroups?: string[];  // Reminder board groups
+  reminderBoardArchiveMode?: 'immediate' | 'delay';  // Archive mode
+  reminderBoardArchiveDelayMinutes?: number;  // Delay archive minutes
+  subscriptionNotifications?: SubscriptionNotificationSettings;  // Subscription notification config
+  translationMeta?: TranslationMeta; // Translation metadata
 }
 ```
 

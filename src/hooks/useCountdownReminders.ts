@@ -1,3 +1,6 @@
+// 浏览器端提醒功能已下线（代码保留，功能由 Worker Cron 订阅通知代替）
+const BROWSER_REMINDERS_ENABLED = false;
+
 import { useEffect, useRef } from 'react';
 import i18n from '../config/i18n';
 import type { CountdownItem } from '../types';
@@ -64,7 +67,10 @@ const fireReminder = (args: { item: CountdownItem; minutes: number; notify: Noti
   const base =
     minutes === 0
       ? i18n.t('modals.countdown.reminderDue', { title: item.title })
-      : i18n.t('modals.countdown.reminderBefore', { title: item.title, minutes });
+      : i18n.t('modals.countdown.reminderBefore', {
+          title: item.title,
+          minutes,
+        });
 
   const message = item.note ? `${base}\n${item.note}` : base;
   const variant = minutes === 0 || minutes <= 10 ? 'warning' : 'info';
@@ -120,6 +126,7 @@ export const useCountdownReminders = (args: {
   // Reminder loop
   useEffect(() => {
     const tick = () => {
+      if (!BROWSER_REMINDERS_ENABLED) return;
       const now = Date.now();
       const nowDate = new Date(now);
       const visibleCountdowns = args.isAdmin

@@ -116,15 +116,35 @@ export const collectSubscriptionNotificationCandidates = (
 
   return (data.countdowns ?? []).flatMap((item) => {
     if (!item.subscription?.enabled) return [];
-    if (item.rule.kind !== 'interval') return [];
+
+    // Support interval (recurring) and once (single date) rules only
+    const isInterval = item.rule.kind === 'interval';
+    const isOnce = item.rule.kind === 'once';
+    if (!isInterval && !isOnce) return [];
 
     const reminderMinutes = (item.reminderMinutes?.length ? item.reminderMinutes : [0]).filter(
       (minutes) => Number.isFinite(minutes) && minutes >= 0,
     );
     if (reminderMinutes.length === 0) return [];
 
-    const occurrence = getNextNotifiableIntervalOccurrence(item, now, reminderMinutes);
-    if (!occurrence) return [];
+    let occurrence: Date;
+    if (isInterval) {
+      const occ = getNextNotifiableIntervalOccurrence(item, now, reminderMinutes);
+      if (!occ) return [];
+      occurrence = occ;
+    } else {
+      // once: the occurrence is the item's fixed targetDate
+      occurrence = new Date(item.targetDate);
+      if (!Number.isFinite(occurrence.getTime())) return [];
+      // Skip if all reminder windows have already passed
+      if (
+        reminderMinutes.every((minutes) => {
+          const remindAtMs = occurrence.getTime() - minutes * 60000;
+          return now.getTime() >= remindAtMs + SUBSCRIPTION_NOTIFICATION_LOOKBACK_MS;
+        })
+      )
+        return [];
+    }
 
     const name = item.subscription.name?.trim() || item.title;
     const dueLocal = formatDueLocal(occurrence, item.timeZone || timeZone);
@@ -185,7 +205,11 @@ export const sendSubscriptionNotification = async (
     try {
       if (channel === 'telegram') {
         if (!sensitive?.telegramBotToken || !sensitive.telegramChatId) {
-          results.push({ channel, ok: false, error: 'telegram_not_configured' });
+          results.push({
+            channel,
+            ok: false,
+            error: 'telegram_not_configured',
+          });
           continue;
         }
         const response = await postJson(
@@ -312,7 +336,9 @@ export const processSubscriptionNotifications = async (args: {
       args.fetcher,
     );
     if (results.some((result) => result.ok)) {
-      await args.env.NAVHUB_KV.put(candidate.dedupeKey, '1', { expirationTtl: 90 * 24 * 60 * 60 });
+      await args.env.NAVHUB_KV.put(candidate.dedupeKey, '1', {
+        expirationTtl: 90 * 24 * 60 * 60,
+      });
       sent += 1;
     } else {
       skipped += 1;

@@ -31,7 +31,7 @@
 - **VS Code** + 以下扩展：
   - Biome (代码格式化/检查)
   - Tailwind CSS IntelliSense
-  - TypeScript Vue Plugin (Volar)
+  - TypeScript (内置支持)
 
 ---
 
@@ -334,7 +334,7 @@ wrangler tail
 |------|------|
 | `useDataStore.ts` | 数据 CRUD 操作 |
 | `useSyncEngine.ts` | 同步逻辑 |
-| `shared/syncApi/handlers.ts` | 后端 API 处理 |
+| `shared/syncApi/handlers/` | 后端 API 处理（模块化） |
 | `shared/syncApi/auth.ts` | 认证与防爆破 |
 
 ### 模拟不同角色

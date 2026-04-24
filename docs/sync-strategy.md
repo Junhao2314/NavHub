@@ -302,7 +302,7 @@ if (businessSignature === prevBusinessSignature) {
 - 私密分组链接
 - 加密的 AI API Key
 - 隐私设置
-- 完整私密保险库
+- 完整隐私分组
 
 ---
 
@@ -321,7 +321,7 @@ const candidates = [syncPassword, privateVaultPassword, privacyPassword];
 const payload = await decryptSensitiveConfigWithFallback(candidates, encryptedConfig);
 ```
 
-### 暴力破解防护
+### 防爆破保护
 
 - 三级限流策略：
   - CF-Connecting-IP（可信 IP）：最多 5 次失败尝试

@@ -48,6 +48,9 @@ interface LinkItem {
   adminClicks?: number;          // 管理员点击次数
   adminLastClickedAt?: number;   // 最近点击时间戳
 
+  // 备用 URL
+  alternativeUrls?: string[];    // 备用 URL 列表
+
   // 翻译元数据
   translationMeta?: TranslationMeta;
 }
@@ -112,6 +115,83 @@ interface TranslationMeta {
 
 ---
 
+### CountdownItem
+
+倒计时/备忘项，用于备忘板功能。
+
+```typescript
+type CountdownRecurrence = 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';  // Legacy
+
+type CountdownPrecision = 'day' | 'hour' | 'minute' | 'second';
+
+type CountdownRule =
+  | { kind: 'once' }
+  | { kind: 'interval'; unit: 'day' | 'week' | 'month' | 'year'; every: number }
+  | { kind: 'cron'; expression: string }
+  | { kind: 'lunarYearly'; month: number; day: number; isLeapMonth?: boolean }
+  | { kind: 'solarTermYearly'; term: string };
+
+type CountdownLabelColor =
+  | 'red' | 'orange' | 'amber' | 'yellow' | 'green'
+  | 'emerald' | 'blue' | 'indigo' | 'violet' | 'pink' | 'slate';
+
+interface CountdownItem {
+  id: string;                    // 唯一标识
+  title: string;                 // 标题
+  note?: string;                 // 备注
+  linkedUrl?: string;            // 关联链接
+  tags?: string[];               // 标签（多标签）
+  targetDate: string;            // 目标时间（UTC ISO 8601）
+  targetLocal: string;           // 本地时间（如 "2026-02-11T09:30:00"）
+  timeZone: string;              // IANA 时区（默认 Asia/Shanghai）
+  precision: CountdownPrecision; // 显示精度
+  rule: CountdownRule;           // 重复规则
+  recurrence?: CountdownRecurrence; // Legacy 重复类型（兼容旧数据）
+  reminderMinutes?: number[];    // 提醒（提前 N 分钟；0 = 到点提醒）
+  labelColor?: CountdownLabelColor | string; // 颜色标记
+  hidden?: boolean;              // 管理员控制可见性
+  isPrivate?: boolean;           // 私密项（需密码解锁）
+  archivedAt?: number;           // 归档时间戳（undefined = 活跃）
+  createdAt: number;             // 创建时间戳
+  order?: number;                // 排序
+  subscription?: SubscriptionMetadata; // 订阅元数据
+  checklist?: ChecklistItem[];   // 清单项
+}
+```
+
+**辅助类型**:
+
+```typescript
+interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+type SubscriptionNotificationChannel = 'telegram' | 'webhook' | 'email' | 'bark';
+
+interface SubscriptionNotificationSettings {
+  enabled?: boolean;
+  channels?: SubscriptionNotificationChannel[];
+  timeZone?: string;
+  quietHours?: { enabled?: boolean; start?: string; end?: string };
+  titleTemplate?: string;
+  bodyTemplate?: string;
+}
+
+interface SubscriptionMetadata {
+  enabled: boolean;
+  name?: string;
+}
+
+type CountdownTagsBatchOp =
+  | { kind: 'add'; tag: string }
+  | { kind: 'remove'; tag: string }
+  | { kind: 'clear' };
+```
+
+---
+
 ## 同步系统类型
 
 ### NavHubSyncData
@@ -126,6 +206,7 @@ interface NavHubSyncData {
   // 核心数据
   links: LinkItem[];             // 链接列表
   categories: Category[];        // 分类列表
+  countdowns?: CountdownItem[];  // 倒计时/备忘列表
 
   // 配置数据
   searchConfig?: SearchConfig;   // 搜索配置
@@ -262,6 +343,15 @@ interface SiteSettings {
   // 交互设置
   closeOnBackdrop?: boolean;     // 点击背景关闭弹窗
 
+  // 备忘板设置
+  reminderBoardShowOverdueForUsers?: boolean;  // 向用户显示过期备忘
+  reminderBoardGroups?: string[];              // 备忘板分组
+  reminderBoardArchiveMode?: 'immediate' | 'delay';  // 归档模式
+  reminderBoardArchiveDelayMinutes?: number;   // 延迟归档分钟数
+
+  // 订阅通知设置
+  subscriptionNotifications?: SubscriptionNotificationSettings; // 订阅通知配置
+
   translationMeta?: TranslationMeta;
 }
 ```
@@ -298,18 +388,19 @@ interface AIConfig {
 **默认配置**:
 
 ```typescript
-// Gemini
+// 默认配置（src/config/defaults.ts）
 {
   provider: 'gemini',
-  baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-  model: 'gemini-pro',
+  apiKey: '',
+  baseUrl: '',             // 留空时由前端根据 provider 自动填充
+  model: 'gemini-2.5-flash',
 }
 
-// OpenAI Compatible
+// OpenAI Compatible 示例（用户自行配置）
 {
   provider: 'openai',
   baseUrl: 'https://api.openai.com/v1',
-  model: 'gpt-3.5-turbo',
+  model: 'gpt-4o-mini',
 }
 ```
 
@@ -366,6 +457,28 @@ interface PrivacyConfig {
   passwordEnabled?: boolean;     // 隐私密码启用状态
   autoUnlockEnabled?: boolean;   // 会话内自动解锁
   useSeparatePassword?: boolean; // 使用独立密码
+}
+```
+
+---
+
+### SensitiveConfigPayload
+
+加密的敏感配置数据结构，通过 AES-256-GCM 加密后存储在 `encryptedSensitiveConfig` 字段中。
+
+```typescript
+interface SensitiveConfigPayload {
+  apiKey?: string;               // AI API Key
+  notifications?: {
+    telegramBotToken?: string;   // Telegram Bot Token
+    telegramChatId?: string;     // Telegram Chat ID
+    webhookUrl?: string;         // Webhook URL
+    webhookHeaders?: string;     // Webhook 自定义请求头
+    resendApiKey?: string;       // Resend 邮件 API Key
+    resendFrom?: string;         // 发件人地址
+    emailTo?: string;            // 收件人地址
+    barkKey?: string;            // Bark 推送 Key
+  };
 }
 ```
 

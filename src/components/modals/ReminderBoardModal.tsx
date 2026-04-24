@@ -801,10 +801,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     }
 
     const normalizedTags = normalizeTags(tags);
-    if (isAdmin && subscriptionEnabled && finalRule.kind !== 'interval') {
-      setErrorMessage('订阅提醒需要选择每日/每周/每月/每年等周期规则');
-      return;
-    }
 
     onSave({
       title: title.trim(),
@@ -1612,96 +1608,93 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 )}
               </div>
 
+              {/* 提醒与通知（合并区块）*/}
               <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                    {t('modals.countdown.reminders')}
-                  </label>
-                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                    {t('modals.countdown.remindersHint')}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {reminderMinutes.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setReminderMinutes((prev) => prev.filter((x) => x !== m))}
-                      className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600 transition-colors"
-                      title={t('common.delete')}
-                    >
-                      {m === 0
-                        ? t('modals.countdown.atTime')
-                        : t('modals.countdown.reminderChip', { minutes: m })}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    value={reminderInput}
-                    onChange={(e) => setReminderInput(e.target.value)}
-                    className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                    placeholder={t('modals.countdown.reminderPlaceholder')}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const n = Number.parseInt(reminderInput.trim(), 10);
-                      if (!Number.isFinite(n) || n < 0) {
-                        setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
-                        return;
-                      }
-
-                      setReminderMinutes((prev) => normalizeReminderMinutes([...prev, n]));
-                      setReminderInput('');
-                    }}
-                    className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
-                  >
-                    {t('modals.countdown.addReminder')}
-                  </button>
-                </div>
-              </div>
-
-              {isAdmin && (
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-3">
-                  <label className="flex items-center justify-between gap-3 cursor-pointer">
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                        订阅提醒
-                      </span>
-                      <span className="block text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                        由 Worker Cron 在浏览器关闭时发送外部通知
-                      </span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={subscriptionEnabled}
-                      onChange={(event) => setSubscriptionEnabled(event.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
-                    />
-                  </label>
-                  {subscriptionEnabled && (
-                    <div className="space-y-2">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                  {t('modals.countdown.reminders')}
+                </label>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  {/* 提醒时间点 */}
+                  <div className="p-3 space-y-2">
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                      {t('modals.countdown.remindersHint')}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {reminderMinutes.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setReminderMinutes((prev) => prev.filter((x) => x !== m))}
+                          className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600 transition-colors"
+                          title={t('common.delete')}
+                        >
+                          {m === 0
+                            ? t('modals.countdown.atTime')
+                            : t('modals.countdown.reminderChip', {
+                                minutes: m,
+                              })}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
                       <input
-                        type="text"
-                        value={subscriptionName}
-                        onChange={(event) => setSubscriptionName(event.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                        placeholder="订阅名称（默认使用标题）"
+                        type="number"
+                        min={0}
+                        value={reminderInput}
+                        onChange={(e) => setReminderInput(e.target.value)}
+                        className="flex-1 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                        placeholder={t('modals.countdown.reminderPlaceholder')}
                       />
-                      {rule.kind !== 'interval' && (
-                        <p className="text-[11px] text-amber-600 dark:text-amber-300">
-                          订阅提醒需要周期规则，请选择每日/每周/每月/每年。
-                        </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const n = Number.parseInt(reminderInput.trim(), 10);
+                          if (!Number.isFinite(n) || n < 0) {
+                            setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
+                            return;
+                          }
+                          setReminderMinutes((prev) => normalizeReminderMinutes([...prev, n]));
+                          setReminderInput('');
+                        }}
+                        className="px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
+                      >
+                        {t('modals.countdown.addReminder')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 外部订阅通知（仅管理员可见）*/}
+                  {isAdmin && (
+                    <div className="border-t border-slate-100 dark:border-slate-800 p-3 space-y-2">
+                      <label className="flex items-center justify-between gap-3 cursor-pointer">
+                        <span>
+                          <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            订阅提醒
+                          </span>
+                          <span className="block text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                            由 Worker Cron 在浏览器关闭时发送外部通知
+                          </span>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={subscriptionEnabled}
+                          onChange={(event) => setSubscriptionEnabled(event.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
+                        />
+                      </label>
+                      {subscriptionEnabled && (
+                        <input
+                          type="text"
+                          value={subscriptionName}
+                          onChange={(event) => setSubscriptionName(event.target.value)}
+                          className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                          placeholder="订阅名称（默认使用标题）"
+                        />
                       )}
                     </div>
                   )}
                 </div>
-              )}
+              </div>
 
               {isAdmin && privacyGroupEnabled && (
                 <label className="flex items-center gap-3 px-1 py-1 cursor-pointer">

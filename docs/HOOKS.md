@@ -54,6 +54,9 @@ import {
 | `useSorting` | 排序功能 | - |
 | `useContextMenu` | 右键菜单 | - |
 | `useI18n` | 国际化 | - |
+| `useCountdownStore` | 倒计时/备忘数据 CRUD | localStorage |
+| `useCountdownReminders` | 倒计时提醒触发 | - |
+| `useReminderBoardPrefs` | 备忘板显示偏好 | localStorage |
 
 ---
 
@@ -613,6 +616,156 @@ const { t, language, changeLanguage } = useI18n();
 
 // 切换语言
 <button onClick={() => changeLanguage('en-US')}>English</button>
+```
+
+---
+
+## useCountdownStore
+
+**位置**: `src/hooks/useCountdownStore.ts`
+
+管理倒计时/备忘数据的 CRUD 操作，自动持久化到 localStorage。
+
+### 返回值
+
+```typescript
+interface UseCountdownStoreReturn {
+  // 状态
+  countdowns: CountdownItem[];
+  isLoaded: boolean;
+
+  // 增删改
+  addCountdown: (data: Omit<CountdownItem, 'id' | 'createdAt'>) => void;
+  addCountdowns: (items: Omit<CountdownItem, 'id' | 'createdAt'>[]) => void;
+  updateCountdown: (data: Partial<CountdownItem> & { id: string }) => void;
+  deleteCountdown: (id: string) => void;
+  deleteCountdowns: (ids: string[]) => void;
+
+  // 归档/恢复
+  archiveCountdown: (id: string) => void;
+  archiveCountdowns: (ids: string[]) => void;
+  restoreCountdown: (id: string) => void;
+
+  // 排序与标签
+  reorderCountdowns: (activeId: string, overId: string) => void;
+  updateCountdownsTags: (ids: string[], op: CountdownTagsBatchOp) => void;
+
+  // 其他
+  toggleHidden: (id: string) => void;
+  replaceCountdowns: (items: CountdownItem[]) => void;
+}
+```
+
+### 使用示例
+
+```typescript
+const {
+  countdowns,
+  addCountdown,
+  deleteCountdown,
+  archiveCountdown,
+} = useCountdownStore();
+
+// 添加倒计时
+addCountdown({
+  title: '项目截止',
+  targetDate: '2025-12-31',
+  targetLocal: '2025-12-31T00:00:00',
+  timeZone: 'Asia/Shanghai',
+  precision: 'day',
+  rule: { once: true },
+});
+```
+
+---
+
+## useCountdownReminders
+
+**位置**: `src/hooks/useCountdownReminders.ts`
+
+倒计时提醒触发器，通过 `setInterval` 定期检查即将到期的倒计时并触发通知。
+
+### 参数
+
+```typescript
+interface UseCountdownRemindersArgs {
+  countdowns: CountdownItem[];  // 倒计时列表
+  isAdmin: boolean;             // 是否管理员
+  notify: NotifyFn;             // 通知回调函数
+}
+```
+
+### 返回值
+
+`void` — 该 Hook 仅执行副作用（定时检查 + 通知），不返回任何值。
+
+### 使用示例
+
+```typescript
+useCountdownReminders({
+  countdowns,
+  isAdmin: role === 'admin',
+  notify: (title, body) => {
+    new Notification(title, { body });
+  },
+});
+```
+
+---
+
+## useReminderBoardPrefs
+
+**位置**: `src/hooks/useReminderBoardPrefs.ts`
+
+备忘板显示偏好设置，控制备忘板的视图样式、计时模式、过期效果和排序方式。
+
+### 返回值
+
+```typescript
+type ReminderViewStyle = 'compact' | 'card' | 'ring' | 'flip';
+type ReminderTimerMode = 'cycle' | 'forward';
+type ReminderExpiredEffect = 'dim' | 'blink';
+type ReminderSortMode = 'remaining' | 'created' | 'custom';
+
+interface ReminderBoardPrefs {
+  // 视图样式
+  viewStyle: ReminderViewStyle;
+  setViewStyle: (v: ReminderViewStyle) => void;
+
+  // 计时模式
+  timerMode: ReminderTimerMode;
+  setTimerMode: (v: ReminderTimerMode) => void;
+
+  // 过期效果
+  expiredEffect: ReminderExpiredEffect;
+  setExpiredEffect: (v: ReminderExpiredEffect) => void;
+
+  // 排序方式
+  sortMode: ReminderSortMode;
+  setSortMode: (v: ReminderSortMode) => void;
+}
+```
+
+### 使用示例
+
+```typescript
+const {
+  viewStyle,
+  setViewStyle,
+  timerMode,
+  setTimerMode,
+  sortMode,
+  setSortMode,
+} = useReminderBoardPrefs();
+
+// 切换视图样式
+setViewStyle('card');
+
+// 切换计时模式
+setTimerMode('forward');
+
+// 切换排序方式
+setSortMode('created');
 ```
 
 ---
