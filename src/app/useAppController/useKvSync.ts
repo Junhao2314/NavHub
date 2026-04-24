@@ -9,6 +9,7 @@ import type {
   LinkItem,
   NavHubSyncData,
   SearchMode,
+  SensitiveConfigPayload,
   SiteSettings,
   SyncConflict,
   SyncRole,
@@ -151,7 +152,10 @@ export const useKvSync = (options: UseKvSyncOptions) => {
   const [syncRole, setSyncRole] = useState<SyncRole>('user');
   const [isSyncProtected, setIsSyncProtected] = useState(false);
   const [syncPasswordRefreshTick, setSyncPasswordRefreshTick] = useState(0);
+  const [sensitiveConfig, setSensitiveConfig] = useState<SensitiveConfigPayload | null>(null);
+  const sensitiveConfigRef = useRef<SensitiveConfigPayload | null>(null);
   const isAdmin = syncRole === 'admin';
+  sensitiveConfigRef.current = sensitiveConfig;
 
   const getLocalSyncMeta = useCallback(() => {
     const stored = safeLocalStorageGetItem(SYNC_META_KEY);
@@ -186,6 +190,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         applyFromSync,
         aiConfig,
         restoreAIConfig,
+        restoreSensitiveConfig: setSensitiveConfig,
         selectedCategory,
         setSelectedCategory,
         privacyGroupEnabled,
@@ -344,6 +349,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     handleSyncConflict,
     isSyncPasswordRefreshingRef,
     pendingSensitiveConfigSyncRef,
+    sensitiveConfigRef,
     syncPasswordRefreshTick,
   });
 
@@ -354,8 +360,16 @@ export const useKvSync = (options: UseKvSyncOptions) => {
   };
 
   const handleSaveSettings = useCallback(
-    async (nextConfig: AIConfig, nextSiteSettings: SiteSettings) => {
+    async (
+      nextConfig: AIConfig,
+      nextSiteSettings: SiteSettings,
+      nextSensitiveConfig?: SensitiveConfigPayload,
+    ) => {
       saveAIConfig(nextConfig, nextSiteSettings);
+      if (nextSensitiveConfig) {
+        setSensitiveConfig(nextSensitiveConfig);
+        sensitiveConfigRef.current = nextSensitiveConfig;
+      }
 
       // 仅管理员可把“保存设置”同步到云端
       if (!isAdmin) return;
@@ -365,6 +379,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
       const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey: nextConfig?.apiKey || '',
+        existingPayload: nextSensitiveConfig ?? sensitiveConfigRef.current ?? undefined,
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
 
@@ -489,6 +504,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     const encryptResult = await encryptApiKeyForSync({
       syncPassword,
       apiKey: aiConfig?.apiKey || '',
+      existingPayload: sensitiveConfigRef.current ?? undefined,
       cacheRef: encryptedSensitiveConfigCacheRef,
     });
 
@@ -584,6 +600,7 @@ export const useKvSync = (options: UseKvSyncOptions) => {
         const encryptResult = await encryptApiKeyForSync({
           syncPassword,
           apiKey: aiConfig?.apiKey || '',
+          existingPayload: sensitiveConfigRef.current ?? undefined,
           cacheRef: encryptedSensitiveConfigCacheRef,
         });
 
@@ -876,5 +893,6 @@ export const useKvSync = (options: UseKvSyncOptions) => {
     handleRestoreBackup,
     handleDeleteBackup,
     handleSaveSettings,
+    sensitiveConfig,
   };
 };

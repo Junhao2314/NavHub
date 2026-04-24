@@ -7,12 +7,30 @@ import {
   type ReminderViewStyle,
   useReminderBoardPrefs,
 } from '../../../hooks/useReminderBoardPrefs';
-import type { SiteSettings, SiteSettingsChangeHandler } from '../../../types';
+import type {
+  SiteSettings,
+  SiteSettingsChangeHandler,
+  SubscriptionNotificationChannel,
+  SubscriptionNotificationSettings,
+  SyncRole,
+} from '../../../types';
 
 interface ReminderBoardTabProps {
   settings: SiteSettings;
   onChange: SiteSettingsChangeHandler;
   onAddHolidays?: () => void;
+  syncRole: SyncRole;
+  sensitiveConfig?: {
+    telegramBotToken?: string;
+    telegramChatId?: string;
+    webhookUrl?: string;
+    webhookHeaders?: Record<string, string>;
+    resendApiKey?: string;
+    resendFrom?: string;
+    emailTo?: string;
+    barkKey?: string;
+  };
+  onSensitiveConfigChange?: (config: NonNullable<ReminderBoardTabProps['sensitiveConfig']>) => void;
 }
 
 const VIEW_STYLES: { value: ReminderViewStyle; icon: React.ReactNode; labelKey: string }[] = [
@@ -50,10 +68,20 @@ const EXPIRED_EFFECTS: { value: ReminderExpiredEffect; labelKey: string }[] = [
   { value: 'blink', labelKey: 'modals.countdown.expiredEffectBlink' },
 ];
 
+const NOTIFICATION_CHANNELS: { value: SubscriptionNotificationChannel; label: string }[] = [
+  { value: 'telegram', label: 'Telegram' },
+  { value: 'webhook', label: 'Webhook' },
+  { value: 'email', label: 'Email / Resend' },
+  { value: 'bark', label: 'Bark' },
+];
+
 const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
   settings,
   onChange,
   onAddHolidays,
+  syncRole,
+  sensitiveConfig,
+  onSensitiveConfigChange,
 }) => {
   const { t } = useI18n();
   const prefs = useReminderBoardPrefs();
@@ -61,6 +89,29 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
   const archiveMode = settings.reminderBoardArchiveMode;
   const archiveDelayMinutes = settings.reminderBoardArchiveDelayMinutes ?? 60;
   const showOverdueForUsers = settings.reminderBoardShowOverdueForUsers ?? false;
+  const notificationSettings = settings.subscriptionNotifications ?? {};
+  const canConfigureNotifications = syncRole === 'admin';
+  const updateNotificationSettings = (patch: Partial<SubscriptionNotificationSettings>) => {
+    if (!canConfigureNotifications) return;
+    onChange('subscriptionNotifications', {
+      ...notificationSettings,
+      ...patch,
+    });
+  };
+  const toggleChannel = (channel: SubscriptionNotificationChannel) => {
+    const current = notificationSettings.channels ?? [];
+    updateNotificationSettings({
+      channels: current.includes(channel)
+        ? current.filter((value) => value !== channel)
+        : [...current, channel],
+    });
+  };
+  const updateSensitiveConfig = (
+    patch: Partial<NonNullable<ReminderBoardTabProps['sensitiveConfig']>>,
+  ) => {
+    if (!canConfigureNotifications) return;
+    onSensitiveConfigChange?.({ ...(sensitiveConfig ?? {}), ...patch });
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -227,6 +278,152 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
           </div>
         </>
       )}
+
+      <div className="h-px bg-slate-100 dark:bg-slate-800" />
+
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+              订阅提醒通知
+            </label>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Worker Cron 定时发送 Telegram / Webhook / Resend / Bark 通知。
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!canConfigureNotifications}
+            onClick={() => updateNotificationSettings({ enabled: !notificationSettings.enabled })}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              notificationSettings.enabled ? 'bg-accent' : 'bg-slate-300 dark:bg-slate-600'
+            } ${canConfigureNotifications ? '' : 'opacity-50 cursor-not-allowed'}`}
+            aria-pressed={Boolean(notificationSettings.enabled)}
+            aria-label="订阅提醒通知"
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                notificationSettings.enabled ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {!canConfigureNotifications && (
+          <div className="text-xs text-amber-600 dark:text-amber-300 rounded-xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">
+            管理员模式可配置外部通知；普通用户只读。
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          {NOTIFICATION_CHANNELS.map((channel) => (
+            <label
+              key={channel.value}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm ${
+                notificationSettings.channels?.includes(channel.value)
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+              } ${canConfigureNotifications ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
+            >
+              <input
+                type="checkbox"
+                disabled={!canConfigureNotifications}
+                checked={notificationSettings.channels?.includes(channel.value) ?? false}
+                onChange={() => toggleChannel(channel.value)}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
+              />
+              {channel.label}
+            </label>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-2">
+          <input
+            type="text"
+            disabled={!canConfigureNotifications}
+            value={notificationSettings.timeZone ?? ''}
+            onChange={(event) => updateNotificationSettings({ timeZone: event.target.value })}
+            placeholder="通知时区，例如 Asia/Shanghai"
+            className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-60"
+          />
+          <input
+            type="text"
+            disabled={!canConfigureNotifications}
+            value={notificationSettings.titleTemplate ?? ''}
+            onChange={(event) => updateNotificationSettings({ titleTemplate: event.target.value })}
+            placeholder="标题模板：订阅即将到期：{{name}}"
+            className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-60"
+          />
+          <textarea
+            disabled={!canConfigureNotifications}
+            value={notificationSettings.bodyTemplate ?? ''}
+            onChange={(event) => updateNotificationSettings({ bodyTemplate: event.target.value })}
+            placeholder="正文模板，可用变量：{{name}} {{dueLocal}} {{daysLeft}}"
+            rows={3}
+            className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-60 resize-none"
+          />
+        </div>
+
+        {canConfigureNotifications && (
+          <div className="grid grid-cols-1 gap-2">
+            <input
+              type="password"
+              value={sensitiveConfig?.telegramBotToken ?? ''}
+              onChange={(event) => updateSensitiveConfig({ telegramBotToken: event.target.value })}
+              placeholder="Telegram Bot Token"
+              className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            />
+            <input
+              type="text"
+              value={sensitiveConfig?.telegramChatId ?? ''}
+              onChange={(event) => updateSensitiveConfig({ telegramChatId: event.target.value })}
+              placeholder="Telegram Chat ID"
+              className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            />
+            <input
+              type="password"
+              value={sensitiveConfig?.webhookUrl ?? ''}
+              onChange={(event) => updateSensitiveConfig({ webhookUrl: event.target.value })}
+              placeholder="Webhook URL"
+              className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            />
+            <input
+              type="password"
+              value={sensitiveConfig?.resendApiKey ?? ''}
+              onChange={(event) => updateSensitiveConfig({ resendApiKey: event.target.value })}
+              placeholder="Resend API Key"
+              className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={sensitiveConfig?.resendFrom ?? ''}
+                onChange={(event) => updateSensitiveConfig({ resendFrom: event.target.value })}
+                placeholder="Resend From"
+                className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+              />
+              <input
+                type="text"
+                value={sensitiveConfig?.emailTo ?? ''}
+                onChange={(event) => updateSensitiveConfig({ emailTo: event.target.value })}
+                placeholder="Email To"
+                className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+            <input
+              type="password"
+              value={sensitiveConfig?.barkKey ?? ''}
+              onChange={(event) => updateSensitiveConfig({ barkKey: event.target.value })}
+              placeholder="Bark Key"
+              className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            />
+          </div>
+        )}
+
+        <div className="text-[11px] text-slate-400 dark:text-slate-500">
+          Token、Webhook URL、Resend Key、Bark Key 存在加密敏感配置中；当前版本先复用同步密码解密。
+        </div>
+      </div>
 
       {/* Batch Add Holidays */}
       {onAddHolidays && (

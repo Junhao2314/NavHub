@@ -7,6 +7,7 @@ import {
   Category,
   CountdownItem,
   LinkItem,
+  SensitiveConfigPayload,
   SiteSettings,
   SiteSettingsChangeHandler,
   SyncRole,
@@ -23,7 +24,12 @@ interface SettingsModalProps {
   onClose: () => void;
   config: AIConfig;
   siteSettings: SiteSettings;
-  onSave: (config: AIConfig, siteSettings: SiteSettings) => void;
+  sensitiveConfig?: SensitiveConfigPayload | null;
+  onSave: (
+    config: AIConfig,
+    siteSettings: SiteSettings,
+    sensitiveConfig?: SensitiveConfigPayload,
+  ) => void;
   links: LinkItem[];
   categories: Category[];
   countdownItems?: CountdownItem[];
@@ -60,6 +66,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   config,
   siteSettings,
+  sensitiveConfig,
   onSave,
   links,
   categories,
@@ -96,13 +103,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     ...buildDefaultSiteSettings(),
     ...siteSettings,
   }));
+  const [localSensitiveConfig, setLocalSensitiveConfig] = useState<SensitiveConfigPayload>(
+    sensitiveConfig ?? {},
+  );
 
   useEffect(() => {
     if (isOpen) {
       setLocalConfig(config);
       setLocalSiteSettings({ ...buildDefaultSiteSettings(), ...siteSettings });
+      setLocalSensitiveConfig(sensitiveConfig ?? {});
     }
-  }, [isOpen, config, siteSettings]);
+  }, [isOpen, config, siteSettings, sensitiveConfig]);
 
   useEffect(() => {
     if (isOpen) {
@@ -128,7 +139,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleSave = () => {
-    onSave(localConfig, localSiteSettings);
+    onSave(localConfig, localSiteSettings, localSensitiveConfig);
     onClose();
   };
 
@@ -244,6 +255,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               settings={localSiteSettings}
               onChange={handleSiteChange}
               onAddHolidays={onAddHolidays}
+              syncRole={syncRole}
+              sensitiveConfig={localSensitiveConfig.notifications}
+              onSensitiveConfigChange={(notifications) =>
+                setLocalSensitiveConfig((prev) => ({ ...prev, notifications }))
+              }
             />
           )}
 

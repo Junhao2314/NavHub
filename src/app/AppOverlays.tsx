@@ -59,6 +59,7 @@ export function AppTopOverlays({ controller }: AppOverlaysProps) {
             onClose={() => modals.setIsSettingsModalOpen(false)}
             config={config.aiConfig}
             siteSettings={config.siteSettings}
+            sensitiveConfig={sync.sensitiveConfig}
             onSave={sync.handleSaveSettings}
             links={links}
             categories={categories}

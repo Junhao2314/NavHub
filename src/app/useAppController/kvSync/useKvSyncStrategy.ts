@@ -9,6 +9,7 @@ import type {
   LinkItem,
   NavHubSyncData,
   SearchMode,
+  SensitiveConfigPayload,
   SiteSettings,
   SyncConflict,
   SyncRole,
@@ -62,6 +63,7 @@ export const useKvSyncStrategy = (args: {
 
   isSyncPasswordRefreshingRef: MutableRefObject<boolean>;
   pendingSensitiveConfigSyncRef: MutableRefObject<boolean>;
+  sensitiveConfigRef: MutableRefObject<SensitiveConfigPayload | null>;
   syncPasswordRefreshTick: number;
 }) => {
   const {
@@ -91,6 +93,7 @@ export const useKvSyncStrategy = (args: {
     handleSyncConflict,
     isSyncPasswordRefreshingRef,
     pendingSensitiveConfigSyncRef,
+    sensitiveConfigRef,
     syncPasswordRefreshTick,
   } = args;
 
@@ -108,6 +111,11 @@ export const useKvSyncStrategy = (args: {
 
   isAdminRef.current = isAdmin;
   hasConflictRef.current = !!currentConflict;
+
+  const getSensitiveConfigPayload = useCallback(
+    () => sensitiveConfigRef.current ?? undefined,
+    [sensitiveConfigRef],
+  );
 
   const cancelPendingStatsSync = useCallback(() => {
     if (statsSyncTimerRef.current) {
@@ -140,6 +148,7 @@ export const useKvSyncStrategy = (args: {
       const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey,
+        existingPayload: getSensitiveConfigPayload(),
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
 
@@ -153,7 +162,7 @@ export const useKvSyncStrategy = (args: {
         { skipHistory: true, keepalive: options?.keepalive === true },
       );
     },
-    [isSyncPasswordRefreshingRef, pushToCloud],
+    [getSensitiveConfigPayload, isSyncPasswordRefreshingRef, pushToCloud],
   );
 
   useEffect(() => {
@@ -235,6 +244,7 @@ export const useKvSyncStrategy = (args: {
             const encryptResult = await encryptApiKeyForSync({
               syncPassword,
               apiKey: aiConfig?.apiKey || '',
+              existingPayload: getSensitiveConfigPayload(),
               cacheRef: encryptedSensitiveConfigCacheRef,
             });
 
@@ -275,6 +285,7 @@ export const useKvSyncStrategy = (args: {
             const encryptResult = await encryptApiKeyForSync({
               syncPassword,
               apiKey: aiConfig?.apiKey || '',
+              existingPayload: getSensitiveConfigPayload(),
               cacheRef: encryptedSensitiveConfigCacheRef,
             });
 
@@ -317,6 +328,7 @@ export const useKvSyncStrategy = (args: {
     countdowns,
     externalSearchSources,
     getLocalSyncMeta,
+    getSensitiveConfigPayload,
     handleSyncConflict,
     isLoaded,
     links,
@@ -400,6 +412,7 @@ export const useKvSyncStrategy = (args: {
       const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey,
+        existingPayload: getSensitiveConfigPayload(),
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
 
@@ -419,6 +432,7 @@ export const useKvSyncStrategy = (args: {
     currentConflict,
     externalSearchSources,
     flushPendingStatsSync,
+    getSensitiveConfigPayload,
     isAdmin,
     isLoaded,
     isSyncPasswordRefreshingRef,
@@ -456,6 +470,7 @@ export const useKvSyncStrategy = (args: {
       const encryptResult = await encryptApiKeyForSync({
         syncPassword,
         apiKey,
+        existingPayload: getSensitiveConfigPayload(),
         cacheRef: encryptedSensitiveConfigCacheRef,
       });
 
@@ -493,6 +508,7 @@ export const useKvSyncStrategy = (args: {
     countdowns,
     currentConflict,
     externalSearchSources,
+    getSensitiveConfigPayload,
     isAdmin,
     isLoaded,
     isSyncPasswordRefreshingRef,

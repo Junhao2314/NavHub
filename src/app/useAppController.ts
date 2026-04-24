@@ -219,6 +219,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
     handleRestoreBackup,
     handleDeleteBackup,
     handleSaveSettings,
+    sensitiveConfig,
   } = useKvSync({
     isLoaded: isAllLoaded,
     links,
@@ -644,6 +645,7 @@ export const useAppController = ({ onReady }: UseAppControllerOptions) => {
       handleRestoreBackup,
       handleDeleteBackup,
       handleSaveSettings,
+      sensitiveConfig,
     },
     sorting: {
       startPinnedSorting,

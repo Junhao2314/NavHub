@@ -1,0 +1,138 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  collectSubscriptionNotificationCandidates,
+  processSubscriptionNotifications,
+  sendSubscriptionNotification,
+} from '../../shared/notifications';
+import type { KVNamespaceInterface } from '../../shared/syncApi/types';
+import type { CountdownItem, NavHubSyncData } from '../types';
+
+const makeItem = (partial: Partial<CountdownItem> = {}): CountdownItem => ({
+  id: 'sub-1',
+  title: 'GitHub Pro',
+  targetDate: '2026-05-01T00:00:00.000Z',
+  targetLocal: '2026-05-01T00:00:00',
+  timeZone: 'UTC',
+  precision: 'minute',
+  rule: { kind: 'interval', unit: 'month', every: 1 },
+  reminderMinutes: [1440],
+  createdAt: 1,
+  subscription: { enabled: true },
+  ...partial,
+});
+
+const makeData = (item: CountdownItem = makeItem()): NavHubSyncData => ({
+  links: [],
+  categories: [],
+  countdowns: [item],
+  siteSettings: {
+    title: 'NavHub',
+    navTitle: 'NavHub',
+    favicon: '',
+    cardStyle: 'detailed',
+    subscriptionNotifications: {
+      enabled: true,
+      channels: ['telegram', 'webhook', 'email', 'bark'],
+    },
+  },
+  meta: { updatedAt: 1, deviceId: 'test', version: 1 },
+});
+
+const makeKv = (): KVNamespaceInterface => {
+  const store = new Map<string, string>();
+  return {
+    get: vi.fn(async (key: string) => store.get(key) ?? null),
+    put: vi.fn(async (key: string, value: string) => {
+      store.set(key, value);
+    }),
+    delete: vi.fn(async (key: string) => {
+      store.delete(key);
+    }),
+    list: vi.fn(async () => ({ keys: [] })),
+  } as unknown as KVNamespaceInterface;
+};
+
+describe('subscription notifications', () => {
+  it('collects enabled interval subscriptions at reminder time', () => {
+    const candidates = collectSubscriptionNotificationCandidates(
+      makeData(),
+      new Date('2026-04-30T00:00:00.000Z'),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.title).toContain('GitHub Pro');
+  });
+
+  it('keeps a one-hour catch-up window for lower-frequency cron runs', () => {
+    const candidates = collectSubscriptionNotificationCandidates(
+      makeData(),
+      new Date('2026-04-30T00:59:00.000Z'),
+    );
+
+    expect(candidates).toHaveLength(1);
+  });
+
+  it('skips reminders outside the one-hour catch-up window', () => {
+    const candidates = collectSubscriptionNotificationCandidates(
+      makeData(),
+      new Date('2026-04-30T01:00:00.000Z'),
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it('skips non-interval subscription rules', () => {
+    const candidates = collectSubscriptionNotificationCandidates(
+      makeData(makeItem({ rule: { kind: 'once' } })),
+      new Date('2026-04-30T00:00:00.000Z'),
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it('sends Telegram, Webhook, Resend, and Bark payloads', async () => {
+    const candidate = collectSubscriptionNotificationCandidates(
+      makeData(),
+      new Date('2026-04-30T00:00:00.000Z'),
+    )[0]!;
+    const fetcher = vi.fn(async () => new Response('{}', { status: 200 }));
+
+    const results = await sendSubscriptionNotification(
+      candidate,
+      makeData().siteSettings!.subscriptionNotifications!,
+      {
+        telegramBotToken: 'token',
+        telegramChatId: 'chat',
+        webhookUrl: 'https://example.com/hook',
+        resendApiKey: 're_key',
+        resendFrom: 'NavHub <noreply@example.com>',
+        emailTo: 'me@example.com',
+        barkKey: 'bark',
+      },
+      fetcher as unknown as typeof fetch,
+    );
+
+    expect(results.every((result) => result.ok)).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+
+  it('dedupes sent notifications with KV keys', async () => {
+    const kv = makeKv();
+    const fetcher = vi.fn(async () => new Response('{}', { status: 200 }));
+    const args = {
+      env: { NAVHUB_KV: kv },
+      data: makeData(),
+      sensitive: { notifications: { webhookUrl: 'https://example.com/hook' } },
+      now: new Date('2026-04-30T00:00:00.000Z'),
+      fetcher: fetcher as unknown as typeof fetch,
+    };
+    args.data.siteSettings!.subscriptionNotifications!.channels = ['webhook'];
+
+    const first = await processSubscriptionNotifications(args);
+    const second = await processSubscriptionNotifications(args);
+
+    expect(first.sent).toBe(1);
+    expect(second.skipped).toBe(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});

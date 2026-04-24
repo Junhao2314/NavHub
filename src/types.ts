@@ -47,6 +47,7 @@ export interface SiteSettings {
   reminderBoardGroups?: string[]; // 备忘板预定义标签/可选标签
   reminderBoardArchiveMode?: 'immediate' | 'delay'; // 自动归档模式
   reminderBoardArchiveDelayMinutes?: number; // 延迟归档分钟数
+  subscriptionNotifications?: SubscriptionNotificationSettings; // 订阅提醒通知（非敏感配置）
   accentColor?: string; // RGB values e.g. "99 102 241"
   grayScale?: 'slate' | 'zinc' | 'neutral'; // Background tone
   closeOnBackdrop?: boolean; // Allow closing modals by clicking the backdrop
@@ -117,6 +118,26 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+export type SubscriptionNotificationChannel = 'telegram' | 'webhook' | 'email' | 'bark';
+
+export interface SubscriptionNotificationSettings {
+  enabled?: boolean;
+  channels?: SubscriptionNotificationChannel[];
+  timeZone?: string;
+  quietHours?: {
+    enabled?: boolean;
+    start?: string;
+    end?: string;
+  };
+  titleTemplate?: string;
+  bodyTemplate?: string;
+}
+
+export interface SubscriptionMetadata {
+  enabled: boolean;
+  name?: string;
+}
+
 // 倒计时项
 export interface CountdownItem {
   id: string;
@@ -162,6 +183,7 @@ export interface CountdownItem {
   createdAt: number;
   order?: number;
   checklist?: ChecklistItem[];
+  subscription?: SubscriptionMetadata;
 }
 
 export type CountdownTagsBatchOp =
@@ -217,7 +239,16 @@ export type VerifySyncPasswordResult = {
 // 敏感配置载荷（用于加密同步 API Key 等敏感数据）
 export interface SensitiveConfigPayload {
   apiKey?: string;
-  // 未来可扩展其他敏感配置
+  notifications?: {
+    telegramBotToken?: string;
+    telegramChatId?: string;
+    webhookUrl?: string;
+    webhookHeaders?: Record<string, string>;
+    resendApiKey?: string;
+    resendFrom?: string;
+    emailTo?: string;
+    barkKey?: string;
+  };
 }
 
 // Favicon 缓存条目

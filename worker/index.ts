@@ -9,6 +9,7 @@
  */
 
 import { handleApiAIRequest } from '../shared/aiProxy';
+import { processSubscriptionNotifications } from '../shared/notifications';
 import {
   handleApiSyncRequest,
   type KVNamespaceInterface,
@@ -16,8 +17,10 @@ import {
   type SyncApiEnv,
 } from '../shared/syncApi';
 import { resolveSyncCorsHeaders } from '../shared/syncApi/cors';
+import { getMainData } from '../shared/syncApi/kv';
 import { parseEnvBool, parseEnvList } from '../shared/utils/env';
 import { mergeVaryHeaderValue } from '../shared/utils/httpHeaders';
+import { decryptSensitiveConfig } from '../src/utils/sensitiveConfig';
 
 interface Env {
   NAVHUB_WORKER_KV: KVNamespaceInterface;
@@ -113,5 +116,39 @@ export default {
 
     // 静态资源
     return handleStaticAssets(request, env);
+  },
+
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+    if (!env.SYNC_PASSWORD?.trim()) {
+      console.warn('[subscription-notifications] SYNC_PASSWORD is required; skip cron');
+      return;
+    }
+
+    const syncEnv = {
+      NAVHUB_KV: env.NAVHUB_WORKER_KV,
+      NAVHUB_R2: env.NAVHUB_WORKER_R2,
+      SYNC_PASSWORD: env.SYNC_PASSWORD,
+    };
+    const data = await getMainData(syncEnv);
+    if (!data?.siteSettings?.subscriptionNotifications?.enabled) return;
+
+    let sensitive = null;
+    if (data.encryptedSensitiveConfig) {
+      try {
+        sensitive = await decryptSensitiveConfig(env.SYNC_PASSWORD, data.encryptedSensitiveConfig);
+      } catch (error) {
+        console.warn('[subscription-notifications] failed to decrypt sensitive config', error);
+        return;
+      }
+    }
+
+    const result = await processSubscriptionNotifications({
+      env: syncEnv,
+      data,
+      sensitive,
+    });
+    for (const warning of result.warnings) {
+      console.warn(`[subscription-notifications] ${warning}`);
+    }
   },
 };

@@ -41,6 +41,11 @@ export const isBoolean = (value: unknown): value is boolean => {
   return typeof value === 'boolean';
 };
 
+const isStringRecord = (value: unknown): value is Record<string, string> => {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every(isString);
+};
+
 // ============ 配置类型守卫 ============
 
 /**
@@ -119,6 +124,13 @@ export const isPartialSiteSettings = (value: unknown): value is Partial<SiteSett
     'reminderBoardArchiveDelayMinutes' in value &&
     value.reminderBoardArchiveDelayMinutes !== undefined &&
     typeof value.reminderBoardArchiveDelayMinutes !== 'number'
+  ) {
+    return false;
+  }
+  if (
+    'subscriptionNotifications' in value &&
+    value.subscriptionNotifications !== undefined &&
+    !isSubscriptionNotificationSettings(value.subscriptionNotifications)
   ) {
     return false;
   }
@@ -216,7 +228,81 @@ export const isSensitiveConfigPayload = (value: unknown): value is SensitiveConf
   if ('apiKey' in value && value.apiKey !== undefined && !isString(value.apiKey)) {
     return false;
   }
+  if ('notifications' in value && value.notifications !== undefined) {
+    if (!isRecord(value.notifications)) return false;
+    const notifications = value.notifications;
+    const stringFields = [
+      'telegramBotToken',
+      'telegramChatId',
+      'webhookUrl',
+      'resendApiKey',
+      'resendFrom',
+      'emailTo',
+      'barkKey',
+    ];
+    if (
+      stringFields.some(
+        (field) =>
+          field in notifications &&
+          notifications[field] !== undefined &&
+          !isString(notifications[field]),
+      )
+    ) {
+      return false;
+    }
+    if (
+      'webhookHeaders' in notifications &&
+      notifications.webhookHeaders !== undefined &&
+      !isStringRecord(notifications.webhookHeaders)
+    ) {
+      return false;
+    }
+  }
 
+  return true;
+};
+
+const isSubscriptionNotificationSettings = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  if ('enabled' in value && value.enabled !== undefined && !isBoolean(value.enabled)) return false;
+  if ('channels' in value && value.channels !== undefined) {
+    if (!Array.isArray(value.channels)) return false;
+    const allowed = new Set(['telegram', 'webhook', 'email', 'bark']);
+    if (!value.channels.every((channel) => isString(channel) && allowed.has(channel))) return false;
+  }
+  if ('timeZone' in value && value.timeZone !== undefined && !isString(value.timeZone)) {
+    return false;
+  }
+  if ('quietHours' in value && value.quietHours !== undefined) {
+    if (!isRecord(value.quietHours)) return false;
+    if (
+      'enabled' in value.quietHours &&
+      value.quietHours.enabled !== undefined &&
+      !isBoolean(value.quietHours.enabled)
+    ) {
+      return false;
+    }
+    if ('start' in value.quietHours && value.quietHours.start !== undefined) {
+      if (!isString(value.quietHours.start)) return false;
+    }
+    if ('end' in value.quietHours && value.quietHours.end !== undefined) {
+      if (!isString(value.quietHours.end)) return false;
+    }
+  }
+  if (
+    'titleTemplate' in value &&
+    value.titleTemplate !== undefined &&
+    !isString(value.titleTemplate)
+  ) {
+    return false;
+  }
+  if (
+    'bodyTemplate' in value &&
+    value.bodyTemplate !== undefined &&
+    !isString(value.bodyTemplate)
+  ) {
+    return false;
+  }
   return true;
 };
 

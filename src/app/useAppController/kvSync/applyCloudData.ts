@@ -8,6 +8,7 @@ import type {
   LinkItem,
   NavHubSyncData,
   SearchMode,
+  SensitiveConfigPayload,
   SiteSettings,
   SyncRole,
   ThemeMode,
@@ -51,6 +52,7 @@ export const applyCloudDataToLocalState = (args: {
 
   aiConfig: AIConfig;
   restoreAIConfig: (config: AIConfig) => void;
+  restoreSensitiveConfig?: (payload: SensitiveConfigPayload) => void;
 
   selectedCategory: string;
   setSelectedCategory: (categoryId: string) => void;
@@ -188,6 +190,7 @@ export const applyCloudDataToLocalState = (args: {
     if (hasAnyCandidate) {
       decryptSensitiveConfigWithFallback(candidates, data.encryptedSensitiveConfig)
         .then((payload) => {
+          args.restoreSensitiveConfig?.(payload);
           if (payload.apiKey) {
             // Apply the decrypted apiKey to aiConfig
             const currentAiConfig = data.aiConfig ?? args.aiConfig;

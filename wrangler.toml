@@ -20,6 +20,9 @@ not_found_handling = "single-page-application"
 # 可选：让 /api/* 优先走 Worker（即使同路径存在静态资源）
 run_worker_first = ["/api/*"]
 
+[triggers]
+crons = ["0 * * * *"]
+
 # KV 命名空间绑定 (Workers 专用)
 # 若需创建新的 KV: wrangler kv:namespace create NAVHUB_WORKER_KV
 [[kv_namespaces]]
