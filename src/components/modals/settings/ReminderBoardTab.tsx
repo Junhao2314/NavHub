@@ -1,4 +1,4 @@
-import { Clock, LayoutGrid, List, Timer } from 'lucide-react';
+import { Clock, LayoutGrid, List, Loader2, Timer } from 'lucide-react';
 import React from 'react';
 import { useI18n } from '../../../hooks/useI18n';
 import {
@@ -33,9 +33,23 @@ interface ReminderBoardTabProps {
   onSensitiveConfigChange?: (config: NonNullable<ReminderBoardTabProps['sensitiveConfig']>) => void;
 }
 
-const VIEW_STYLES: { value: ReminderViewStyle; icon: React.ReactNode; labelKey: string }[] = [
-  { value: 'compact', icon: <List size={16} />, labelKey: 'modals.countdown.styleCompact' },
-  { value: 'card', icon: <LayoutGrid size={16} />, labelKey: 'modals.countdown.styleCard' },
+type TestState = 'idle' | 'loading' | 'success' | { error: string };
+
+const VIEW_STYLES: {
+  value: ReminderViewStyle;
+  icon: React.ReactNode;
+  labelKey: string;
+}[] = [
+  {
+    value: 'compact',
+    icon: <List size={16} />,
+    labelKey: 'modals.countdown.styleCompact',
+  },
+  {
+    value: 'card',
+    icon: <LayoutGrid size={16} />,
+    labelKey: 'modals.countdown.styleCard',
+  },
   {
     value: 'ring',
     icon: (
@@ -55,7 +69,11 @@ const VIEW_STYLES: { value: ReminderViewStyle; icon: React.ReactNode; labelKey: 
     ),
     labelKey: 'modals.countdown.styleRing',
   },
-  { value: 'flip', icon: <Timer size={16} />, labelKey: 'modals.countdown.styleFlip' },
+  {
+    value: 'flip',
+    icon: <Timer size={16} />,
+    labelKey: 'modals.countdown.styleFlip',
+  },
 ];
 
 const TIMER_MODES: { value: ReminderTimerMode; labelKey: string }[] = [
@@ -68,12 +86,18 @@ const EXPIRED_EFFECTS: { value: ReminderExpiredEffect; labelKey: string }[] = [
   { value: 'blink', labelKey: 'modals.countdown.expiredEffectBlink' },
 ];
 
-const NOTIFICATION_CHANNELS: { value: SubscriptionNotificationChannel; labelKey: string }[] = [
+const NOTIFICATION_CHANNELS: {
+  value: SubscriptionNotificationChannel;
+  labelKey: string;
+}[] = [
   { value: 'telegram', labelKey: 'settings.reminderBoard.channels.telegram' },
   { value: 'webhook', labelKey: 'settings.reminderBoard.channels.webhook' },
   { value: 'email', labelKey: 'settings.reminderBoard.channels.email' },
   { value: 'bark', labelKey: 'settings.reminderBoard.channels.bark' },
 ];
+
+const INPUT_CLS =
+  'w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none disabled:opacity-50';
 
 const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
   settings,
@@ -86,14 +110,26 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
   const { t } = useI18n();
   const prefs = useReminderBoardPrefs();
 
+  const [testStates, setTestStates] = React.useState<
+    Record<SubscriptionNotificationChannel, TestState>
+  >({
+    telegram: 'idle',
+    webhook: 'idle',
+    email: 'idle',
+    bark: 'idle',
+  });
+
   const archiveMode = settings.reminderBoardArchiveMode;
   const archiveDelayMinutes = settings.reminderBoardArchiveDelayMinutes ?? 60;
   const showOverdueForUsers = settings.reminderBoardShowOverdueForUsers ?? false;
   const notificationSettings = settings.subscriptionNotifications ?? {};
   const canConfigureNotifications = syncRole === 'admin';
   const selectedNotificationChannels = notificationSettings.channels ?? [];
+  const quietHours = notificationSettings.quietHours ?? {};
+
   const isChannelSelected = (channel: SubscriptionNotificationChannel) =>
     selectedNotificationChannels.includes(channel);
+
   const updateNotificationSettings = (patch: Partial<SubscriptionNotificationSettings>) => {
     if (!canConfigureNotifications) return;
     onChange('subscriptionNotifications', {
@@ -101,18 +137,168 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
       ...patch,
     });
   };
+
+  const updateQuietHours = (
+    patch: Partial<NonNullable<SubscriptionNotificationSettings['quietHours']>>,
+  ) => {
+    updateNotificationSettings({ quietHours: { ...quietHours, ...patch } });
+  };
+
   const toggleChannel = (channel: SubscriptionNotificationChannel) => {
     updateNotificationSettings({
       channels: selectedNotificationChannels.includes(channel)
-        ? selectedNotificationChannels.filter((value) => value !== channel)
+        ? selectedNotificationChannels.filter((v) => v !== channel)
         : [...selectedNotificationChannels, channel],
     });
   };
+
   const updateSensitiveConfig = (
     patch: Partial<NonNullable<ReminderBoardTabProps['sensitiveConfig']>>,
   ) => {
     if (!canConfigureNotifications) return;
     onSensitiveConfigChange?.({ ...(sensitiveConfig ?? {}), ...patch });
+  };
+
+  const handleTestNotification = async (channel: SubscriptionNotificationChannel) => {
+    setTestStates((prev) => ({ ...prev, [channel]: 'loading' }));
+    const testTitle = t('settings.reminderBoard.testMessageTitle');
+    const testBody = t('settings.reminderBoard.testMessageBody');
+    const scheduleReset = () => {
+      setTimeout(() => setTestStates((prev) => ({ ...prev, [channel]: 'idle' })), 3000);
+    };
+    try {
+      let ok = false;
+      let errMsg = '';
+
+      if (channel === 'telegram') {
+        if (!sensitiveConfig?.telegramBotToken || !sensitiveConfig?.telegramChatId) {
+          throw new Error(t('settings.reminderBoard.testNotConfigured'));
+        }
+        const res = await fetch(
+          `https://api.telegram.org/bot${sensitiveConfig.telegramBotToken}/sendMessage`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: sensitiveConfig.telegramChatId,
+              text: `${testTitle}\n\n${testBody}`,
+            }),
+          },
+        );
+        ok = res.ok;
+        if (!ok) errMsg = res.statusText;
+      } else if (channel === 'webhook') {
+        if (!sensitiveConfig?.webhookUrl) {
+          throw new Error(t('settings.reminderBoard.testNotConfigured'));
+        }
+        const res = await fetch(sensitiveConfig.webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(sensitiveConfig.webhookHeaders ?? {}),
+          },
+          body: JSON.stringify({
+            event: 'test',
+            title: testTitle,
+            body: testBody,
+          }),
+        });
+        ok = res.ok;
+        if (!ok) errMsg = res.statusText;
+      } else if (channel === 'email') {
+        if (
+          !sensitiveConfig?.resendApiKey ||
+          !sensitiveConfig?.resendFrom ||
+          !sensitiveConfig?.emailTo
+        ) {
+          throw new Error(t('settings.reminderBoard.testNotConfigured'));
+        }
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${sensitiveConfig.resendApiKey}`,
+          },
+          body: JSON.stringify({
+            from: sensitiveConfig.resendFrom,
+            to: sensitiveConfig.emailTo
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean),
+            subject: testTitle,
+            text: testBody,
+          }),
+        });
+        ok = res.ok;
+        if (!ok) errMsg = res.statusText;
+      } else if (channel === 'bark') {
+        if (!sensitiveConfig?.barkKey) {
+          throw new Error(t('settings.reminderBoard.testNotConfigured'));
+        }
+        const res = await fetch(`https://api.day.app/${sensitiveConfig.barkKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: testTitle, body: testBody }),
+        });
+        ok = res.ok;
+        if (!ok) errMsg = res.statusText;
+      }
+
+      if (ok) {
+        setTestStates((prev) => ({ ...prev, [channel]: 'success' }));
+      } else {
+        setTestStates((prev) => ({
+          ...prev,
+          [channel]: { error: errMsg || 'failed' },
+        }));
+      }
+      scheduleReset();
+    } catch (e) {
+      setTestStates((prev) => ({
+        ...prev,
+        [channel]: { error: e instanceof Error ? e.message : 'unknown' },
+      }));
+      scheduleReset();
+    }
+  };
+
+  const renderTestButton = (channel: SubscriptionNotificationChannel) => {
+    const state = testStates[channel];
+    if (state === 'loading') {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 shrink-0">
+          <Loader2 size={12} className="animate-spin" />
+          {t('settings.reminderBoard.testSending')}
+        </span>
+      );
+    }
+    if (state === 'success') {
+      return (
+        <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 shrink-0">
+          ✓ {t('settings.reminderBoard.testSuccess')}
+        </span>
+      );
+    }
+    if (typeof state === 'object') {
+      return (
+        <span
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 shrink-0 max-w-40 truncate"
+          title={state.error}
+        >
+          ✗ {t('settings.reminderBoard.testFailed')}: {state.error}
+        </span>
+      );
+    }
+    // idle
+    return (
+      <button
+        type="button"
+        onClick={() => handleTestNotification(channel)}
+        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-accent/60 hover:text-accent transition-colors"
+      >
+        {t('settings.reminderBoard.testSend')}
+      </button>
+    );
   };
 
   return (
@@ -201,7 +387,10 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
         <div className="grid grid-cols-3 gap-3">
           {[
             { value: '', labelKey: 'modals.countdown.archiveModeDisabled' },
-            { value: 'immediate', labelKey: 'modals.countdown.archiveModeImmediate' },
+            {
+              value: 'immediate',
+              labelKey: 'modals.countdown.archiveModeImmediate',
+            },
             { value: 'delay', labelKey: 'modals.countdown.archiveModeDelay' },
           ].map((am) => (
             <button
@@ -285,7 +474,9 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
         <>
           <div className="h-px bg-slate-100 dark:bg-slate-800" />
 
+          {/* Subscription Notifications Card */}
           <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40 shadow-sm">
+            {/* Card Header */}
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 p-4">
               <div>
                 <label className="block text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -297,11 +488,14 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
               </div>
               <button
                 type="button"
-                disabled={!canConfigureNotifications}
-                onClick={() => updateNotificationSettings({ enabled: !notificationSettings.enabled })}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                onClick={() =>
+                  updateNotificationSettings({
+                    enabled: !notificationSettings.enabled,
+                  })
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
                   notificationSettings.enabled ? 'bg-accent' : 'bg-slate-300 dark:bg-slate-600'
-                } ${canConfigureNotifications ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                }`}
                 aria-pressed={Boolean(notificationSettings.enabled)}
                 aria-label={t('settings.reminderBoard.subscriptionNotifications')}
               >
@@ -313,172 +507,337 @@ const ReminderBoardTab: React.FC<ReminderBoardTabProps> = ({
               </button>
             </div>
 
-            <div className="space-y-5 p-4">
-              <section className="space-y-2">
+            {/* Card Body — dimmed when disabled */}
+            <div
+              className={`divide-y divide-slate-100 dark:divide-slate-800 transition-opacity duration-200 ${
+                notificationSettings.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'
+              }`}
+            >
+              {/* ── Section A: Notification Channels (Accordion) ── */}
+              <div className="p-4 space-y-3">
                 <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     {t('settings.reminderBoard.channelSectionTitle')}
                   </h4>
-                  <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                     {t('settings.reminderBoard.channelSectionDesc')}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {NOTIFICATION_CHANNELS.map((channel) => (
-                    <label
-                      key={channel.value}
-                      className={`flex min-h-11 items-center gap-3 rounded-xl border px-3 py-2 text-sm transition-colors ${
-                        isChannelSelected(channel.value)
-                          ? 'border-accent bg-accent/10 text-accent shadow-sm'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
-                      } ${canConfigureNotifications ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={!canConfigureNotifications}
-                        checked={isChannelSelected(channel.value)}
-                        onChange={() => toggleChannel(channel.value)}
-                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
-                      />
-                      <span className="font-medium">{t(channel.labelKey)}</span>
-                    </label>
-                  ))}
-                </div>
-              </section>
+                <div className="space-y-2">
+                  {NOTIFICATION_CHANNELS.map((channel) => {
+                    const selected = isChannelSelected(channel.value);
+                    return (
+                      <div
+                        key={channel.value}
+                        className={`rounded-xl border transition-colors ${
+                          selected
+                            ? 'border-accent/40 bg-accent/5 dark:bg-accent/10'
+                            : 'border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {/* Channel header row */}
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                          <label className="flex flex-1 items-center gap-2.5 cursor-pointer min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => toggleChannel(channel.value)}
+                              className="w-4 h-4 shrink-0 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20 cursor-pointer"
+                            />
+                            <span
+                              className={`text-sm font-medium truncate ${
+                                selected ? 'text-accent' : 'text-slate-600 dark:text-slate-300'
+                              }`}
+                            >
+                              {t(channel.labelKey)}
+                            </span>
+                          </label>
+                          {selected && renderTestButton(channel.value)}
+                        </div>
 
-              <section className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  {t('settings.reminderBoard.deliverySectionTitle')}
-                </h4>
-                <div className="grid grid-cols-1 gap-2">
+                        {/* Expanded credentials panel */}
+                        {selected && (
+                          <div className="border-t border-slate-100 dark:border-slate-800 px-3 pt-3 pb-3 space-y-3">
+                            {/* Telegram */}
+                            {channel.value === 'telegram' && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                    {t('settings.reminderBoard.telegramBotTokenLabel')}
+                                  </label>
+                                  <input
+                                    type="password"
+                                    value={sensitiveConfig?.telegramBotToken ?? ''}
+                                    onChange={(e) =>
+                                      updateSensitiveConfig({
+                                        telegramBotToken: e.target.value,
+                                      })
+                                    }
+                                    placeholder="bot123456:ABC-..."
+                                    className={INPUT_CLS}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                    {t('settings.reminderBoard.telegramChatIdLabel')}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={sensitiveConfig?.telegramChatId ?? ''}
+                                    onChange={(e) =>
+                                      updateSensitiveConfig({
+                                        telegramChatId: e.target.value,
+                                      })
+                                    }
+                                    placeholder="-1001234567890"
+                                    className={INPUT_CLS}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Webhook */}
+                            {channel.value === 'webhook' && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                  {t('settings.reminderBoard.webhookUrlLabel')}
+                                </label>
+                                <input
+                                  type="password"
+                                  value={sensitiveConfig?.webhookUrl ?? ''}
+                                  onChange={(e) =>
+                                    updateSensitiveConfig({
+                                      webhookUrl: e.target.value,
+                                    })
+                                  }
+                                  placeholder="https://hooks.example.com/..."
+                                  className={INPUT_CLS}
+                                />
+                              </div>
+                            )}
+
+                            {/* Email / Resend */}
+                            {channel.value === 'email' && (
+                              <div className="space-y-3">
+                                <div className="space-y-1">
+                                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                    {t('settings.reminderBoard.resendApiKeyLabel')}
+                                  </label>
+                                  <input
+                                    type="password"
+                                    value={sensitiveConfig?.resendApiKey ?? ''}
+                                    onChange={(e) =>
+                                      updateSensitiveConfig({
+                                        resendApiKey: e.target.value,
+                                      })
+                                    }
+                                    placeholder="re_..."
+                                    className={INPUT_CLS}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                      {t('settings.reminderBoard.resendFromLabel')}
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={sensitiveConfig?.resendFrom ?? ''}
+                                      onChange={(e) =>
+                                        updateSensitiveConfig({
+                                          resendFrom: e.target.value,
+                                        })
+                                      }
+                                      placeholder="NavHub <noreply@example.com>"
+                                      className={INPUT_CLS}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                      {t('settings.reminderBoard.emailToLabel')}
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={sensitiveConfig?.emailTo ?? ''}
+                                      onChange={(e) =>
+                                        updateSensitiveConfig({
+                                          emailTo: e.target.value,
+                                        })
+                                      }
+                                      placeholder="you@example.com"
+                                      className={INPUT_CLS}
+                                    />
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                                      {t('settings.reminderBoard.emailToHelperText')}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Bark */}
+                            {channel.value === 'bark' && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                  {t('settings.reminderBoard.barkKeyLabel')}
+                                </label>
+                                <input
+                                  type="password"
+                                  value={sensitiveConfig?.barkKey ?? ''}
+                                  onChange={(e) =>
+                                    updateSensitiveConfig({
+                                      barkKey: e.target.value,
+                                    })
+                                  }
+                                  placeholder="xxxxxxxxxxxxxx"
+                                  className={INPUT_CLS}
+                                />
+                              </div>
+                            )}
+
+                            {/* Encrypted storage hint */}
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                              🔒 {t('settings.reminderBoard.encryptedStorageHint')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── Section B: Delivery Rules & Templates ── */}
+              <div className="p-4 space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {t('settings.reminderBoard.deliverySectionTitle')}
+                  </h4>
+                  <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                    {t('settings.reminderBoard.deliverySectionDesc')}
+                  </p>
+                </div>
+
+                {/* Time Zone */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {t('settings.reminderBoard.timeZoneLabel')}
+                  </label>
                   <input
                     type="text"
                     disabled={!canConfigureNotifications}
                     value={notificationSettings.timeZone ?? ''}
-                    onChange={(event) => updateNotificationSettings({ timeZone: event.target.value })}
-                    placeholder={t('settings.reminderBoard.timeZonePlaceholder')}
-                    className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-60"
+                    onChange={(e) => updateNotificationSettings({ timeZone: e.target.value })}
+                    placeholder="Asia/Shanghai"
+                    className={INPUT_CLS}
                   />
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {t('settings.reminderBoard.timeZoneHelperText')}
+                  </p>
+                </div>
+
+                {/* Title Template */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {t('settings.reminderBoard.titleTemplateLabel')}
+                  </label>
                   <input
                     type="text"
                     disabled={!canConfigureNotifications}
                     value={notificationSettings.titleTemplate ?? ''}
-                    onChange={(event) => updateNotificationSettings({ titleTemplate: event.target.value })}
+                    onChange={(e) =>
+                      updateNotificationSettings({
+                        titleTemplate: e.target.value,
+                      })
+                    }
                     placeholder={t('settings.reminderBoard.titleTemplatePlaceholder')}
-                    className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-60"
+                    className={INPUT_CLS}
                   />
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {t('settings.reminderBoard.titleTemplateDefaultHint')}
+                  </p>
+                </div>
+
+                {/* Body Template */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {t('settings.reminderBoard.bodyTemplateLabel')}
+                  </label>
                   <textarea
                     disabled={!canConfigureNotifications}
                     value={notificationSettings.bodyTemplate ?? ''}
-                    onChange={(event) => updateNotificationSettings({ bodyTemplate: event.target.value })}
+                    onChange={(e) =>
+                      updateNotificationSettings({
+                        bodyTemplate: e.target.value,
+                      })
+                    }
                     placeholder={t('settings.reminderBoard.bodyTemplatePlaceholder')}
                     rows={3}
-                    className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-60 resize-none"
+                    className={`${INPUT_CLS} resize-none`}
                   />
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {t('settings.reminderBoard.bodyTemplateVars')}
+                  </p>
                 </div>
-              </section>
+              </div>
 
-              <section className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  {t('settings.reminderBoard.credentialsSectionTitle')}
-                </h4>
-                {selectedNotificationChannels.length > 0 ? (
-                  <div className="space-y-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/30 p-3">
-                    {isChannelSelected('telegram') && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          {t('settings.reminderBoard.channels.telegram')}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input
-                            type="password"
-                            value={sensitiveConfig?.telegramBotToken ?? ''}
-                            onChange={(event) =>
-                              updateSensitiveConfig({ telegramBotToken: event.target.value })
-                            }
-                            placeholder={t('settings.reminderBoard.telegramBotTokenPlaceholder')}
-                            className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                          />
-                          <input
-                            type="text"
-                            value={sensitiveConfig?.telegramChatId ?? ''}
-                            onChange={(event) =>
-                              updateSensitiveConfig({ telegramChatId: event.target.value })
-                            }
-                            placeholder={t('settings.reminderBoard.telegramChatIdPlaceholder')}
-                            className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {isChannelSelected('webhook') && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          {t('settings.reminderBoard.channels.webhook')}
-                        </div>
-                        <input
-                          type="password"
-                          value={sensitiveConfig?.webhookUrl ?? ''}
-                          onChange={(event) => updateSensitiveConfig({ webhookUrl: event.target.value })}
-                          placeholder={t('settings.reminderBoard.webhookUrlPlaceholder')}
-                          className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                        />
-                      </div>
-                    )}
-                    {isChannelSelected('email') && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          {t('settings.reminderBoard.channels.email')}
-                        </div>
-                        <input
-                          type="password"
-                          value={sensitiveConfig?.resendApiKey ?? ''}
-                          onChange={(event) => updateSensitiveConfig({ resendApiKey: event.target.value })}
-                          placeholder={t('settings.reminderBoard.resendApiKeyPlaceholder')}
-                          className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                        />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={sensitiveConfig?.resendFrom ?? ''}
-                            onChange={(event) => updateSensitiveConfig({ resendFrom: event.target.value })}
-                            placeholder={t('settings.reminderBoard.resendFromPlaceholder')}
-                            className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                          />
-                          <input
-                            type="text"
-                            value={sensitiveConfig?.emailTo ?? ''}
-                            onChange={(event) => updateSensitiveConfig({ emailTo: event.target.value })}
-                            placeholder={t('settings.reminderBoard.emailToPlaceholder')}
-                            className="px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {isChannelSelected('bark') && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          {t('settings.reminderBoard.channels.bark')}
-                        </div>
-                        <input
-                          type="password"
-                          value={sensitiveConfig?.barkKey ?? ''}
-                          onChange={(event) => updateSensitiveConfig({ barkKey: event.target.value })}
-                          placeholder={t('settings.reminderBoard.barkKeyPlaceholder')}
-                          className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                        />
-                      </div>
-                    )}
+              {/* ── Section C: Quiet Hours ── */}
+              <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      {t('settings.reminderBoard.quietHoursLabel')}
+                    </h4>
+                    <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                      {t('settings.reminderBoard.quietHoursDesc')}
+                    </p>
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-                    {t('settings.reminderBoard.credentialsEmpty')}
+                  <button
+                    type="button"
+                    onClick={() => updateQuietHours({ enabled: !quietHours.enabled })}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
+                      quietHours.enabled ? 'bg-accent' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                    aria-pressed={Boolean(quietHours.enabled)}
+                    aria-label={t('settings.reminderBoard.quietHoursLabel')}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                        quietHours.enabled ? 'translate-x-5' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {quietHours.enabled && (
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                        {t('settings.reminderBoard.quietHoursFrom')}
+                      </label>
+                      <input
+                        type="time"
+                        value={quietHours.start ?? '22:00'}
+                        onChange={(e) => updateQuietHours({ start: e.target.value })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
+                    <span className="pb-2.5 text-slate-400 dark:text-slate-500 text-sm shrink-0">
+                      —
+                    </span>
+                    <div className="flex-1 space-y-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                        {t('settings.reminderBoard.quietHoursTo')}
+                      </label>
+                      <input
+                        type="time"
+                        value={quietHours.end ?? '08:00'}
+                        onChange={(e) => updateQuietHours({ end: e.target.value })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
                   </div>
                 )}
-                <div className="text-[11px] leading-5 text-slate-400 dark:text-slate-500">
-                  {t('settings.reminderBoard.sensitiveConfigHint')}
-                </div>
-              </section>
+              </div>
             </div>
           </div>
         </>

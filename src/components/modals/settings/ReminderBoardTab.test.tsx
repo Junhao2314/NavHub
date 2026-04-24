@@ -80,20 +80,18 @@ describe('ReminderBoardTab', () => {
 
     await renderTab('user');
 
-    expect(container.textContent).not.toContain('settings.reminderBoard.subscriptionNotificationsDesc');
+    expect(container.textContent).not.toContain(
+      'settings.reminderBoard.subscriptionNotificationsDesc',
+    );
     expect(container.textContent).not.toContain('settings.reminderBoard.channels.telegram');
   });
 
   it('shows credentials only for selected notification channels', async () => {
     await renderTab('admin', makeSettings(['webhook']));
 
-    expect(container.querySelector('input[placeholder="settings.reminderBoard.webhookUrlPlaceholder"]')).toBeTruthy();
-    expect(
-      container.querySelector('input[placeholder="settings.reminderBoard.telegramBotTokenPlaceholder"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('input[placeholder="settings.reminderBoard.resendApiKeyPlaceholder"]'),
-    ).toBeNull();
-    expect(container.querySelector('input[placeholder="settings.reminderBoard.barkKeyPlaceholder"]')).toBeNull();
+    expect(container.textContent).toContain('settings.reminderBoard.webhookUrlLabel');
+    expect(container.textContent).not.toContain('settings.reminderBoard.telegramBotTokenLabel');
+    expect(container.textContent).not.toContain('settings.reminderBoard.resendApiKeyLabel');
+    expect(container.textContent).not.toContain('settings.reminderBoard.barkKeyLabel');
   });
 });

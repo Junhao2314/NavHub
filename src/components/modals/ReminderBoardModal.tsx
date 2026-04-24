@@ -43,14 +43,46 @@ type RepeatMode =
   | 'lunarYearly'
   | 'solarTermYearly';
 
-const LABEL_COLOR_OPTIONS: { value: CountdownLabelColor; className: string; labelKey: string }[] = [
-  { value: 'red', className: 'bg-red-500', labelKey: 'modals.countdown.labelColorRed' },
-  { value: 'orange', className: 'bg-orange-500', labelKey: 'modals.countdown.labelColorOrange' },
-  { value: 'yellow', className: 'bg-yellow-500', labelKey: 'modals.countdown.labelColorYellow' },
-  { value: 'green', className: 'bg-green-500', labelKey: 'modals.countdown.labelColorGreen' },
-  { value: 'blue', className: 'bg-blue-500', labelKey: 'modals.countdown.labelColorBlue' },
-  { value: 'violet', className: 'bg-violet-500', labelKey: 'modals.countdown.labelColorViolet' },
-  { value: 'slate', className: 'bg-slate-500', labelKey: 'modals.countdown.labelColorSlate' },
+const LABEL_COLOR_OPTIONS: {
+  value: CountdownLabelColor;
+  className: string;
+  labelKey: string;
+}[] = [
+  {
+    value: 'red',
+    className: 'bg-red-500',
+    labelKey: 'modals.countdown.labelColorRed',
+  },
+  {
+    value: 'orange',
+    className: 'bg-orange-500',
+    labelKey: 'modals.countdown.labelColorOrange',
+  },
+  {
+    value: 'yellow',
+    className: 'bg-yellow-500',
+    labelKey: 'modals.countdown.labelColorYellow',
+  },
+  {
+    value: 'green',
+    className: 'bg-green-500',
+    labelKey: 'modals.countdown.labelColorGreen',
+  },
+  {
+    value: 'blue',
+    className: 'bg-blue-500',
+    labelKey: 'modals.countdown.labelColorBlue',
+  },
+  {
+    value: 'violet',
+    className: 'bg-violet-500',
+    labelKey: 'modals.countdown.labelColorViolet',
+  },
+  {
+    value: 'slate',
+    className: 'bg-slate-500',
+    labelKey: 'modals.countdown.labelColorSlate',
+  },
 ];
 
 const REDUCED_LABEL_COLORS = [
@@ -171,9 +203,15 @@ const buildRuleFromState = (args: {
     case 'yearly':
       return { kind: 'interval', unit: 'year', every: 1 };
     case 'workday':
-      return { kind: 'cron', expression: `${second} ${minute} ${hour} * * 1-5` };
+      return {
+        kind: 'cron',
+        expression: `${second} ${minute} ${hour} * * 1-5`,
+      };
     case 'cron':
-      return { kind: 'cron', expression: normalizeCronExpression(args.cronExpression) };
+      return {
+        kind: 'cron',
+        expression: normalizeCronExpression(args.cronExpression),
+      };
     case 'lunarYearly':
       return {
         kind: 'lunarYearly',
@@ -308,9 +346,9 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       const d = Math.min(dayOfMonth, now.daysInMonth ?? 28);
       let dt = now.set({ day: d });
       if (dt < now)
-        dt = dt
-          .plus({ months: 1 })
-          .set({ day: Math.min(dayOfMonth, dt.plus({ months: 1 }).daysInMonth ?? 28) });
+        dt = dt.plus({ months: 1 }).set({
+          day: Math.min(dayOfMonth, dt.plus({ months: 1 }).daysInMonth ?? 28),
+        });
       return dt.toFormat('yyyy-MM-dd');
     }
     if (repeatMode === 'quarterly' || repeatMode === 'yearly') {
@@ -545,7 +583,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       setSubscriptionName('');
       setShowAdvanced(false);
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, isAdmin]);
 
   useEffect(() => {
     if (!isOpen) return;
