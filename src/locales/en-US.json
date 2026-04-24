@@ -244,6 +244,32 @@
       "connectionFailedGemini": "Connection failed: Please check model name and API Key",
       "connectionFailedOpenAI": "Connection failed: Please check Base URL/Model/API Key. If blocked by CORS, please use Workers/Pages deployment to enable /api/ai proxy."
     },
+    "reminderBoard": {
+      "subscriptionNotifications": "Subscription reminder notifications",
+      "subscriptionNotificationsDesc": "Worker Cron sends scheduled Telegram / Webhook / Resend / Bark notifications.",
+      "channelSectionTitle": "Notification channels",
+      "channelSectionDesc": "Select only the providers you need; credentials appear only for selected channels.",
+      "deliverySectionTitle": "Delivery rules and templates",
+      "credentialsSectionTitle": "Channel credentials",
+      "credentialsEmpty": "Select a notification channel to show its credential fields here.",
+      "timeZonePlaceholder": "Notification time zone, e.g. Asia/Shanghai",
+      "titleTemplatePlaceholder": "Title template: Subscription expiring soon: {{name}}",
+      "bodyTemplatePlaceholder": "Body template. Variables: {{name}} {{dueLocal}} {{daysLeft}}",
+      "telegramBotTokenPlaceholder": "Telegram Bot Token",
+      "telegramChatIdPlaceholder": "Telegram Chat ID",
+      "webhookUrlPlaceholder": "Webhook URL",
+      "resendApiKeyPlaceholder": "Resend API Key",
+      "resendFromPlaceholder": "Resend From",
+      "emailToPlaceholder": "Email To",
+      "barkKeyPlaceholder": "Bark Key",
+      "sensitiveConfigHint": "Token, Webhook URL, Resend Key, and Bark Key are stored in encrypted sensitive config; this version reuses the sync password for decryption.",
+      "channels": {
+        "telegram": "Telegram",
+        "webhook": "Webhook",
+        "email": "Email / Resend",
+        "bark": "Bark"
+      }
+    },
     "data": {
       "title": "Data Management",
       "cloudSyncEnabled": "Cloud auto-sync enabled",

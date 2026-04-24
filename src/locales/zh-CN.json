@@ -240,6 +240,32 @@
       "connectionFailedGemini": "连接失败：请检查模型名称与 API Key",
       "connectionFailedOpenAI": "连接失败：请检查 Base URL/模型/API Key。若直连被 CORS 拦截，请使用 Workers/Pages 部署以启用 /api/ai 代理。"
     },
+    "reminderBoard": {
+      "subscriptionNotifications": "订阅提醒通知",
+      "subscriptionNotificationsDesc": "Worker Cron 定时发送 Telegram / Webhook / Resend / Bark 通知。",
+      "channelSectionTitle": "通知渠道",
+      "channelSectionDesc": "只勾选需要启用的服务商；下方仅展示已选渠道的凭证。",
+      "deliverySectionTitle": "发送规则与模板",
+      "credentialsSectionTitle": "渠道凭证",
+      "credentialsEmpty": "选择通知渠道后，这里会显示对应凭证输入框。",
+      "timeZonePlaceholder": "通知时区，例如 Asia/Shanghai",
+      "titleTemplatePlaceholder": "标题模板：订阅即将到期：{{name}}",
+      "bodyTemplatePlaceholder": "正文模板，可用变量：{{name}} {{dueLocal}} {{daysLeft}}",
+      "telegramBotTokenPlaceholder": "Telegram Bot Token",
+      "telegramChatIdPlaceholder": "Telegram Chat ID",
+      "webhookUrlPlaceholder": "Webhook URL",
+      "resendApiKeyPlaceholder": "Resend API Key",
+      "resendFromPlaceholder": "Resend From",
+      "emailToPlaceholder": "Email To",
+      "barkKeyPlaceholder": "Bark Key",
+      "sensitiveConfigHint": "Token、Webhook URL、Resend Key、Bark Key 存在加密敏感配置中；当前版本先复用同步密码解密。",
+      "channels": {
+        "telegram": "Telegram",
+        "webhook": "Webhook",
+        "email": "Email / Resend",
+        "bark": "Bark"
+      }
+    },
     "data": {
       "title": "数据管理 (Data Management)",
       "cloudSyncEnabled": "云端自动同步已启用",

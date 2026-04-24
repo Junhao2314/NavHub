@@ -508,7 +508,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
           JSON.stringify([...initialData.reminderMinutes].sort()) !==
             JSON.stringify([...DEFAULT_REMINDER_MINUTES].sort())) ||
         !!initialData.isPrivate ||
-        !!initialData.subscription?.enabled ||
+        (isAdmin && !!initialData.subscription?.enabled) ||
         !!initialData.labelColor;
       setShowAdvanced(!!hasAdvancedData);
     } else {
@@ -763,7 +763,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     }
 
     const normalizedTags = normalizeTags(tags);
-    if (subscriptionEnabled && finalRule.kind !== 'interval') {
+    if (isAdmin && subscriptionEnabled && finalRule.kind !== 'interval') {
       setErrorMessage('订阅提醒需要选择每日/每周/每月/每年等周期规则');
       return;
     }
@@ -784,9 +784,11 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       order: initialData?.order,
       tags: normalizedTags.length > 0 ? normalizedTags : undefined,
       checklist: checklist.length > 0 ? checklist : undefined,
-      subscription: subscriptionEnabled
-        ? { enabled: true, name: subscriptionName.trim() || undefined }
-        : undefined,
+      subscription: isAdmin
+        ? subscriptionEnabled
+          ? { enabled: true, name: subscriptionName.trim() || undefined }
+          : undefined
+        : initialData?.subscription,
     });
     onClose();
   };
@@ -1626,40 +1628,42 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-3">
-                <label className="flex items-center justify-between gap-3 cursor-pointer">
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                      订阅提醒
+              {isAdmin && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-3">
+                  <label className="flex items-center justify-between gap-3 cursor-pointer">
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        订阅提醒
+                      </span>
+                      <span className="block text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        由 Worker Cron 在浏览器关闭时发送外部通知
+                      </span>
                     </span>
-                    <span className="block text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                      由 Worker Cron 在浏览器关闭时发送外部通知
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={subscriptionEnabled}
-                    onChange={(event) => setSubscriptionEnabled(event.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
-                  />
-                </label>
-                {subscriptionEnabled && (
-                  <div className="space-y-2">
                     <input
-                      type="text"
-                      value={subscriptionName}
-                      onChange={(event) => setSubscriptionName(event.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                      placeholder="订阅名称（默认使用标题）"
+                      type="checkbox"
+                      checked={subscriptionEnabled}
+                      onChange={(event) => setSubscriptionEnabled(event.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
                     />
-                    {rule.kind !== 'interval' && (
-                      <p className="text-[11px] text-amber-600 dark:text-amber-300">
-                        订阅提醒需要周期规则，请选择每日/每周/每月/每年。
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+                  </label>
+                  {subscriptionEnabled && (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={subscriptionName}
+                        onChange={(event) => setSubscriptionName(event.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                        placeholder="订阅名称（默认使用标题）"
+                      />
+                      {rule.kind !== 'interval' && (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-300">
+                          订阅提醒需要周期规则，请选择每日/每周/每月/每年。
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {isAdmin && privacyGroupEnabled && (
                 <label className="flex items-center gap-3 px-1 py-1 cursor-pointer">

@@ -15,7 +15,7 @@ describe('ReminderBoardModal', () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
 
-  const renderModal = async () => {
+  const renderModal = async (options: { isAdmin?: boolean } = {}) => {
     root = createRoot(container);
     await act(async () => {
       root?.render(
@@ -23,7 +23,7 @@ describe('ReminderBoardModal', () => {
           isOpen
           onClose={vi.fn()}
           onSave={vi.fn()}
-          isAdmin
+          isAdmin={options.isAdmin ?? true}
           privacyGroupEnabled
         />,
       );
@@ -74,5 +74,12 @@ describe('ReminderBoardModal', () => {
     expect(submitButton).toBeTruthy();
     expect(footer?.contains(submitButton as Node)).toBe(true);
     expect(scrollArea?.contains(submitButton as Node)).toBe(false);
+  });
+
+  it('hides subscription reminder controls for non-admin users', async () => {
+    await renderModal({ isAdmin: false });
+
+    expect(container.textContent).not.toContain('订阅提醒');
+    expect(container.textContent).not.toContain('Worker Cron');
   });
 });
