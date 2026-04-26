@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+npx biome check --write --staged --no-errors-on-unmatched
+
+# Re-stage files touched by Biome so the commit contains the normalized output.
+git update-index --again

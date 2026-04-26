@@ -76,6 +76,7 @@ npm run dev
 | `npm run format` | 代码格式化 (Biome) |
 | `npm run check` | 完整代码检查 |
 | `npm run check:fix` | 检查并自动修复 |
+| `npm run check:staged` | 仅修复已暂存文件（适合提交前） |
 
 ### Workers/Pages 开发
 
@@ -94,6 +95,7 @@ npm run dev
 | `npm run doctor` | 运行环境自检 |
 | `npm run eol:check` | 检查行尾格式 |
 | `npm run eol:fix` | 修复行尾格式 |
+| `npm run setup:git` | 初始化仓库本地 Git 配置与 pre-commit hook |
 
 ---
 
@@ -113,6 +115,20 @@ SYNC_CORS_ALLOWED_ORIGINS=http://localhost:3000
 # AI 代理配置
 AI_PROXY_ALLOWED_HOSTS=api.openai.com
 ```
+
+### Git 提交防线（建议首次 clone 后执行一次）
+
+```bash
+npm run setup:git
+```
+
+这会为当前仓库写入本地 `.git/config`：
+
+- 强制当前仓库使用 `LF` 行尾
+- 覆盖全局 `core.autocrlf=true` 对本仓库的影响
+- 启用 `.githooks/pre-commit`
+
+提交时 hook 会自动执行 `npm run check:staged`，在本地修正已暂存文件的 Biome format / import / line ending 问题，再进入真正的 commit。
 
 ### 联调后端 API
 
