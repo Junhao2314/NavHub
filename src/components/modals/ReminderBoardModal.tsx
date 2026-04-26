@@ -26,7 +26,7 @@ import {
 } from '../../utils/timezone';
 import { normalizeHttpUrl } from '../../utils/url';
 
-const DEFAULT_REMINDER_MINUTES = [60, 10, 0] as const;
+const DEFAULT_REMINDER_MINUTES = [10080, 1440, 0] as const;
 const MAX_REMINDERS_PER_ITEM = 10;
 const MAX_LINK_OPTIONS = 500;
 
@@ -113,6 +113,20 @@ const normalizeReminderMinutes = (value: unknown): number[] => {
 
   minutes.sort((a, b) => b - a);
   return minutes;
+};
+
+const formatReminderMinutes = (
+  minutes: number,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string => {
+  if (minutes === 0) return t('modals.countdown.atTime');
+  if (minutes % 10080 === 0) {
+    return t('modals.countdown.reminderWeekChip', { count: minutes / 10080 });
+  }
+  if (minutes % 1440 === 0) {
+    return t('modals.countdown.reminderDayChip', { count: minutes / 1440 });
+  }
+  return t('modals.countdown.reminderMinuteChip', { count: minutes });
 };
 
 const normalizeTags = (value: unknown): string[] => {
@@ -1229,6 +1243,28 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
               )}
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                {t('modals.countdown.naturalInput')}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={naturalInput}
+                  onChange={(e) => setNaturalInput(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                  placeholder={t('modals.countdown.naturalInputPlaceholder')}
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyNatural}
+                  className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
+                >
+                  {t('modals.countdown.applyNatural')}
+                </button>
+              </div>
+            </div>
+
             {/* Advanced Options Toggle */}
             <button
               type="button"
@@ -1580,99 +1616,20 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                  {t('modals.countdown.naturalInput')}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={naturalInput}
-                    onChange={(e) => setNaturalInput(e.target.value)}
-                    className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                    placeholder={t('modals.countdown.naturalInputPlaceholder')}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleApplyNatural}
-                    className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
-                  >
-                    {t('modals.countdown.applyNatural')}
-                  </button>
-                </div>
-                {nextOccurrencePreview && (
-                  <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    {t('modals.countdown.nextOccurrence')}: {nextOccurrencePreview} (
-                    {normalizeTimeZone(timeZone)})
-                  </div>
-                )}
-              </div>
-
-              {/* 提醒与通知（合并区块）*/}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                  {t('modals.countdown.reminders')}
-                </label>
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                  {/* 提醒时间点 */}
-                  <div className="p-3 space-y-2">
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      {t('modals.countdown.remindersHint')}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {reminderMinutes.map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setReminderMinutes((prev) => prev.filter((x) => x !== m))}
-                          className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600 transition-colors"
-                          title={t('common.delete')}
-                        >
-                          {m === 0
-                            ? t('modals.countdown.atTime')
-                            : t('modals.countdown.reminderChip', {
-                                minutes: m,
-                              })}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        value={reminderInput}
-                        onChange={(e) => setReminderInput(e.target.value)}
-                        className="flex-1 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                        placeholder={t('modals.countdown.reminderPlaceholder')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const n = Number.parseInt(reminderInput.trim(), 10);
-                          if (!Number.isFinite(n) || n < 0) {
-                            setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
-                            return;
-                          }
-                          setReminderMinutes((prev) => normalizeReminderMinutes([...prev, n]));
-                          setReminderInput('');
-                        }}
-                        className="px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
-                      >
-                        {t('modals.countdown.addReminder')}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 外部订阅通知（仅管理员可见）*/}
-                  {isAdmin && (
-                    <div className="border-t border-slate-100 dark:border-slate-800 p-3 space-y-2">
+              {isAdmin && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+                    {t('modals.countdown.reminders')}
+                  </label>
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white/50 dark:bg-slate-900/20">
+                    <div className="p-3 space-y-3">
                       <label className="flex items-center justify-between gap-3 cursor-pointer">
                         <span>
                           <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-                            订阅提醒
+                            {t('modals.countdown.subscriptionReminder')}
                           </span>
                           <span className="block text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                            由 Worker Cron 在浏览器关闭时发送外部通知
+                            {t('modals.countdown.subscriptionReminderHint')}
                           </span>
                         </span>
                         <input
@@ -1682,20 +1639,77 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                           className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
                         />
                       </label>
+
                       {subscriptionEnabled && (
-                        <input
-                          type="text"
-                          value={subscriptionName}
-                          onChange={(event) => setSubscriptionName(event.target.value)}
-                          className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
-                          placeholder="订阅名称（默认使用标题）"
-                        />
+                        <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                          <input
+                            type="text"
+                            value={subscriptionName}
+                            onChange={(event) => setSubscriptionName(event.target.value)}
+                            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                            placeholder={t('modals.countdown.subscriptionNamePlaceholder')}
+                          />
+
+                          <div className="space-y-2">
+                            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                              {t('modals.countdown.remindersHint')}
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={0}
+                                value={reminderInput}
+                                onChange={(e) => setReminderInput(e.target.value)}
+                                className="flex-1 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                                placeholder={t('modals.countdown.reminderPlaceholder')}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const n = Number.parseInt(reminderInput.trim(), 10);
+                                  if (!Number.isFinite(n) || n < 0) {
+                                    setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
+                                    return;
+                                  }
+                                  setReminderMinutes((prev) =>
+                                    normalizeReminderMinutes([...prev, n]),
+                                  );
+                                  setReminderInput('');
+                                }}
+                                className="px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
+                              >
+                                {t('modals.countdown.addReminder')}
+                              </button>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1.5">
+                              {reminderMinutes.map((m) => (
+                                <span
+                                  key={m}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/50"
+                                >
+                                  {formatReminderMinutes(m, t)}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setReminderMinutes((prev) => prev.filter((x) => x !== m))
+                                    }
+                                    className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
+                                    title={t('modals.countdown.removeReminder')}
+                                    aria-label={t('modals.countdown.removeReminder')}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-
+              )}
               {isAdmin && privacyGroupEnabled && (
                 <label className="flex items-center gap-3 px-1 py-1 cursor-pointer">
                   <input
