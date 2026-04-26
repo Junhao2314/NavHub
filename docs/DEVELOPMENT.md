@@ -77,6 +77,7 @@ npm run dev
 | `npm run check` | 完整代码检查 |
 | `npm run check:fix` | 检查并自动修复 |
 | `npm run check:staged` | 仅修复已暂存文件（适合提交前） |
+| `npm run verify:push` | 推送前运行 `typecheck + check` |
 
 ### Workers/Pages 开发
 
@@ -126,9 +127,11 @@ npm run setup:git
 
 - 强制当前仓库使用 `LF` 行尾
 - 覆盖全局 `core.autocrlf=true` 对本仓库的影响
-- 启用 `.githooks/pre-commit`
+- 启用 `.githooks/pre-commit` 与 `.githooks/pre-push`
 
-提交时 hook 会自动执行 `npm run check:staged`，在本地修正已暂存文件的 Biome format / import / line ending 问题，再进入真正的 commit。
+- `pre-commit` 会自动执行 `npm run check:staged`，在本地修正已暂存文件的 Biome format / import / line ending 问题，再进入真正的 commit。
+- `pre-push` 会自动执行 `npm run verify:push`，先跑 `typecheck + check`，通过后才继续真正的 push。
+- 如需临时跳过，可使用 `git commit --no-verify` 或 `git push --no-verify`，但这只是应急通道，不建议常用。
 
 ### 联调后端 API
 

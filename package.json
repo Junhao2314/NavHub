@@ -18,6 +18,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "check:staged": "biome check --write --staged --no-errors-on-unmatched",
+    "verify:push": "npm run typecheck && npm run check",
     "setup:git": "git config --local core.autocrlf false && git config --local core.eol lf && git config --local core.safecrlf warn && git config --local core.hooksPath .githooks",
     "eol:check": "git ls-files --eol | node scripts/eol.mjs check",
     "eol:fix": "git ls-files --eol | node scripts/eol.mjs fix",
