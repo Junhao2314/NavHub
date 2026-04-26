@@ -1,5 +1,5 @@
 import { Cron } from 'croner';
-import { ChevronDown, X } from 'lucide-react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import { DateTime } from 'luxon';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HolidayEntry } from '../../data/holidays';
@@ -17,6 +17,14 @@ import { SOLAR_TERM_KEY_BY_ZH_NAME, SOLAR_TERM_ZH_NAMES } from '../../utils/chin
 import { getNextOccurrence } from '../../utils/countdown';
 import { generateId } from '../../utils/id';
 import { formatTargetLocal, parseNaturalInput } from '../../utils/naturalDate';
+import {
+  buildReminderSummary,
+  DEFAULT_SUBSCRIPTION_REMINDER_MINUTES,
+  formatReminderChipLabel,
+  normalizeReminderMinutes,
+  parseReminderLeadTime,
+  SUBSCRIPTION_REMINDER_PRESETS,
+} from '../../utils/reminderLeadTime';
 import { parseTargetLocalExact } from '../../utils/targetLocal';
 import {
   COMMON_TIME_ZONES,
@@ -26,8 +34,6 @@ import {
 } from '../../utils/timezone';
 import { normalizeHttpUrl } from '../../utils/url';
 
-const DEFAULT_REMINDER_MINUTES = [10080, 1440, 0] as const;
-const MAX_REMINDERS_PER_ITEM = 10;
 const MAX_LINK_OPTIONS = 500;
 
 type RepeatMode =
@@ -94,40 +100,6 @@ const REDUCED_LABEL_COLORS = [
   'violet',
   'slate',
 ] as const;
-
-const normalizeReminderMinutes = (value: unknown): number[] => {
-  if (!Array.isArray(value)) return [...DEFAULT_REMINDER_MINUTES];
-
-  const minutes: number[] = [];
-  const seen = new Set<number>();
-
-  for (const raw of value) {
-    if (minutes.length >= MAX_REMINDERS_PER_ITEM) break;
-    if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;
-    const next = Math.floor(raw);
-    if (next < 0) continue;
-    if (seen.has(next)) continue;
-    seen.add(next);
-    minutes.push(next);
-  }
-
-  minutes.sort((a, b) => b - a);
-  return minutes;
-};
-
-const formatReminderMinutes = (
-  minutes: number,
-  t: (key: string, params?: Record<string, unknown>) => string,
-): string => {
-  if (minutes === 0) return t('modals.countdown.atTime');
-  if (minutes % 10080 === 0) {
-    return t('modals.countdown.reminderWeekChip', { count: minutes / 10080 });
-  }
-  if (minutes % 1440 === 0) {
-    return t('modals.countdown.reminderDayChip', { count: minutes / 1440 });
-  }
-  return t('modals.countdown.reminderMinuteChip', { count: minutes });
-};
 
 const normalizeTags = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
@@ -291,7 +263,9 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
   const [lunarLeap, setLunarLeap] = useState(false);
   const [solarTermKey, setSolarTermKey] = useState(SOLAR_TERM_KEY_BY_ZH_NAME['立春']);
 
-  const [reminderMinutes, setReminderMinutes] = useState<number[]>([...DEFAULT_REMINDER_MINUTES]);
+  const [reminderMinutes, setReminderMinutes] = useState<number[]>([
+    ...DEFAULT_SUBSCRIPTION_REMINDER_MINUTES,
+  ]);
   const [reminderInput, setReminderInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -451,6 +425,14 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     }
   }, [rule, timeZone]);
 
+  const reminderSummary = useMemo(
+    () =>
+      buildReminderSummary(reminderMinutes, t, i18n.language, [
+        ...DEFAULT_SUBSCRIPTION_REMINDER_MINUTES,
+      ]),
+    [i18n.language, reminderMinutes, t],
+  );
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -558,7 +540,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
         (initialData.timeZone && initialData.timeZone !== DEFAULT_TIME_ZONE) ||
         (initialData.reminderMinutes &&
           JSON.stringify([...initialData.reminderMinutes].sort()) !==
-            JSON.stringify([...DEFAULT_REMINDER_MINUTES].sort())) ||
+            JSON.stringify([...DEFAULT_SUBSCRIPTION_REMINDER_MINUTES].sort())) ||
         !!initialData.isPrivate ||
         (isAdmin && !!initialData.subscription?.enabled) ||
         !!initialData.labelColor;
@@ -586,7 +568,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       setLunarDay(23);
       setLunarLeap(false);
       setSolarTermKey(SOLAR_TERM_KEY_BY_ZH_NAME['立春']);
-      setReminderMinutes([...DEFAULT_REMINDER_MINUTES]);
+      setReminderMinutes([...DEFAULT_SUBSCRIPTION_REMINDER_MINUTES]);
       setReminderInput('');
       setTags([]);
       setTagInput('');
@@ -714,6 +696,27 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       if (d) setDatePart(d);
       if (tpart) setTimePart(normalizeTimePart(tpart));
     }
+  };
+
+  const handleToggleReminderPreset = (minutes: number) => {
+    setErrorMessage(null);
+    setReminderMinutes((prev) =>
+      prev.includes(minutes)
+        ? normalizeReminderMinutes(prev.filter((value) => value !== minutes))
+        : normalizeReminderMinutes([...prev, minutes]),
+    );
+  };
+
+  const handleAddReminderFromInput = () => {
+    const minutes = parseReminderLeadTime(reminderInput);
+    if (minutes === null) {
+      setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
+      return;
+    }
+
+    setErrorMessage(null);
+    setReminderMinutes((prev) => normalizeReminderMinutes([...prev, minutes]));
+    setReminderInput('');
   };
 
   const handleAddTags = () => {
@@ -1241,27 +1244,27 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                   {normalizeTimeZone(timeZone)})
                 </div>
               )}
-            </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-                {t('modals.countdown.naturalInput')}
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={naturalInput}
-                  onChange={(e) => setNaturalInput(e.target.value)}
-                  className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                  placeholder={t('modals.countdown.naturalInputPlaceholder')}
-                />
-                <button
-                  type="button"
-                  onClick={handleApplyNatural}
-                  className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
-                >
-                  {t('modals.countdown.applyNatural')}
-                </button>
+              <div className="pt-3 mt-3 border-t border-slate-200/80 dark:border-slate-700/80">
+                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                  {t('modals.countdown.naturalInput')}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={naturalInput}
+                    onChange={(e) => setNaturalInput(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                    placeholder={t('modals.countdown.naturalInputPlaceholder')}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyNatural}
+                    className="px-3 py-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
+                  >
+                    {t('modals.countdown.applyNatural')}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1654,28 +1657,66 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                             <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
                               {t('modals.countdown.remindersHint')}
                             </label>
+                            <div className="flex flex-wrap gap-2">
+                              {SUBSCRIPTION_REMINDER_PRESETS.map((preset) => {
+                                const active = reminderMinutes.includes(preset.minutes);
+                                return (
+                                  <button
+                                    key={preset.minutes}
+                                    type="button"
+                                    onClick={() => handleToggleReminderPreset(preset.minutes)}
+                                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                                      active
+                                        ? 'border-accent bg-accent text-white shadow-sm shadow-accent/25 ring-2 ring-accent/15'
+                                        : preset.isDefault
+                                          ? 'border-accent/25 bg-accent/5 text-accent/80 hover:border-accent/50'
+                                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                                    }`}
+                                  >
+                                    <span className="inline-flex items-center gap-1.5">
+                                      {active && <Check size={12} />}
+                                      <span>{t(preset.labelKey)}</span>
+                                      {preset.isDefault && (
+                                        <span
+                                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                            active
+                                              ? 'bg-white/20 text-white'
+                                              : 'bg-accent/10 text-accent'
+                                          }`}
+                                        >
+                                          {t('modals.countdown.reminderPresetDefaultBadge')}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="rounded-xl border border-accent/15 bg-accent/5 px-3 py-2.5">
+                              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent/70">
+                                {t('modals.countdown.reminderSummaryLabel')}
+                              </div>
+                              <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-200">
+                                {reminderSummary}
+                              </div>
+                            </div>
                             <div className="flex items-center gap-2">
                               <input
-                                type="number"
-                                min={0}
+                                type="text"
                                 value={reminderInput}
                                 onChange={(e) => setReminderInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddReminderFromInput();
+                                  }
+                                }}
                                 className="flex-1 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
                                 placeholder={t('modals.countdown.reminderPlaceholder')}
                               />
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const n = Number.parseInt(reminderInput.trim(), 10);
-                                  if (!Number.isFinite(n) || n < 0) {
-                                    setErrorMessage(t('modals.countdown.invalidReminderMinutes'));
-                                    return;
-                                  }
-                                  setReminderMinutes((prev) =>
-                                    normalizeReminderMinutes([...prev, n]),
-                                  );
-                                  setReminderInput('');
-                                }}
+                                onClick={handleAddReminderFromInput}
                                 className="px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-accent/50 hover:text-accent transition-all whitespace-nowrap"
                               >
                                 {t('modals.countdown.addReminder')}
@@ -1688,7 +1729,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                                   key={m}
                                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/50"
                                 >
-                                  {formatReminderMinutes(m, t)}
+                                  {formatReminderChipLabel(m, t)}
                                   <button
                                     type="button"
                                     onClick={() =>
