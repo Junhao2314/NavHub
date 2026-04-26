@@ -142,7 +142,9 @@ describe('ReminderBoardModal', () => {
       subscriptionToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const reminderInput = container.querySelector('input[type="number"]') as HTMLInputElement | null;
+    const reminderInput = container.querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement | null;
     expect(reminderInput).toBeTruthy();
     await act(async () => {
       if (!reminderInput) return;
@@ -169,5 +171,4 @@ describe('ReminderBoardModal', () => {
 
     expect(container.textContent).not.toContain('30 min');
   });
-
 });
