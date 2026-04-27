@@ -35,8 +35,10 @@ vi.mock('../../hooks/useI18n', () => ({
         'modals.countdown.remindersHint':
           'Use quick presets or natural-language input, such as 3 days before, 45 min before, or at time',
         'modals.countdown.subscriptionContentPlaceholder': 'Content (defaults to note)',
+        'modals.countdown.subscriptionReminderCurrentLabel': 'Current reminders',
+        'modals.countdown.subscriptionReminderEmpty': 'No reminders yet',
         'modals.countdown.subscriptionReminderDefaultsHint':
-          'Default subscription reminders: at time and 1 day before. Add extras below if needed.',
+          'Current reminders can be removed. Add more below if needed.',
         'modals.countdown.subscriptionReminder': 'Subscription reminder',
         'modals.countdown.subscriptionReminderHint':
           'Worker Cron sends external notifications when the browser is closed',
@@ -89,6 +91,29 @@ describe('ReminderBoardModal', () => {
       );
     });
     return { onSave };
+  };
+
+  const toggleSubscription = async () => {
+    const subscriptionToggle = container.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+    expect(subscriptionToggle).toBeTruthy();
+    await act(async () => {
+      subscriptionToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  };
+
+  const getReminderRemoveButtons = () =>
+    Array.from(container.querySelectorAll('button[aria-label="Remove reminder"]'));
+
+  const removeReminderByLabel = async (label: string) => {
+    const removeButton = getReminderRemoveButtons().find((button) =>
+      button.parentElement?.textContent?.includes(label),
+    );
+    expect(removeButton).toBeTruthy();
+    await act(async () => {
+      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
   };
 
   beforeEach(() => {
@@ -170,14 +195,7 @@ describe('ReminderBoardModal', () => {
       ),
     ).toBeNull();
 
-    const subscriptionToggle = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement | null;
-    expect(subscriptionToggle).toBeTruthy();
-
-    await act(async () => {
-      subscriptionToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleSubscription();
 
     expect(
       container.querySelector(
@@ -187,18 +205,17 @@ describe('ReminderBoardModal', () => {
     expect(
       container.querySelector('textarea[placeholder="Content (defaults to note)"]'),
     ).toBeTruthy();
+    expect(container.textContent).toContain('Current reminders');
     expect(container.textContent).toContain(
-      'Default subscription reminders: at time and 1 day before. Add extras below if needed.',
+      'Current reminders can be removed. Add more below if needed.',
     );
+    expect(container.textContent).toContain('At time');
+    expect(container.textContent).toContain('1 day');
+    expect(getReminderRemoveButtons()).toHaveLength(2);
     expect(container.textContent).not.toContain('1 week before');
     expect(container.textContent).not.toContain('Reminder plan');
-    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
-    expect(
-      Array.from(container.querySelectorAll('button[aria-label="Remove reminder"]')).find(
-        (button) => button.parentElement?.textContent?.includes('1 week'),
-      ),
-    ).toBeUndefined();
     expect(container.textContent).not.toContain('2 hr');
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
   });
 
   it('migrates legacy 1 hour / 10 minute defaults to subscription defaults when enabling', async () => {
@@ -218,12 +235,7 @@ describe('ReminderBoardModal', () => {
       onSave,
     });
 
-    const subscriptionToggle = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement | null;
-    await act(async () => {
-      subscriptionToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleSubscription();
 
     await act(async () => {
       const submitButton = container.querySelector('button[type="submit"]');
@@ -236,15 +248,10 @@ describe('ReminderBoardModal', () => {
     expect(onSave.mock.calls[0]?.[0]?.reminderMinutes).toEqual([1440, 0]);
   });
 
-  it('adds natural-language custom reminders on top of the hidden defaults', async () => {
+  it('adds natural-language reminders into the current subscription reminder list', async () => {
     await renderModal({ isAdmin: true });
 
-    const subscriptionToggle = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement | null;
-    await act(async () => {
-      subscriptionToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleSubscription();
 
     const reminderInput = container.querySelector(
       'input[placeholder="Custom, e.g. 3 days before, 45 min before, at time"]',
@@ -264,15 +271,82 @@ describe('ReminderBoardModal', () => {
     });
 
     expect(container.textContent).toContain('2 hr');
+    expect(container.textContent).toContain('At time');
+    expect(container.textContent).toContain('1 day');
+    expect(getReminderRemoveButtons()).toHaveLength(3);
 
-    const removeButton = Array.from(
-      container.querySelectorAll('button[aria-label="Remove reminder"]'),
-    ).find((button) => button.parentElement?.textContent?.includes('2 hr'));
-    expect(removeButton).toBeTruthy();
-    await act(async () => {
-      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await removeReminderByLabel('2 hr');
 
     expect(container.textContent).not.toContain('2 hr');
+    expect(getReminderRemoveButtons()).toHaveLength(2);
+  });
+
+  it('allows removing default subscription reminders and saving an empty list', async () => {
+    const onSave = vi.fn();
+    await renderModal({
+      initialData: {
+        id: 'subscription-item',
+        title: 'Subscription item',
+        targetDate: '2026-05-01T00:00:00.000Z',
+        targetLocal: '2026-05-01T08:00:00',
+        timeZone: 'Asia/Shanghai',
+        precision: 'minute',
+        rule: { kind: 'once' },
+        reminderMinutes: [1440, 0],
+        subscription: { enabled: true },
+      },
+      isAdmin: true,
+      onSave,
+    });
+
+    expect(container.textContent).toContain('At time');
+    expect(container.textContent).toContain('1 day');
+
+    await removeReminderByLabel('At time');
+    await removeReminderByLabel('1 day');
+
+    expect(container.textContent).toContain('No reminders yet');
+    expect(getReminderRemoveButtons()).toHaveLength(0);
+
+    await act(async () => {
+      const submitButton = container.querySelector('button[type="submit"]');
+      submitButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0]?.[0]?.reminderMinutes).toEqual([]);
+  });
+
+  it('keeps enabled subscription reminder lists empty when saved data is empty', async () => {
+    const onSave = vi.fn();
+    await renderModal({
+      initialData: {
+        id: 'empty-subscription-item',
+        title: 'Empty subscription item',
+        targetDate: '2026-05-01T00:00:00.000Z',
+        targetLocal: '2026-05-01T08:00:00',
+        timeZone: 'Asia/Shanghai',
+        precision: 'minute',
+        rule: { kind: 'once' },
+        reminderMinutes: [],
+        subscription: { enabled: true },
+      },
+      isAdmin: true,
+      onSave,
+    });
+
+    expect(container.textContent).toContain('Current reminders');
+    expect(container.textContent).toContain('No reminders yet');
+    expect(container.textContent).not.toContain('At time');
+    expect(container.textContent).not.toContain('1 day');
+    expect(getReminderRemoveButtons()).toHaveLength(0);
+
+    await act(async () => {
+      const submitButton = container.querySelector('button[type="submit"]');
+      submitButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0]?.[0]?.reminderMinutes).toEqual([]);
   });
 });
