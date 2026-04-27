@@ -30,6 +30,7 @@
 | 📱 **Responsive**    | Perfect adaptation for desktop and mobile, responsive grid layout |
 | 🔐 **Access Control** | Admin/User dual roles - admins can edit, users are read-only      |
 | 🔍 **Multi-Search**  | 10+ built-in search engines, site search, global search, external search |
+| ⏰ **Reminder Editing** | Countdown/subscription reminders support natural-language input, with current reminders shown as removable chips below the input |
 | ⭐ **Recommendations** | Manual recommendations + smart recommendations based on click count |
 | 📦 **Import/Export** | Browser bookmark HTML import, JSON/HTML export                    |
 | 🏷️ **Tag System**   | Multi-tag support, dynamic tag colors, auto-complete suggestions  |
@@ -433,7 +434,7 @@ NavHub/
 │   │   │   ├── HolidayBatchModal.tsx     # Holiday batch ops
 │   │   │   ├── ImportModal.tsx           # Import dialog
 │   │   │   ├── LinkModal.tsx             # Link editor
-│   │   │   ├── ReminderBoardModal.tsx    # Reminder board modal
+│   │   │   ├── ReminderBoardModal.tsx    # Reminder board modal with subscription reminder chip editing
 │   │   │   ├── SearchConfigModal.tsx     # Search config
 │   │   │   ├── SettingsModal.tsx         # Settings panel
 │   │   │   ├── SyncConflictModal.tsx     # Sync conflict

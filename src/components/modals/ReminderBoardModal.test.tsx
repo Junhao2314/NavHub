@@ -14,14 +14,28 @@ vi.mock('../../hooks/useI18n', () => ({
         'modals.countdown.naturalInput': 'Natural language',
         'modals.countdown.naturalInputPlaceholder': 'next Fri, in 3 days, monthly 15th...',
         'modals.countdown.removeReminder': 'Remove reminder',
-        'modals.countdown.reminderHourChip': `${params?.count} hr`,
-        'modals.countdown.reminderDayChip': `${params?.count} day`,
-        'modals.countdown.reminderMinuteChip': `${params?.count} min`,
-        'modals.countdown.reminderHourSummaryItem': `${params?.count} hr before`,
-        'modals.countdown.reminderDaySummaryItem': `${params?.count} day before`,
-        'modals.countdown.reminderMinuteSummaryItem': `${params?.count} min before`,
+        'modals.countdown.reminderMinuteChipSingle': '1 minute before',
+        'modals.countdown.reminderHourChipSingle': '1 hour before',
+        'modals.countdown.reminderDayChipSingle': '1 day before',
+        'modals.countdown.reminderWeekChipSingle': '1 week before',
+        'modals.countdown.reminderMonthChipSingle': '1 month before',
+        'modals.countdown.reminderYearChipSingle': '1 year before',
+        'modals.countdown.reminderHourChip': `${params?.count} hours before`,
+        'modals.countdown.reminderDayChip': `${params?.count} days before`,
+        'modals.countdown.reminderMinuteChip': `${params?.count} minutes before`,
+        'modals.countdown.reminderMonthChip': `${params?.count} months before`,
+        'modals.countdown.reminderYearChip': `${params?.count} years before`,
+        'modals.countdown.reminderMinuteSummaryItemSingle': '1 minute before',
+        'modals.countdown.reminderHourSummaryItemSingle': '1 hour before',
+        'modals.countdown.reminderDaySummaryItemSingle': '1 day before',
+        'modals.countdown.reminderWeekSummaryItemSingle': '1 week before',
+        'modals.countdown.reminderMonthSummaryItemSingle': '1 month before',
+        'modals.countdown.reminderYearSummaryItemSingle': '1 year before',
+        'modals.countdown.reminderHourSummaryItem': `${params?.count} hours before`,
+        'modals.countdown.reminderDaySummaryItem': `${params?.count} days before`,
+        'modals.countdown.reminderMinuteSummaryItem': `${params?.count} minutes before`,
         'modals.countdown.reminderPlaceholder':
-          'Custom, e.g. 3 days before, 45 min before, at time',
+          'Custom, e.g. 3 days before, 45 min before, 1 month before, at time',
         'modals.countdown.reminderPresetAtTime': 'At time',
         'modals.countdown.reminderPresetDefaultBadge': 'Default',
         'modals.countdown.reminderPresetDayBefore': '1 day before',
@@ -30,15 +44,15 @@ vi.mock('../../hooks/useI18n', () => ({
         'modals.countdown.reminderSummaryActive': `Will remind ${params?.items}`,
         'modals.countdown.reminderSummaryEmpty': `No reminder selected. Suggested default: ${params?.items}`,
         'modals.countdown.reminderSummaryLabel': 'Reminder plan',
-        'modals.countdown.reminderWeekChip': `${params?.count} week`,
-        'modals.countdown.reminderWeekSummaryItem': `${params?.count} week before`,
+        'modals.countdown.reminderWeekChip': `${params?.count} weeks before`,
+        'modals.countdown.reminderWeekSummaryItem': `${params?.count} weeks before`,
+        'modals.countdown.reminderMonthSummaryItem': `${params?.count} months before`,
+        'modals.countdown.reminderYearSummaryItem': `${params?.count} years before`,
         'modals.countdown.remindersHint':
-          'Use quick presets or natural-language input, such as 3 days before, 45 min before, or at time',
+          'Use quick presets or natural-language input, such as 3 days before, 45 min before, 1 month before, or at time',
         'modals.countdown.subscriptionContentPlaceholder': 'Content (defaults to note)',
         'modals.countdown.subscriptionReminderCurrentLabel': 'Current reminders',
         'modals.countdown.subscriptionReminderEmpty': 'No reminders yet',
-        'modals.countdown.subscriptionReminderDefaultsHint':
-          'Current reminders can be removed. Add more below if needed.',
         'modals.countdown.subscriptionReminder': 'Subscription reminder',
         'modals.countdown.subscriptionReminderHint':
           'Worker Cron sends external notifications when the browser is closed',
@@ -191,7 +205,7 @@ describe('ReminderBoardModal', () => {
     expect(container.textContent).toContain('Subscription reminder');
     expect(
       container.querySelector(
-        'input[placeholder="Custom, e.g. 3 days before, 45 min before, at time"]',
+        'input[placeholder="Custom, e.g. 3 days before, 45 min before, 1 month before, at time"]',
       ),
     ).toBeNull();
 
@@ -199,22 +213,31 @@ describe('ReminderBoardModal', () => {
 
     expect(
       container.querySelector(
-        'input[placeholder="Custom, e.g. 3 days before, 45 min before, at time"]',
+        'input[placeholder="Custom, e.g. 3 days before, 45 min before, 1 month before, at time"]',
       ),
     ).toBeTruthy();
     expect(
       container.querySelector('textarea[placeholder="Content (defaults to note)"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain('Current reminders');
-    expect(container.textContent).toContain(
-      'Current reminders can be removed. Add more below if needed.',
+    const reminderInput = container.querySelector(
+      'input[placeholder="Custom, e.g. 3 days before, 45 min before, 1 month before, at time"]',
+    ) as HTMLInputElement | null;
+    const currentReminderLabel = Array.from(container.querySelectorAll('span')).find(
+      (element) => element.textContent === 'Current reminders',
     );
+    expect(reminderInput).toBeTruthy();
+    expect(currentReminderLabel).toBeTruthy();
+    expect(
+      reminderInput?.compareDocumentPosition(currentReminderLabel as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(container.textContent).toContain('Current reminders');
     expect(container.textContent).toContain('At time');
-    expect(container.textContent).toContain('1 day');
+    expect(container.textContent).toContain('1 day before');
     expect(getReminderRemoveButtons()).toHaveLength(2);
     expect(container.textContent).not.toContain('1 week before');
     expect(container.textContent).not.toContain('Reminder plan');
-    expect(container.textContent).not.toContain('2 hr');
+    expect(container.textContent).not.toContain('2 hours before');
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
   });
 
@@ -254,7 +277,7 @@ describe('ReminderBoardModal', () => {
     await toggleSubscription();
 
     const reminderInput = container.querySelector(
-      'input[placeholder="Custom, e.g. 3 days before, 45 min before, at time"]',
+      'input[placeholder="Custom, e.g. 3 days before, 45 min before, 1 month before, at time"]',
     ) as HTMLInputElement | null;
     expect(reminderInput).toBeTruthy();
     await act(async () => {
@@ -270,15 +293,52 @@ describe('ReminderBoardModal', () => {
       addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(container.textContent).toContain('2 hr');
+    expect(container.textContent).toContain('2 hours before');
     expect(container.textContent).toContain('At time');
-    expect(container.textContent).toContain('1 day');
+    expect(container.textContent).toContain('1 day before');
     expect(getReminderRemoveButtons()).toHaveLength(3);
 
-    await removeReminderByLabel('2 hr');
+    await removeReminderByLabel('2 hours before');
 
-    expect(container.textContent).not.toContain('2 hr');
+    expect(container.textContent).not.toContain('2 hours before');
     expect(getReminderRemoveButtons()).toHaveLength(2);
+  });
+
+  it('supports month and year reminder labels from natural-language input', async () => {
+    await renderModal({ isAdmin: true });
+
+    await toggleSubscription();
+
+    const reminderInput = container.querySelector(
+      'input[placeholder="Custom, e.g. 3 days before, 45 min before, 1 month before, at time"]',
+    ) as HTMLInputElement | null;
+    expect(reminderInput).toBeTruthy();
+
+    await act(async () => {
+      if (!reminderInput) return;
+      setInputValue(reminderInput, '1 month before');
+    });
+
+    const addButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Add reminder',
+    );
+    expect(addButton).toBeTruthy();
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('1 month before');
+
+    await act(async () => {
+      if (!reminderInput) return;
+      setInputValue(reminderInput, '1 year before');
+    });
+
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('1 year before');
   });
 
   it('allows removing default subscription reminders and saving an empty list', async () => {
@@ -300,10 +360,10 @@ describe('ReminderBoardModal', () => {
     });
 
     expect(container.textContent).toContain('At time');
-    expect(container.textContent).toContain('1 day');
+    expect(container.textContent).toContain('1 day before');
 
     await removeReminderByLabel('At time');
-    await removeReminderByLabel('1 day');
+    await removeReminderByLabel('1 day before');
 
     expect(container.textContent).toContain('No reminders yet');
     expect(getReminderRemoveButtons()).toHaveLength(0);
@@ -338,7 +398,7 @@ describe('ReminderBoardModal', () => {
     expect(container.textContent).toContain('Current reminders');
     expect(container.textContent).toContain('No reminders yet');
     expect(container.textContent).not.toContain('At time');
-    expect(container.textContent).not.toContain('1 day');
+    expect(container.textContent).not.toContain('1 day before');
     expect(getReminderRemoveButtons()).toHaveLength(0);
 
     await act(async () => {

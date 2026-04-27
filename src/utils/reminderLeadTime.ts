@@ -1,4 +1,9 @@
 const MAX_REMINDERS_PER_ITEM = 10;
+const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 1440;
+const MINUTES_PER_WEEK = 10080;
+const MINUTES_PER_MONTH = 43200;
+const MINUTES_PER_YEAR = 525600;
 
 export const DEFAULT_SUBSCRIPTION_REMINDER_MINUTES = [1440, 0] as const;
 
@@ -99,29 +104,57 @@ export const normalizeReminderMinutes = (value: unknown): number[] => {
 
 export const formatReminderChipLabel = (minutes: number, t: Translate): string => {
   if (minutes === 0) return t('modals.countdown.atTime');
-  if (minutes % 10080 === 0) {
-    return t('modals.countdown.reminderWeekChip', { count: minutes / 10080 });
+
+  const preset = SUBSCRIPTION_REMINDER_PRESETS.find((entry) => entry.minutes === minutes);
+  if (preset) return t(preset.labelKey);
+
+  if (minutes % MINUTES_PER_YEAR === 0) {
+    if (minutes === MINUTES_PER_YEAR) return t('modals.countdown.reminderYearChipSingle');
+    return t('modals.countdown.reminderYearChip', { count: minutes / MINUTES_PER_YEAR });
   }
-  if (minutes % 1440 === 0) {
-    return t('modals.countdown.reminderDayChip', { count: minutes / 1440 });
+  if (minutes % MINUTES_PER_MONTH === 0) {
+    if (minutes === MINUTES_PER_MONTH) return t('modals.countdown.reminderMonthChipSingle');
+    return t('modals.countdown.reminderMonthChip', { count: minutes / MINUTES_PER_MONTH });
   }
-  if (minutes % 60 === 0) {
-    return t('modals.countdown.reminderHourChip', { count: minutes / 60 });
+  if (minutes % MINUTES_PER_WEEK === 0) {
+    if (minutes === MINUTES_PER_WEEK) return t('modals.countdown.reminderWeekChipSingle');
+    return t('modals.countdown.reminderWeekChip', { count: minutes / MINUTES_PER_WEEK });
   }
+  if (minutes % MINUTES_PER_DAY === 0) {
+    if (minutes === MINUTES_PER_DAY) return t('modals.countdown.reminderDayChipSingle');
+    return t('modals.countdown.reminderDayChip', { count: minutes / MINUTES_PER_DAY });
+  }
+  if (minutes % MINUTES_PER_HOUR === 0) {
+    if (minutes === MINUTES_PER_HOUR) return t('modals.countdown.reminderHourChipSingle');
+    return t('modals.countdown.reminderHourChip', { count: minutes / MINUTES_PER_HOUR });
+  }
+  if (minutes === 1) return t('modals.countdown.reminderMinuteChipSingle');
   return t('modals.countdown.reminderMinuteChip', { count: minutes });
 };
 
 export const formatReminderSummaryItem = (minutes: number, t: Translate): string => {
   if (minutes === 0) return t('modals.countdown.atTime');
-  if (minutes % 10080 === 0) {
-    return t('modals.countdown.reminderWeekSummaryItem', { count: minutes / 10080 });
+  if (minutes % MINUTES_PER_YEAR === 0) {
+    if (minutes === MINUTES_PER_YEAR) return t('modals.countdown.reminderYearSummaryItemSingle');
+    return t('modals.countdown.reminderYearSummaryItem', { count: minutes / MINUTES_PER_YEAR });
   }
-  if (minutes % 1440 === 0) {
-    return t('modals.countdown.reminderDaySummaryItem', { count: minutes / 1440 });
+  if (minutes % MINUTES_PER_MONTH === 0) {
+    if (minutes === MINUTES_PER_MONTH) return t('modals.countdown.reminderMonthSummaryItemSingle');
+    return t('modals.countdown.reminderMonthSummaryItem', { count: minutes / MINUTES_PER_MONTH });
   }
-  if (minutes % 60 === 0) {
-    return t('modals.countdown.reminderHourSummaryItem', { count: minutes / 60 });
+  if (minutes % MINUTES_PER_WEEK === 0) {
+    if (minutes === MINUTES_PER_WEEK) return t('modals.countdown.reminderWeekSummaryItemSingle');
+    return t('modals.countdown.reminderWeekSummaryItem', { count: minutes / MINUTES_PER_WEEK });
   }
+  if (minutes % MINUTES_PER_DAY === 0) {
+    if (minutes === MINUTES_PER_DAY) return t('modals.countdown.reminderDaySummaryItemSingle');
+    return t('modals.countdown.reminderDaySummaryItem', { count: minutes / MINUTES_PER_DAY });
+  }
+  if (minutes % MINUTES_PER_HOUR === 0) {
+    if (minutes === MINUTES_PER_HOUR) return t('modals.countdown.reminderHourSummaryItemSingle');
+    return t('modals.countdown.reminderHourSummaryItem', { count: minutes / MINUTES_PER_HOUR });
+  }
+  if (minutes === 1) return t('modals.countdown.reminderMinuteSummaryItemSingle');
   return t('modals.countdown.reminderMinuteSummaryItem', { count: minutes });
 };
 
@@ -187,6 +220,11 @@ export const parseReminderLeadTime = (value: string): number | null => {
     thedaybefore: 1440,
     nightbefore: 1440,
     weekbefore: 10080,
+    theweekbefore: 10080,
+    monthbefore: 43200,
+    themonthbefore: 43200,
+    yearbefore: 525600,
+    theyearbefore: 525600,
     halfhourbefore: 30,
   };
   if (normalized in directAliasMap) return directAliasMap[normalized];
@@ -202,12 +240,12 @@ export const parseReminderLeadTime = (value: string): number | null => {
   else if (body.endsWith('inadvance')) body = body.slice(0, -9);
 
   body = body.replace(
-    /^(an|a)(?=(week|weeks|wk|w|day|days|d|hour|hours|hr|hrs|h|minute|minutes|min|mins|m))/,
+    /^(an|a)(?=(year|years|yr|yrs|month|months|mo|mos|week|weeks|wk|w|day|days|d|hour|hours|hr|hrs|h|minute|minutes|min|mins|m))/,
     '1',
   );
 
   const match = body.match(
-    /^(?<amount>\d+(?:\.\d+)?|半个|半個|半|[零一二两三四五六七八九十百]+)?(?:个|個)?(?<unit>周|星期|礼拜|week|weeks|wk|w|天|日|day|days|d|小时|小時|时|钟头|鐘頭|hr|hrs|hour|hours|h|分钟|分鐘|分|min|mins|minute|minutes|m)$/,
+    /^(?<amount>\d+(?:\.\d+)?|半个|半個|半|[零一二两三四五六七八九十百]+)?(?:个|個)?(?<unit>年|year|years|yr|yrs|月|month|months|mo|mos|周|星期|礼拜|week|weeks|wk|w|天|日|day|days|d|小时|小時|时|钟头|鐘頭|hr|hrs|hour|hours|h|分钟|分鐘|分|min|mins|minute|minutes|m)$/,
   );
   if (!match?.groups) return null;
 
@@ -215,6 +253,12 @@ export const parseReminderLeadTime = (value: string): number | null => {
   if (amount === null || !Number.isFinite(amount) || amount < 0) return null;
 
   const unit = match.groups.unit;
+  if (unit === '年' || unit === 'year' || unit === 'years' || unit === 'yr' || unit === 'yrs') {
+    return Math.round(amount * MINUTES_PER_YEAR);
+  }
+  if (unit === '月' || unit === 'month' || unit === 'months' || unit === 'mo' || unit === 'mos') {
+    return Math.round(amount * MINUTES_PER_MONTH);
+  }
   if (
     unit === '周' ||
     unit === '星期' ||
@@ -224,10 +268,10 @@ export const parseReminderLeadTime = (value: string): number | null => {
     unit === 'wk' ||
     unit === 'w'
   ) {
-    return Math.round(amount * 10080);
+    return Math.round(amount * MINUTES_PER_WEEK);
   }
   if (unit === '天' || unit === '日' || unit === 'day' || unit === 'days' || unit === 'd') {
-    return Math.round(amount * 1440);
+    return Math.round(amount * MINUTES_PER_DAY);
   }
   if (
     unit === '小时' ||
@@ -241,7 +285,7 @@ export const parseReminderLeadTime = (value: string): number | null => {
     unit === 'hours' ||
     unit === 'h'
   ) {
-    return Math.round(amount * 60);
+    return Math.round(amount * MINUTES_PER_HOUR);
   }
   return Math.round(amount);
 };

@@ -118,7 +118,7 @@ src/
 │   │   ├── SettingsModal.tsx # 设置面板
 │   │   ├── ImportModal.tsx   # 导入对话框
 │   │   ├── CategoryManagerModal.tsx # 分类管理
-│   │   ├── ReminderBoardModal.tsx   # 备忘板弹窗
+│   │   ├── ReminderBoardModal.tsx   # 备忘板弹窗（含订阅提醒标签编辑）
 │   │   ├── SyncConflictModal.tsx    # 同步冲突
 │   │   ├── SearchConfigModal.tsx    # 搜索配置
 │   │   ├── HolidayBatchModal.tsx    # 节假日批量操作
