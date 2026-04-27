@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CountdownItem } from '../../types';
 import ReminderBoardModal from './ReminderBoardModal';
 
 vi.mock('../../hooks/useI18n', () => ({
@@ -34,6 +35,8 @@ vi.mock('../../hooks/useI18n', () => ({
         'modals.countdown.remindersHint':
           'Use quick presets or natural-language input, such as 3 days before, 45 min before, or at time',
         'modals.countdown.subscriptionContentPlaceholder': 'Content (defaults to note)',
+        'modals.countdown.subscriptionReminderDefaultsHint':
+          'Default subscription reminders: at time and 1 day before. Add extras below if needed.',
         'modals.countdown.subscriptionReminder': 'Subscription reminder',
         'modals.countdown.subscriptionReminderHint':
           'Worker Cron sends external notifications when the browser is closed',
@@ -64,19 +67,28 @@ describe('ReminderBoardModal', () => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   };
 
-  const renderModal = async (options: { isAdmin?: boolean } = {}) => {
+  const renderModal = async (
+    options: {
+      initialData?: Partial<CountdownItem>;
+      isAdmin?: boolean;
+      onSave?: ReturnType<typeof vi.fn>;
+    } = {},
+  ) => {
+    const onSave = options.onSave ?? vi.fn();
     root = createRoot(container);
     await act(async () => {
       root?.render(
         <ReminderBoardModal
           isOpen
           onClose={vi.fn()}
-          onSave={vi.fn()}
+          onSave={onSave}
+          initialData={options.initialData}
           isAdmin={options.isAdmin ?? true}
           privacyGroupEnabled
         />,
       );
     });
+    return { onSave };
   };
 
   beforeEach(() => {
@@ -175,10 +187,12 @@ describe('ReminderBoardModal', () => {
     expect(
       container.querySelector('textarea[placeholder="Content (defaults to note)"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain('1 day');
-    expect(container.textContent).toContain('At time');
+    expect(container.textContent).toContain(
+      'Default subscription reminders: at time and 1 day before. Add extras below if needed.',
+    );
     expect(container.textContent).not.toContain('1 week before');
     expect(container.textContent).not.toContain('Reminder plan');
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
     expect(
       Array.from(container.querySelectorAll('button[aria-label="Remove reminder"]')).find(
         (button) => button.parentElement?.textContent?.includes('1 week'),
@@ -187,8 +201,22 @@ describe('ReminderBoardModal', () => {
     expect(container.textContent).not.toContain('2 hr');
   });
 
-  it('toggles default reminders and adds natural-language custom reminders', async () => {
-    await renderModal({ isAdmin: true });
+  it('migrates legacy 1 hour / 10 minute defaults to subscription defaults when enabling', async () => {
+    const onSave = vi.fn();
+    await renderModal({
+      initialData: {
+        id: 'legacy',
+        title: 'Legacy item',
+        targetDate: '2026-05-01T00:00:00.000Z',
+        targetLocal: '2026-05-01T08:00:00',
+        timeZone: 'Asia/Shanghai',
+        precision: 'minute',
+        rule: { kind: 'once' },
+        reminderMinutes: [60, 10, 0],
+      },
+      isAdmin: true,
+      onSave,
+    });
 
     const subscriptionToggle = container.querySelector(
       'input[type="checkbox"]',
@@ -197,19 +225,26 @@ describe('ReminderBoardModal', () => {
       subscriptionToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const dayBeforeToggle = Array.from(container.querySelectorAll('label')).find((label) =>
-      label.textContent?.includes('1 day'),
-    );
-    const dayBeforeCheckbox = dayBeforeToggle?.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement | null;
-    expect(dayBeforeCheckbox).toBeTruthy();
-    expect(dayBeforeCheckbox?.checked).toBe(true);
     await act(async () => {
-      dayBeforeCheckbox?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const submitButton = container.querySelector('button[type="submit"]');
+      submitButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(dayBeforeCheckbox?.checked).toBe(false);
+    expect(container.textContent).not.toContain('1 hr');
+    expect(container.textContent).not.toContain('10 min');
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0]?.[0]?.reminderMinutes).toEqual([1440, 0]);
+  });
+
+  it('adds natural-language custom reminders on top of the hidden defaults', async () => {
+    await renderModal({ isAdmin: true });
+
+    const subscriptionToggle = container.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+    await act(async () => {
+      subscriptionToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
 
     const reminderInput = container.querySelector(
       'input[placeholder="Custom, e.g. 3 days before, 45 min before, at time"]',
