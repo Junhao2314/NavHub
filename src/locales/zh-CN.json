@@ -576,6 +576,7 @@
       "subscriptionReminder": "订阅提醒",
       "subscriptionReminderHint": "由 Worker Cron 在浏览器关闭时发送外部通知",
       "subscriptionNamePlaceholder": "订阅名称（默认使用标题）",
+      "subscriptionContentPlaceholder": "订阅内容（默认使用备注）",
       "daysLeft": "{{count}} 天",
       "yearsLeft": "{{count}} 年",
       "hoursLeft": "{{count}} 小时",

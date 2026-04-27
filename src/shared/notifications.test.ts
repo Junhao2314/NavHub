@@ -63,6 +63,49 @@ describe('subscription notifications', () => {
     expect(candidates[0]?.title).toContain('GitHub Pro');
   });
 
+  it('uses subscription content before note for notification body', () => {
+    const candidates = collectSubscriptionNotificationCandidates(
+      makeData(
+        makeItem({
+          note: 'Fallback note',
+          subscription: { enabled: true, content: 'Custom subscription content' },
+        }),
+      ),
+      new Date('2026-04-30T00:00:00.000Z'),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.body).toBe('Custom subscription content');
+  });
+
+  it('falls back to note when subscription content is empty', () => {
+    const candidates = collectSubscriptionNotificationCandidates(
+      makeData(
+        makeItem({
+          note: 'Fallback note',
+          subscription: { enabled: true },
+        }),
+      ),
+      new Date('2026-04-30T00:00:00.000Z'),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.body).toBe('Fallback note');
+  });
+
+  it('uses the configured body template when item content is unavailable', () => {
+    const data = makeData();
+    data.siteSettings!.subscriptionNotifications!.bodyTemplate = 'Due {{name}} at {{dueLocal}}';
+
+    const candidates = collectSubscriptionNotificationCandidates(
+      data,
+      new Date('2026-04-30T00:00:00.000Z'),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.body).toContain('Due GitHub Pro at');
+  });
+
   it('keeps a one-hour catch-up window for lower-frequency cron runs', () => {
     const candidates = collectSubscriptionNotificationCandidates(
       makeData(),

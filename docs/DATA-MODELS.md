@@ -182,6 +182,7 @@ interface SubscriptionNotificationSettings {
 interface SubscriptionMetadata {
   enabled: boolean;
   name?: string;
+  content?: string;
 }
 
 type CountdownTagsBatchOp =

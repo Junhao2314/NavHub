@@ -136,6 +136,7 @@ export interface SubscriptionNotificationSettings {
 export interface SubscriptionMetadata {
   enabled: boolean;
   name?: string;
+  content?: string;
 }
 
 // 倒计时项

@@ -587,6 +587,7 @@
       "subscriptionReminder": "Subscription reminder",
       "subscriptionReminderHint": "Worker Cron sends external notifications when the browser is closed",
       "subscriptionNamePlaceholder": "Subscription name (defaults to title)",
+      "subscriptionContentPlaceholder": "Content (defaults to note)",
       "daysLeft": "{{count}} days",
       "yearsLeft": "{{count}}y",
       "hoursLeft": "{{count}} hours",

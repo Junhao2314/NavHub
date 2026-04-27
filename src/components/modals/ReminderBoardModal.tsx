@@ -18,12 +18,10 @@ import { getNextOccurrence } from '../../utils/countdown';
 import { generateId } from '../../utils/id';
 import { formatTargetLocal, parseNaturalInput } from '../../utils/naturalDate';
 import {
-  buildReminderSummary,
   DEFAULT_SUBSCRIPTION_REMINDER_MINUTES,
   formatReminderChipLabel,
   normalizeReminderMinutes,
   parseReminderLeadTime,
-  SUBSCRIPTION_REMINDER_PRESETS,
 } from '../../utils/reminderLeadTime';
 import { parseTargetLocalExact } from '../../utils/targetLocal';
 import {
@@ -274,6 +272,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
   const [isPrivate, setIsPrivate] = useState(false);
   const [subscriptionEnabled, setSubscriptionEnabled] = useState(false);
   const [subscriptionName, setSubscriptionName] = useState('');
+  const [subscriptionContent, setSubscriptionContent] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTzPicker, setShowTzPicker] = useState(false);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
@@ -425,14 +424,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     }
   }, [rule, timeZone]);
 
-  const reminderSummary = useMemo(
-    () =>
-      buildReminderSummary(reminderMinutes, t, i18n.language, [
-        ...DEFAULT_SUBSCRIPTION_REMINDER_MINUTES,
-      ]),
-    [i18n.language, reminderMinutes, t],
-  );
-
   useEffect(() => {
     if (!isOpen) return;
 
@@ -530,6 +521,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       setIsPrivate(Boolean(initialData.isPrivate));
       setSubscriptionEnabled(Boolean(initialData.subscription?.enabled));
       setSubscriptionName(initialData.subscription?.name ?? '');
+      setSubscriptionContent(initialData.subscription?.content ?? initialData.note ?? '');
 
       // Auto-expand advanced section if any advanced fields have data
       const hasAdvancedData =
@@ -577,6 +569,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       setIsPrivate(false);
       setSubscriptionEnabled(false);
       setSubscriptionName('');
+      setSubscriptionContent('');
       setShowAdvanced(false);
     }
   }, [isOpen, initialData, isAdmin]);
@@ -837,7 +830,11 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       checklist: checklist.length > 0 ? checklist : undefined,
       subscription: isAdmin
         ? subscriptionEnabled
-          ? { enabled: true, name: subscriptionName.trim() || undefined }
+          ? {
+              enabled: true,
+              name: subscriptionName.trim() || undefined,
+              content: subscriptionContent.trim() || undefined,
+            }
           : undefined
         : initialData?.subscription,
     });
@@ -1652,53 +1649,35 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                             className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
                             placeholder={t('modals.countdown.subscriptionNamePlaceholder')}
                           />
+                          <textarea
+                            value={subscriptionContent}
+                            onChange={(event) => setSubscriptionContent(event.target.value)}
+                            rows={3}
+                            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm resize-none"
+                            placeholder={t('modals.countdown.subscriptionContentPlaceholder')}
+                          />
 
                           <div className="space-y-2">
                             <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
                               {t('modals.countdown.remindersHint')}
                             </label>
-                            <div className="flex flex-wrap gap-2">
-                              {SUBSCRIPTION_REMINDER_PRESETS.map((preset) => {
-                                const active = reminderMinutes.includes(preset.minutes);
-                                return (
-                                  <button
-                                    key={preset.minutes}
-                                    type="button"
-                                    onClick={() => handleToggleReminderPreset(preset.minutes)}
-                                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                                      active
-                                        ? 'border-accent bg-accent text-white shadow-sm shadow-accent/25 ring-2 ring-accent/15'
-                                        : preset.isDefault
-                                          ? 'border-accent/25 bg-accent/5 text-accent/80 hover:border-accent/50'
-                                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                                    }`}
-                                  >
-                                    <span className="inline-flex items-center gap-1.5">
-                                      {active && <Check size={12} />}
-                                      <span>{t(preset.labelKey)}</span>
-                                      {preset.isDefault && (
-                                        <span
-                                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                            active
-                                              ? 'bg-white/20 text-white'
-                                              : 'bg-accent/10 text-accent'
-                                          }`}
-                                        >
-                                          {t('modals.countdown.reminderPresetDefaultBadge')}
-                                        </span>
-                                      )}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <div className="rounded-xl border border-accent/15 bg-accent/5 px-3 py-2.5">
-                              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent/70">
-                                {t('modals.countdown.reminderSummaryLabel')}
-                              </div>
-                              <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-200">
-                                {reminderSummary}
-                              </div>
+                            <div className="flex flex-col gap-1.5">
+                              {DEFAULT_SUBSCRIPTION_REMINDER_MINUTES.map((minutes) => (
+                                <label
+                                  key={minutes}
+                                  className="flex items-center gap-2 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={reminderMinutes.includes(minutes)}
+                                    onChange={() => handleToggleReminderPreset(minutes)}
+                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-accent/20"
+                                  />
+                                  <span className="text-xs text-slate-700 dark:text-slate-200">
+                                    {formatReminderChipLabel(minutes, t)}
+                                  </span>
+                                </label>
+                              ))}
                             </div>
                             <div className="flex items-center gap-2">
                               <input
@@ -1722,27 +1701,33 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                                 {t('modals.countdown.addReminder')}
                               </button>
                             </div>
-
                             <div className="flex flex-wrap gap-1.5">
-                              {reminderMinutes.map((m) => (
-                                <span
-                                  key={m}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/50"
-                                >
-                                  {formatReminderChipLabel(m, t)}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setReminderMinutes((prev) => prev.filter((x) => x !== m))
-                                    }
-                                    className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
-                                    title={t('modals.countdown.removeReminder')}
-                                    aria-label={t('modals.countdown.removeReminder')}
+                              {reminderMinutes
+                                .filter(
+                                  (m) =>
+                                    !(
+                                      DEFAULT_SUBSCRIPTION_REMINDER_MINUTES as readonly number[]
+                                    ).includes(m),
+                                )
+                                .map((m) => (
+                                  <span
+                                    key={m}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-800/50"
                                   >
-                                    <X size={12} />
-                                  </button>
-                                </span>
-                              ))}
+                                    {formatReminderChipLabel(m, t)}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setReminderMinutes((prev) => prev.filter((x) => x !== m))
+                                      }
+                                      className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
+                                      title={t('modals.countdown.removeReminder')}
+                                      aria-label={t('modals.countdown.removeReminder')}
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </span>
+                                ))}
                             </div>
                           </div>
                         </div>

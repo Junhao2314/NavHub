@@ -147,6 +147,7 @@ export const collectSubscriptionNotificationCandidates = (
     }
 
     const name = item.subscription.name?.trim() || item.title;
+    const content = item.subscription.content?.trim() || item.note?.trim() || '';
     const dueLocal = formatDueLocal(occurrence, item.timeZone || timeZone);
     const daysLeft = Math.max(0, Math.ceil((occurrence.getTime() - now.getTime()) / 86400000));
 
@@ -161,7 +162,9 @@ export const collectSubscriptionNotificationCandidates = (
         dueLocal,
         daysLeft,
         reminderMinutes: minutes,
+        content,
       };
+      const renderedBody = content || replaceTemplate(bodyTemplate, templateValues);
 
       return [
         {
@@ -172,7 +175,7 @@ export const collectSubscriptionNotificationCandidates = (
             occurrence,
           )}:${minutes}`,
           title: replaceTemplate(titleTemplate, templateValues),
-          body: replaceTemplate(bodyTemplate, templateValues),
+          body: renderedBody,
         },
       ];
     });
