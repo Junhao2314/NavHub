@@ -106,22 +106,38 @@ describe('subscription notifications', () => {
     expect(candidates[0]?.body).toContain('Due GitHub Pro at');
   });
 
-  it('keeps a one-hour catch-up window for lower-frequency cron runs', () => {
+  it('keeps an eight-hour catch-up window for lower-frequency cron runs', () => {
     const candidates = collectSubscriptionNotificationCandidates(
       makeData(),
-      new Date('2026-04-30T00:59:00.000Z'),
+      new Date('2026-04-30T07:59:00.000Z'),
     );
 
     expect(candidates).toHaveLength(1);
   });
 
-  it('skips reminders outside the one-hour catch-up window', () => {
+  it('skips reminders outside the eight-hour catch-up window', () => {
     const candidates = collectSubscriptionNotificationCandidates(
       makeData(),
-      new Date('2026-04-30T01:00:00.000Z'),
+      new Date('2026-04-30T08:00:00.000Z'),
     );
 
     expect(candidates).toHaveLength(0);
+  });
+
+  it('supports custom lookback window override', () => {
+    const withinCustomLookback = collectSubscriptionNotificationCandidates(
+      makeData(),
+      new Date('2026-04-30T02:59:00.000Z'),
+      3 * 60 * 60 * 1000,
+    );
+    const outsideCustomLookback = collectSubscriptionNotificationCandidates(
+      makeData(),
+      new Date('2026-04-30T03:00:00.000Z'),
+      3 * 60 * 60 * 1000,
+    );
+
+    expect(withinCustomLookback).toHaveLength(1);
+    expect(outsideCustomLookback).toHaveLength(0);
   });
 
   it('collects once (non-recurring) subscription rules at reminder time', () => {

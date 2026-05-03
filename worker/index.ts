@@ -26,12 +26,24 @@ interface Env {
   NAVHUB_WORKER_KV: KVNamespaceInterface;
   NAVHUB_WORKER_R2?: R2BucketInterface;
   SYNC_PASSWORD?: string;
+  SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS?: string;
   SYNC_CORS_ALLOWED_ORIGINS?: string;
   AI_PROXY_ALLOWED_HOSTS?: string;
   AI_PROXY_ALLOWED_ORIGINS?: string;
   AI_PROXY_ALLOW_INSECURE_HTTP?: string;
   ASSETS: Fetcher;
 }
+
+const DEFAULT_SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS = 8;
+
+const parseNotificationLookbackMs = (rawHours?: string): number => {
+  const parsedHours = Number(rawHours);
+  const hours =
+    Number.isFinite(parsedHours) && parsedHours > 0
+      ? parsedHours
+      : DEFAULT_SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS;
+  return hours * 60 * 60 * 1000;
+};
 
 function withCors(response: Response, corsHeaders: Record<string, string>): Response {
   const headers = new Headers(response.headers);
@@ -146,6 +158,7 @@ export default {
       env: syncEnv,
       data,
       sensitive,
+      lookbackMs: parseNotificationLookbackMs(env.SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS),
     });
     for (const warning of result.warnings) {
       console.warn(`[subscription-notifications] ${warning}`);

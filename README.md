@@ -241,10 +241,13 @@ bucket_name = "navhub-sync"
 可用变量：
 
 - `SYNC_PASSWORD`: 同步密码（敏感，建议 Secret）
+- `SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS`: 订阅通知回溯窗口（小时，默认 `8`；建议不小于 Cron 间隔，避免漏推）
 - `SYNC_CORS_ALLOWED_ORIGINS`: 允许的跨域 Origin（逗号分隔；默认仅同源；可设为 `*` 允许任意 Origin，不推荐）
 - `AI_PROXY_ALLOWED_HOSTS`: `/api/ai` 上游主机白名单（逗号分隔，支持 `*.example.com`，可选端口 `example.com:443`；默认仅 `api.openai.com`；不支持 `*` 全放开，避免 SSRF/open-proxy）
 - `AI_PROXY_ALLOWED_ORIGINS`: `/api/ai` 允许的跨域 Origin（逗号分隔，默认仅同源）
 - `AI_PROXY_ALLOW_INSECURE_HTTP`: 设为 `true` 可允许 `http:` 上游（不推荐）
+
+当前默认 Worker Cron 为每 8 小时一次（`0 */8 * * *`）。
 
 本地调试（`npm run dev:workers`）可在项目根目录创建 `.dev.vars` 注入变量（已在 `.gitignore` 中忽略）：
 

@@ -241,10 +241,13 @@ The `[vars]` section in `wrangler.toml` provides optional environment variable e
 Available variables:
 
 - `SYNC_PASSWORD`: Sync password (sensitive, recommend Secret)
+- `SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS`: Subscription notification lookback window in hours (default `8`; keep it no smaller than the Cron interval to avoid missed sends)
 - `SYNC_CORS_ALLOWED_ORIGINS`: Allowed CORS Origins (comma-separated; default same-origin; can be `*` for any Origin, not recommended)
 - `AI_PROXY_ALLOWED_HOSTS`: `/api/ai` upstream host allowlist (comma-separated, supports `*.example.com`, optional port `example.com:443`; default `api.openai.com` only; no `*` wildcard to prevent SSRF/open-proxy)
 - `AI_PROXY_ALLOWED_ORIGINS`: `/api/ai` allowed CORS Origins (comma-separated, default same-origin)
 - `AI_PROXY_ALLOW_INSECURE_HTTP`: Set to `true` to allow `http:` upstream (not recommended)
+
+The default Worker Cron is every 8 hours (`0 */8 * * *`).
 
 For local debugging (`npm run dev:workers`), create `.dev.vars` in the project root to inject variables (already in `.gitignore`):
 

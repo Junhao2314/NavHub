@@ -8,7 +8,8 @@ import type {
 import type { Env } from './syncApi/types';
 
 export const SUBSCRIPTION_NOTIFICATION_SENT_PREFIX = 'navhub:subscription-notification:';
-const SUBSCRIPTION_NOTIFICATION_LOOKBACK_MS = 60 * 60 * 1000;
+const DEFAULT_SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS = 8;
+const HOURS_TO_MS = 60 * 60 * 1000;
 
 const DEFAULT_TITLE_TEMPLATE = '订阅即将到期：{{name}}';
 const DEFAULT_BODY_TEMPLATE =
@@ -61,6 +62,7 @@ const getNextNotifiableIntervalOccurrence = (
   item: CountdownItem,
   now: Date,
   reminderMinutes: number[],
+  lookbackMs: number,
 ): Date | null => {
   if (item.rule.kind !== 'interval') return null;
   const every = Math.max(1, Math.floor(item.rule.every));
@@ -70,7 +72,7 @@ const getNextNotifiableIntervalOccurrence = (
   while (
     reminderMinutes.every((minutes) => {
       const remindAtMs = occurrence.getTime() - minutes * 60000;
-      return now.getTime() >= remindAtMs + SUBSCRIPTION_NOTIFICATION_LOOKBACK_MS;
+      return now.getTime() >= remindAtMs + lookbackMs;
     }) &&
     guard < 1000
   ) {
@@ -102,6 +104,7 @@ const normalizeChannels = (
 export const collectSubscriptionNotificationCandidates = (
   data: NavHubSyncData,
   now = new Date(),
+  lookbackMs = DEFAULT_SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS * HOURS_TO_MS,
 ): SubscriptionNotificationCandidate[] => {
   const settings = data.siteSettings?.subscriptionNotifications;
   if (!settings?.enabled) return [];
@@ -129,7 +132,7 @@ export const collectSubscriptionNotificationCandidates = (
 
     let occurrence: Date;
     if (isInterval) {
-      const occ = getNextNotifiableIntervalOccurrence(item, now, reminderMinutes);
+      const occ = getNextNotifiableIntervalOccurrence(item, now, reminderMinutes, lookbackMs);
       if (!occ) return [];
       occurrence = occ;
     } else {
@@ -140,7 +143,7 @@ export const collectSubscriptionNotificationCandidates = (
       if (
         reminderMinutes.every((minutes) => {
           const remindAtMs = occurrence.getTime() - minutes * 60000;
-          return now.getTime() >= remindAtMs + SUBSCRIPTION_NOTIFICATION_LOOKBACK_MS;
+          return now.getTime() >= remindAtMs + lookbackMs;
         })
       )
         return [];
@@ -154,7 +157,7 @@ export const collectSubscriptionNotificationCandidates = (
     return reminderMinutes.flatMap((minutes) => {
       const remindAt = new Date(occurrence.getTime() - minutes * 60000);
       const diffMs = now.getTime() - remindAt.getTime();
-      if (diffMs < 0 || diffMs >= SUBSCRIPTION_NOTIFICATION_LOOKBACK_MS) return [];
+      if (diffMs < 0 || diffMs >= lookbackMs) return [];
 
       const templateValues = {
         name,
@@ -316,12 +319,17 @@ export const processSubscriptionNotifications = async (args: {
   sensitive: SensitiveConfigPayload | null;
   now?: Date;
   fetcher?: typeof fetch;
+  lookbackMs?: number;
 }): Promise<ProcessSubscriptionNotificationsResult> => {
   const warnings: string[] = [];
   if (!args.data) return { checked: 0, sent: 0, skipped: 0, warnings };
 
   const settings = args.data.siteSettings?.subscriptionNotifications;
-  const candidates = collectSubscriptionNotificationCandidates(args.data, args.now);
+  const candidates = collectSubscriptionNotificationCandidates(
+    args.data,
+    args.now,
+    args.lookbackMs,
+  );
   let sent = 0;
   let skipped = 0;
 

@@ -21,7 +21,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
 [triggers]
-crons = ["0 * * * *"]
+crons = ["0 */8 * * *"]
 
 # KV 命名空间绑定 (Workers 专用)
 # 若需创建新的 KV: wrangler kv:namespace create NAVHUB_WORKER_KV
@@ -39,6 +39,7 @@ id = "95c81d887bd34118bacadb5aa8ec311a"
 # 环境变量 (也可以在 Cloudflare Dashboard 中设置)
 [vars]
 # SYNC_PASSWORD = ""  # 同步密码，建议在 Dashboard 中设置而非此处
+# SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS = "8"  # 订阅通知回溯窗口（小时，默认 8）
 # SYNC_CORS_ALLOWED_ORIGINS = ""  # 允许的跨域 Origin（逗号分隔；默认仅同源；可设为 "*" 允许任意 Origin，不推荐）
 # AI Proxy (可选，默认仅允许 api.openai.com 且仅同源可访问)
 # AI_PROXY_ALLOWED_HOSTS = "api.openai.com"  # 允许的上游主机白名单（逗号分隔，支持 *.example.com，可选端口 example.com:443；不支持 * 全放开，避免 SSRF/open-proxy）
