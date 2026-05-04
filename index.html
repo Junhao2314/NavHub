@@ -72,97 +72,8 @@
   <link rel="apple-touch-startup-image" href="/apple-launch-2732x2048-dark-landscape.png" media="(prefers-color-scheme: dark) and (device-width: 1366px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
   <link rel="apple-touch-startup-image" href="/apple-launch-2732x2048-light-landscape.png" media="(prefers-color-scheme: light) and (device-width: 1366px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <style>
-    /* 加载动画样式 */
-    #app-loader {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      transition: opacity 0.3s ease-out;
-    }
-    #app-loader.light-mode {
-      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    }
-    #app-loader.dark-mode {
-      background: linear-gradient(135deg, #05070f 0%, #0f172a 100%);
-    }
-    .loader-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-    .loader-bar-container {
-      width: 200px;
-      height: 4px;
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .light-mode .loader-bar-container {
-      background: #e2e8f0;
-    }
-    .dark-mode .loader-bar-container {
-      background: #1e293b;
-    }
-    .loader-bar {
-      height: 100%;
-      border-radius: 2px;
-      background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
-      animation: loading 1.5s ease-in-out infinite;
-      transform-origin: left;
-    }
-    .loader-text {
-      font-size: 14px;
-      font-weight: 500;
-      opacity: 0.7;
-    }
-    .light-mode .loader-text {
-      color: #64748b;
-    }
-    .dark-mode .loader-text {
-      color: #94a3b8;
-    }
-    @keyframes loading {
-      0% { transform: scaleX(0); }
-      50% { transform: scaleX(0.7); }
-      100% { transform: scaleX(1); }
-    }
-    #app-loader.fade-out {
-      opacity: 0;
-      pointer-events: none;
-    }
-  </style>
-  <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem('theme');
-        var mode = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
-        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var shouldDark = mode === 'dark' || (mode === 'system' && prefersDark);
-        var root = document.documentElement;
-        window.__INITIAL_DARK_MODE__ = shouldDark;
-        
-        var statusBarMeta = document.getElementById('apple-status-bar-style');
-        if (statusBarMeta) {
-          statusBarMeta.setAttribute('content', shouldDark ? 'black-translucent' : 'default');
-        }
-
-        if (shouldDark) {
-          root.classList.add('dark');
-          root.style.backgroundColor = '#05070f';
-        } else {
-          root.classList.remove('dark');
-          root.style.backgroundColor = '#f8fafc';
-        }
-      } catch (e) {
-        // Ignore and fall back to default styling.
-      }
-    })();
-  </script>
+  <link rel="stylesheet" href="/app-loader.css" />
+  <script src="/app-bootstrap.js"></script>
   <title>NavHub</title>
 </head>
 
@@ -176,36 +87,6 @@
       <div class="loader-text">Loading...</div>
     </div>
   </div>
-  <script>
-    // 根据主题设置加载器样式
-    (function() {
-      var loader = document.getElementById('app-loader');
-      if (loader) {
-        loader.className = window.__INITIAL_DARK_MODE__ ? 'dark-mode' : 'light-mode';
-      }
-    })();
-  </script>
-  <script>
-    // 根据语言设置加载器文字 / Set loader text by language
-    (function() {
-      var el = document.querySelector('#app-loader .loader-text');
-      if (!el) return;
-
-      var lang = '';
-      try {
-        lang = localStorage.getItem('navhub-language') || '';
-      } catch (e) {
-        // Ignore
-      }
-
-      if (!lang && typeof navigator !== 'undefined') {
-        lang = navigator.language || '';
-      }
-
-      var isZh = String(lang).toLowerCase().indexOf('zh') === 0;
-      el.textContent = isZh ? '加载中...' : 'Loading...';
-    })();
-  </script>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

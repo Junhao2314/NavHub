@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NavHub 同步诊断工具</title>
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>NavHub 本地同步诊断工具</title>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -21,6 +22,20 @@
     h1 {
       color: #333;
       margin-bottom: 30px;
+    }
+    .notice {
+      margin-bottom: 24px;
+      padding: 14px 16px;
+      background: #fff6d6;
+      border: 1px solid #efd98a;
+      border-radius: 6px;
+      color: #6c5200;
+      line-height: 1.6;
+    }
+    .notice code {
+      background: rgba(0, 0, 0, 0.06);
+      border-radius: 4px;
+      padding: 1px 5px;
     }
     .section {
       margin-bottom: 30px;
@@ -103,7 +118,13 @@
 </head>
 <body>
   <div class="container">
-    <h1>🔍 NavHub 同步诊断工具</h1>
+    <h1>🔍 NavHub 本地同步诊断工具</h1>
+    <div class="notice">
+      仅限本地开发使用。此页面只会在 <code>npm run dev</code> 下通过
+      <code>/__internal/sync-diagnostic</code> 提供，不会出现在生产部署中。
+      若要联调 <code>/api/sync</code>，请先设置 <code>VITE_API_PROXY_TARGET</code>
+      指向本地或远端 Worker。
+    </div>
     
     <div class="section">
       <h2>1. 检查本地存储</h2>
@@ -125,7 +146,7 @@
         <input type="password" id="syncPassword" placeholder="留空表示无密码">
       </div>
       <button onclick="checkAuth()">检查权限</button>
-      <button onclick="testLogin()">测试登录</button>
+      <button onclick="testLogin()">验证管理员登录</button>
       <div id="authResult"></div>
     </div>
 
@@ -144,6 +165,7 @@
 
   <script>
     const API_ENDPOINT = '/api/sync';
+    const NAVHUB_STORAGE_PREFIX = 'navhub';
 
     function showResult(elementId, content, type = 'info') {
       const el = document.getElementById(elementId);
@@ -188,11 +210,18 @@
     }
 
     function clearLocalStorage() {
-      if (!confirm('确定要清除所有本地数据吗？此操作不可撤销！')) return;
+      if (!confirm('确定要清除当前站点的 NavHub 本地数据吗？此操作不可撤销！')) return;
       
       try {
-        localStorage.clear();
-        showResult('localResult', '✅ 本地数据已清除，请刷新页面重新加载', 'success');
+        const keysToDelete = Object.keys(localStorage).filter((key) => key.startsWith(NAVHUB_STORAGE_PREFIX));
+        for (const key of keysToDelete) {
+          localStorage.removeItem(key);
+        }
+        showResult(
+          'localResult',
+          `✅ 已清除 ${keysToDelete.length} 个 NavHub 本地存储项，请刷新页面重新加载`,
+          'success',
+        );
       } catch (error) {
         showResult('localResult', `❌ 清除失败：${error.message}`, 'error');
       }
@@ -348,11 +377,8 @@
       }
     }
 
-    // 页面加载时自动检查
     window.addEventListener('load', () => {
       checkLocalStorage();
-      checkCloudData();
-      checkAuth();
     });
   </script>
 </body>

@@ -301,6 +301,41 @@ function sanitizePublicData(data: NavHubSyncData): NavHubSyncData {
 
 ## API 安全
 
+### HTTP 响应头加固
+
+**位置**:
+
+- `shared/utils/securityHeaders.ts`
+- `worker/index.ts`
+- `functions/api/ai.ts`
+- `functions/api/sync.ts`
+- `public/_headers`（Pages 静态资源默认策略）
+
+生产入口会统一附加一组安全响应头，用于降低点击劫持、MIME 混淆、资源滥用等风险：
+
+| 响应头 | 说明 |
+|--------|------|
+| `Content-Security-Policy` / `Content-Security-Policy-Report-Only` | 约束脚本、样式、图片、连接来源 |
+| `X-Frame-Options: DENY` | 禁止页面被嵌入 iframe |
+| `X-Content-Type-Options: nosniff` | 禁止浏览器嗅探 MIME 类型 |
+| `Referrer-Policy: strict-origin-when-cross-origin` | 限制跨站 Referer 泄露 |
+| `Permissions-Policy` | 关闭摄像头、麦克风、支付等未使用能力 |
+| `Cross-Origin-Opener-Policy: same-origin` | 隔离顶层文档窗口上下文 |
+| `Cross-Origin-Resource-Policy: same-origin` | 限制资源被跨源页面直接复用 |
+| `Strict-Transport-Security` | 在 HTTPS 下强制浏览器后续使用 HTTPS |
+
+可选环境变量：
+
+```toml
+[vars]
+SECURITY_HEADERS_CSP_MODE = "report-only" # off | report-only | enforce
+# SECURITY_HEADERS_HSTS_PRELOAD = "true"  # 仅自定义域名完全稳定后再启用
+```
+
+- 默认 `report-only`：先观察 CSP 违规，不阻断页面
+- `enforce`：正式强制 CSP
+- `off`：关闭 CSP，仅保留其他安全头
+
 ### CORS 配置
 
 **Workers 部署**:

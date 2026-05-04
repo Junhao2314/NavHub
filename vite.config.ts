@@ -1,8 +1,50 @@
+import { readFileSync } from 'node:fs';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const DEV_SYNC_DIAGNOSTIC_PATH = '/__internal/sync-diagnostic';
+const DEV_SYNC_DIAGNOSTIC_SOURCE = path.resolve(__dirname, './devtools/sync-diagnostic.html');
+
+function syncDiagnosticDevPlugin(): Plugin {
+  return {
+    name: 'navhub-sync-diagnostic-dev-only',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url) {
+          next();
+          return;
+        }
+
+        const url = new URL(req.url, 'http://localhost');
+        if (url.pathname !== DEV_SYNC_DIAGNOSTIC_PATH) {
+          next();
+          return;
+        }
+
+        try {
+          const html = readFileSync(DEV_SYNC_DIAGNOSTIC_SOURCE, 'utf8');
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+          res.end(html);
+        } catch (error) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.end(
+            error instanceof Error
+              ? `Failed to load sync diagnostic tool: ${error.message}`
+              : 'Failed to load sync diagnostic tool.',
+          );
+        }
+      });
+    },
+  };
+}
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -25,6 +67,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      syncDiagnosticDevPlugin(),
       VitePWA({
         injectRegister: null,
         registerType: 'autoUpdate',

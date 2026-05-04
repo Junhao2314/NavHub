@@ -337,6 +337,24 @@ describe('useDataStore', () => {
 2. **localStorage 查看**: DevTools → Application → Local Storage
 3. **网络请求**: DevTools → Network → 筛选 `/api/`
 
+### 同步诊断页（仅开发环境）
+
+当你需要排查本地缓存、同步权限或备份列表时，可使用内置的 dev-only 诊断页：
+
+```bash
+# 终端 1: 启动 Worker（本地或远端二选一）
+npm run dev:workers
+
+# 终端 2: 启动 Vite（设置 /api 代理）
+$env:VITE_API_PROXY_TARGET='http://127.0.0.1:8787'; npm run dev
+```
+
+访问：`http://localhost:3000/__internal/sync-diagnostic`
+
+- 该页面只在 `npm run dev` 下可访问，不会进入生产构建产物
+- 生产环境会对旧公开路径 `/sync-diagnostic.html` 和内部路径统一返回 `404`
+- 页面加载时只自动读取本地 `navhub*` 数据；云端/API 诊断改为手动触发，减少误请求与噪音
+
 ### Workers 调试
 
 ```bash

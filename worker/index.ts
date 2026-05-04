@@ -20,6 +20,7 @@ import { resolveSyncCorsHeaders } from '../shared/syncApi/cors';
 import { getMainData } from '../shared/syncApi/kv';
 import { parseEnvBool, parseEnvList } from '../shared/utils/env';
 import { mergeVaryHeaderValue } from '../shared/utils/httpHeaders';
+import { applySecurityHeaders } from '../shared/utils/securityHeaders';
 import { decryptSensitiveConfig } from '../src/utils/sensitiveConfig';
 
 interface Env {
@@ -31,10 +32,13 @@ interface Env {
   AI_PROXY_ALLOWED_HOSTS?: string;
   AI_PROXY_ALLOWED_ORIGINS?: string;
   AI_PROXY_ALLOW_INSECURE_HTTP?: string;
+  SECURITY_HEADERS_CSP_MODE?: string;
+  SECURITY_HEADERS_HSTS_PRELOAD?: string;
   ASSETS: Fetcher;
 }
 
 const DEFAULT_SUBSCRIPTION_NOTIFICATION_LOOKBACK_HOURS = 8;
+const BLOCKED_DEV_ONLY_PATHS = new Set(['/sync-diagnostic.html', '/__internal/sync-diagnostic']);
 
 const parseNotificationLookbackMs = (rawHours?: string): number => {
   const parsedHours = Number(rawHours);
@@ -64,24 +68,59 @@ function withCors(response: Response, corsHeaders: Record<string, string>): Resp
   });
 }
 
+function handleBlockedDevOnlyPath(): Response {
+  return new Response('Not Found', {
+    status: 404,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow, noarchive',
+    },
+  });
+}
+
+function withWorkerSecurityHeaders(
+  request: Request,
+  response: Response,
+  env: Env,
+  context: 'api' | 'static',
+): Response {
+  return applySecurityHeaders(response, {
+    context,
+    cspMode: env.SECURITY_HEADERS_CSP_MODE,
+    enableHstsPreload: parseEnvBool(env.SECURITY_HEADERS_HSTS_PRELOAD),
+    request,
+  });
+}
+
 async function handleApiSync(request: Request, env: Env): Promise<Response> {
   const { headers: corsHeaders, allowed } = resolveSyncCorsHeaders(request, {
     corsAllowedOrigins: parseEnvList(env.SYNC_CORS_ALLOWED_ORIGINS),
   });
   if (!allowed) {
-    return new Response(JSON.stringify({ success: false, error: 'CORS origin not allowed' }), {
-      status: 403,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
-        ...corsHeaders,
-      },
-    });
+    return withWorkerSecurityHeaders(
+      request,
+      new Response(JSON.stringify({ success: false, error: 'CORS origin not allowed' }), {
+        status: 403,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          ...corsHeaders,
+        },
+      }),
+      env,
+      'api',
+    );
   }
 
   // CORS 预检
   if (request.method === 'OPTIONS') {
-    return new Response(null, { headers: { 'Cache-Control': 'no-store', ...corsHeaders } });
+    return withWorkerSecurityHeaders(
+      request,
+      new Response(null, { headers: { 'Cache-Control': 'no-store', ...corsHeaders } }),
+      env,
+      'api',
+    );
   }
 
   const syncEnv: SyncApiEnv = {
@@ -91,7 +130,7 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
   };
 
   const response = await handleApiSyncRequest(request, syncEnv);
-  return withCors(response, corsHeaders);
+  return withWorkerSecurityHeaders(request, withCors(response, corsHeaders), env, 'api');
 }
 
 // ============================================
@@ -99,11 +138,16 @@ async function handleApiSync(request: Request, env: Env): Promise<Response> {
 // ============================================
 
 async function handleApiAI(request: Request, env: Env): Promise<Response> {
-  return handleApiAIRequest(request, {
-    allowedBaseUrlHosts: parseEnvList(env.AI_PROXY_ALLOWED_HOSTS),
-    corsAllowedOrigins: parseEnvList(env.AI_PROXY_ALLOWED_ORIGINS),
-    allowInsecureHttp: parseEnvBool(env.AI_PROXY_ALLOW_INSECURE_HTTP),
-  });
+  return withWorkerSecurityHeaders(
+    request,
+    await handleApiAIRequest(request, {
+      allowedBaseUrlHosts: parseEnvList(env.AI_PROXY_ALLOWED_HOSTS),
+      corsAllowedOrigins: parseEnvList(env.AI_PROXY_ALLOWED_ORIGINS),
+      allowInsecureHttp: parseEnvBool(env.AI_PROXY_ALLOW_INSECURE_HTTP),
+    }),
+    env,
+    'api',
+  );
 }
 
 // ============================================
@@ -111,7 +155,7 @@ async function handleApiAI(request: Request, env: Env): Promise<Response> {
 // ============================================
 
 async function handleStaticAssets(request: Request, env: Env): Promise<Response> {
-  return env.ASSETS.fetch(request);
+  return withWorkerSecurityHeaders(request, await env.ASSETS.fetch(request), env, 'static');
 }
 
 export default {
@@ -124,6 +168,9 @@ export default {
     }
     if (url.pathname.startsWith('/api/ai')) {
       return handleApiAI(request, env);
+    }
+    if (BLOCKED_DEV_ONLY_PATHS.has(url.pathname)) {
+      return withWorkerSecurityHeaders(request, handleBlockedDevOnlyPath(), env, 'static');
     }
 
     // 静态资源
