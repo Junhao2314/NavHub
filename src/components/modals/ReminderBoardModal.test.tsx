@@ -11,6 +11,15 @@ vi.mock('../../hooks/useI18n', () => ({
         'modals.countdown.addReminder': 'Add reminder',
         'modals.countdown.applyNatural': 'Parse/Apply',
         'modals.countdown.atTime': 'At time',
+        'modals.countdown.cron': 'Cron (Advanced)',
+        'modals.countdown.interval': 'Interval repeat',
+        'modals.countdown.intervalEvery': 'Every',
+        'modals.countdown.intervalHint':
+          'Custom intervals are supported, e.g. every 175 days from the selected start date.',
+        'modals.countdown.intervalUnitDay': 'Days',
+        'modals.countdown.intervalUnitMonth': 'Months',
+        'modals.countdown.intervalUnitWeek': 'Weeks',
+        'modals.countdown.intervalUnitYear': 'Years',
         'modals.countdown.naturalInput': 'Natural language',
         'modals.countdown.naturalInputPlaceholder': 'next Fri, in 3 days, monthly 15th...',
         'modals.countdown.removeReminder': 'Remove reminder',
@@ -48,6 +57,11 @@ vi.mock('../../hooks/useI18n', () => ({
         'modals.countdown.reminderWeekSummaryItem': `${params?.count} weeks before`,
         'modals.countdown.reminderMonthSummaryItem': `${params?.count} months before`,
         'modals.countdown.reminderYearSummaryItem': `${params?.count} years before`,
+        'modals.countdown.repeatStart': 'Start time',
+        'modals.countdown.solarTermYearly': 'Solar term (Yearly)',
+        'modals.countdown.once': 'Once',
+        'modals.countdown.workday': 'Weekdays',
+        'modals.countdown.title': 'Title',
         'modals.countdown.remindersHint':
           'Use quick presets or natural-language input, such as 3 days before, 45 min before, 1 month before, or at time',
         'modals.countdown.subscriptionContentPlaceholder': 'Content (defaults to note)',
@@ -408,5 +422,43 @@ describe('ReminderBoardModal', () => {
 
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0]?.[0]?.reminderMinutes).toEqual([]);
+  });
+
+  it('saves custom interval repeats with an arbitrary day count', async () => {
+    const onSave = vi.fn();
+    await renderModal({ isAdmin: true, onSave });
+
+    const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement | null;
+    expect(titleInput).toBeTruthy();
+    await act(async () => {
+      if (!titleInput) return;
+      setInputValue(titleInput, 'Interval item');
+    });
+
+    const intervalButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Interval repeat',
+    );
+    expect(intervalButton).toBeTruthy();
+
+    await act(async () => {
+      intervalButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const intervalInput = container.querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement | null;
+    expect(intervalInput).toBeTruthy();
+    await act(async () => {
+      if (!intervalInput) return;
+      setInputValue(intervalInput, '175');
+    });
+
+    await act(async () => {
+      const submitButton = container.querySelector('button[type="submit"]');
+      submitButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0]?.[0]?.rule).toEqual({ kind: 'interval', unit: 'day', every: 175 });
   });
 });

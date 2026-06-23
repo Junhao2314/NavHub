@@ -14,7 +14,7 @@ import type {
   LinkItem,
 } from '../../types';
 import { SOLAR_TERM_KEY_BY_ZH_NAME, SOLAR_TERM_ZH_NAMES } from '../../utils/chineseCalendar';
-import { getNextOccurrence } from '../../utils/countdown';
+import { getDefaultRecurrenceRule, getNextOccurrence } from '../../utils/countdown';
 import { generateId } from '../../utils/id';
 import { formatTargetLocal, parseNaturalInput } from '../../utils/naturalDate';
 import {
@@ -34,18 +34,30 @@ import { normalizeHttpUrl } from '../../utils/url';
 
 const MAX_LINK_OPTIONS = 500;
 
-type RepeatMode =
-  | 'once'
-  | 'daily'
-  | 'weekly'
-  | 'biweekly'
-  | 'workday'
-  | 'monthly'
-  | 'quarterly'
-  | 'yearly'
-  | 'cron'
-  | 'lunarYearly'
-  | 'solarTermYearly';
+type RepeatMode = 'once' | 'interval' | 'workday' | 'cron' | 'lunarYearly' | 'solarTermYearly';
+
+type IntervalUnit = 'day' | 'week' | 'month' | 'year';
+
+const DEFAULT_INTERVAL_EVERY = 1;
+const DEFAULT_INTERVAL_UNIT: IntervalUnit = 'day';
+
+const REPEAT_MODE_OPTIONS: Array<{ value: RepeatMode; labelKey: string }> = [
+  { value: 'once', labelKey: 'modals.countdown.once' },
+  { value: 'interval', labelKey: 'modals.countdown.interval' },
+  { value: 'workday', labelKey: 'modals.countdown.workday' },
+  { value: 'cron', labelKey: 'modals.countdown.cron' },
+  { value: 'lunarYearly', labelKey: 'modals.countdown.lunarYearly' },
+  { value: 'solarTermYearly', labelKey: 'modals.countdown.solarTermYearly' },
+];
+
+const INTERVAL_PRESET_OPTIONS: Array<{ every: number; unit: IntervalUnit; labelKey: string }> = [
+  { every: 1, unit: 'day', labelKey: 'modals.countdown.daily' },
+  { every: 1, unit: 'week', labelKey: 'modals.countdown.weekly' },
+  { every: 2, unit: 'week', labelKey: 'modals.countdown.biweekly' },
+  { every: 1, unit: 'month', labelKey: 'modals.countdown.monthly' },
+  { every: 3, unit: 'month', labelKey: 'modals.countdown.quarterly' },
+  { every: 1, unit: 'year', labelKey: 'modals.countdown.yearly' },
+];
 
 const LABEL_COLOR_OPTIONS: {
   value: CountdownLabelColor;
@@ -138,21 +150,21 @@ const normalizeCronExpression = (expression: string): string => {
   return parts.join(' ');
 };
 
+const normalizeIntervalEvery = (value: number): number => {
+  if (!Number.isFinite(value)) return DEFAULT_INTERVAL_EVERY;
+  return Math.max(1, Math.floor(value));
+};
+
+const isWorkdayCronExpression = (expression: string): boolean => {
+  const parts = normalizeCronExpression(expression).split(/\s+/);
+  return parts.length >= 6 && parts[3] === '*' && parts[4] === '*' && parts[5] === '1-5';
+};
+
 const deriveRepeatModeFromRule = (rule: CountdownRule): RepeatMode => {
   if (rule.kind === 'once') return 'once';
-  if (rule.kind === 'interval') {
-    if (rule.unit === 'day' && rule.every === 1) return 'daily';
-    if (rule.unit === 'week' && rule.every === 1) return 'weekly';
-    if (rule.unit === 'week' && rule.every === 2) return 'biweekly';
-    if (rule.unit === 'month' && rule.every === 1) return 'monthly';
-    if (rule.unit === 'month' && rule.every === 3) return 'quarterly';
-    if (rule.unit === 'year' && rule.every === 1) return 'yearly';
-    return 'weekly';
-  }
+  if (rule.kind === 'interval') return 'interval';
   if (rule.kind === 'cron') {
-    const parts = normalizeCronExpression(rule.expression).split(/\s+/);
-    if (parts.length >= 6 && parts[3] === '*' && parts[4] === '*' && parts[5] === '1-5')
-      return 'workday';
+    if (isWorkdayCronExpression(rule.expression)) return 'workday';
     return 'cron';
   }
   if (rule.kind === 'lunarYearly') return 'lunarYearly';
@@ -161,6 +173,8 @@ const deriveRepeatModeFromRule = (rule: CountdownRule): RepeatMode => {
 
 const buildRuleFromState = (args: {
   repeatMode: RepeatMode;
+  intervalEvery: number;
+  intervalUnit: IntervalUnit;
   timePart: string;
   cronExpression: string;
   lunarMonth: number;
@@ -173,18 +187,12 @@ const buildRuleFromState = (args: {
   switch (args.repeatMode) {
     case 'once':
       return { kind: 'once' };
-    case 'daily':
-      return { kind: 'interval', unit: 'day', every: 1 };
-    case 'weekly':
-      return { kind: 'interval', unit: 'week', every: 1 };
-    case 'biweekly':
-      return { kind: 'interval', unit: 'week', every: 2 };
-    case 'monthly':
-      return { kind: 'interval', unit: 'month', every: 1 };
-    case 'quarterly':
-      return { kind: 'interval', unit: 'month', every: 3 };
-    case 'yearly':
-      return { kind: 'interval', unit: 'year', every: 1 };
+    case 'interval':
+      return {
+        kind: 'interval',
+        unit: args.intervalUnit,
+        every: normalizeIntervalEvery(args.intervalEvery),
+      };
     case 'workday':
       return {
         kind: 'cron',
@@ -250,11 +258,9 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
   const [timePart, setTimePart] = useState('00:00:00');
 
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('once');
+  const [intervalEvery, setIntervalEvery] = useState(DEFAULT_INTERVAL_EVERY);
+  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(DEFAULT_INTERVAL_UNIT);
   const [cronExpression, setCronExpression] = useState('0 0 9 * * 1-5');
-  const [weekday, setWeekday] = useState(1); // 1=Mon, 7=Sun (ISO weekday)
-  const [dayOfMonth, setDayOfMonth] = useState(1);
-  const [monthOfYear, setMonthOfYear] = useState(1);
-
   const [lunarMonth, setLunarMonth] = useState(12);
   const [lunarDay, setLunarDay] = useState(23);
   const [lunarLeap, setLunarLeap] = useState(false);
@@ -295,6 +301,8 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     () =>
       buildRuleFromState({
         repeatMode,
+        intervalEvery,
+        intervalUnit,
         timePart,
         cronExpression,
         lunarMonth,
@@ -302,51 +310,26 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
         lunarLeap,
         solarTermKey,
       }),
-    [repeatMode, timePart, cronExpression, lunarMonth, lunarDay, lunarLeap, solarTermKey],
+    [
+      repeatMode,
+      intervalEvery,
+      intervalUnit,
+      timePart,
+      cronExpression,
+      lunarMonth,
+      lunarDay,
+      lunarLeap,
+      solarTermKey,
+    ],
   );
 
   const timeStep = precision === 'second' ? 1 : precision === 'minute' ? 60 : 3600;
-
-  // Compute anchor datePart from smart fields for recurring modes
-  const effectiveDatePart = useMemo(() => {
-    if (
-      repeatMode === 'once' ||
-      repeatMode === 'cron' ||
-      repeatMode === 'lunarYearly' ||
-      repeatMode === 'solarTermYearly'
-    ) {
-      return datePart;
-    }
-    const zone = timeZone.trim() || DEFAULT_TIME_ZONE;
-    const now = DateTime.now().setZone(zone);
-    if (repeatMode === 'daily' || repeatMode === 'workday') {
-      return now.toFormat('yyyy-MM-dd');
-    }
-    if (repeatMode === 'weekly' || repeatMode === 'biweekly') {
-      // Find next occurrence of the selected weekday
-      let dt = now;
-      while (dt.weekday !== weekday) {
-        dt = dt.plus({ days: 1 });
-      }
-      return dt.toFormat('yyyy-MM-dd');
-    }
-    if (repeatMode === 'monthly') {
-      const d = Math.min(dayOfMonth, now.daysInMonth ?? 28);
-      let dt = now.set({ day: d });
-      if (dt < now)
-        dt = dt.plus({ months: 1 }).set({
-          day: Math.min(dayOfMonth, dt.plus({ months: 1 }).daysInMonth ?? 28),
-        });
-      return dt.toFormat('yyyy-MM-dd');
-    }
-    if (repeatMode === 'quarterly' || repeatMode === 'yearly') {
-      const d = Math.min(dayOfMonth, 28);
-      let dt = now.set({ month: monthOfYear, day: d });
-      if (dt < now) dt = dt.plus({ years: 1 });
-      return dt.toFormat('yyyy-MM-dd');
-    }
-    return datePart;
-  }, [repeatMode, datePart, timeZone, weekday, dayOfMonth, monthOfYear]);
+  const effectiveDatePart = datePart;
+  const timeInputValue = useMemo(() => {
+    if (precision === 'second') return normalizeTimePart(timePart);
+    if (precision === 'minute') return normalizeTimePart(timePart).slice(0, 5);
+    return `${normalizeTimePart(timePart).slice(0, 2)}:00`;
+  }, [precision, timePart]);
 
   const nextOccurrencePreview = useMemo(() => {
     const zone = timeZone.trim() || DEFAULT_TIME_ZONE;
@@ -425,6 +408,30 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     }
   }, [rule, timeZone]);
 
+  const applyRuleToForm = useCallback((nextRule: CountdownRule) => {
+    setRepeatMode(deriveRepeatModeFromRule(nextRule));
+
+    if (nextRule.kind === 'interval') {
+      setIntervalEvery(normalizeIntervalEvery(nextRule.every));
+      setIntervalUnit(nextRule.unit);
+    } else {
+      setIntervalEvery(DEFAULT_INTERVAL_EVERY);
+      setIntervalUnit(DEFAULT_INTERVAL_UNIT);
+    }
+
+    if (nextRule.kind === 'cron') {
+      setCronExpression(normalizeCronExpression(nextRule.expression));
+    }
+    if (nextRule.kind === 'lunarYearly') {
+      setLunarMonth(nextRule.month);
+      setLunarDay(nextRule.day);
+      setLunarLeap(Boolean(nextRule.isLeapMonth));
+    }
+    if (nextRule.kind === 'solarTermYearly') {
+      setSolarTermKey(nextRule.term);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -435,16 +442,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       const initZone = normalizeTimeZone(initialData.timeZone ?? DEFAULT_TIME_ZONE);
       const initPrecision: CountdownPrecision = initialData.precision ?? 'minute';
       const initRule: CountdownRule =
-        initialData.rule ??
-        (initialData.recurrence === 'daily'
-          ? { kind: 'interval', unit: 'day', every: 1 }
-          : initialData.recurrence === 'weekly'
-            ? { kind: 'interval', unit: 'week', every: 1 }
-            : initialData.recurrence === 'monthly'
-              ? { kind: 'interval', unit: 'month', every: 1 }
-              : initialData.recurrence === 'yearly'
-                ? { kind: 'interval', unit: 'year', every: 1 }
-                : { kind: 'once' });
+        initialData.rule ?? getDefaultRecurrenceRule(initialData.recurrence);
 
       const fallbackLocal =
         initialData.targetLocal ||
@@ -454,28 +452,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
               .toFormat("yyyy-MM-dd'T'HH:mm:ss")
           : '');
 
-      const nextLocal = (() => {
-        if (!fallbackLocal) return '';
-        const local = DateTime.fromISO(fallbackLocal, { zone: initZone });
-        const targetDate = local.isValid
-          ? (local.toUTC().toISO() ?? new Date().toISOString())
-          : new Date().toISOString();
-        const previewItem: CountdownItem = {
-          id: 'preview',
-          title: 'preview',
-          note: undefined,
-          targetLocal: fallbackLocal,
-          targetDate,
-          timeZone: initZone,
-          precision: initPrecision,
-          rule: initRule,
-          reminderMinutes: [],
-          createdAt: 0,
-        };
-        const next = getNextOccurrence(previewItem, new Date());
-        return toTargetLocalString(DateTime.fromJSDate(next, { zone: initZone }));
-      })();
-
       setTitle(initialData.title ?? '');
       setNote(initialData.note ?? '');
       setLinkedUrlInput(initialData.linkedUrl ?? '');
@@ -483,31 +459,12 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
 
       setTimeZone(initZone);
       setPrecision(initPrecision);
-      setRepeatMode(deriveRepeatModeFromRule(initRule));
+      applyRuleToForm(initRule);
 
-      if (initRule.kind === 'cron') {
-        setCronExpression(normalizeCronExpression(initRule.expression));
-      }
-      if (initRule.kind === 'lunarYearly') {
-        setLunarMonth(initRule.month);
-        setLunarDay(initRule.day);
-        setLunarLeap(Boolean(initRule.isLeapMonth));
-      }
-      if (initRule.kind === 'solarTermYearly') {
-        setSolarTermKey(initRule.term);
-      }
-
-      if (nextLocal) {
-        const [d, tpart] = nextLocal.split('T');
+      if (fallbackLocal) {
+        const [d, tpart] = fallbackLocal.split('T');
         setDatePart(d ?? '');
         setTimePart(normalizeTimePart(tpart ?? '00:00:00'));
-        // Derive smart form fields from date
-        const dtParsed = DateTime.fromISO(nextLocal, { zone: initZone });
-        if (dtParsed.isValid) {
-          setWeekday(dtParsed.weekday); // 1=Mon, 7=Sun
-          setDayOfMonth(dtParsed.day);
-          setMonthOfYear(dtParsed.month);
-        }
       } else {
         setDatePart('');
         setTimePart('00:00:00');
@@ -560,10 +517,9 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       setDatePart(initDatePart);
       setTimePart(initTimePart);
       setRepeatMode('once');
+      setIntervalEvery(DEFAULT_INTERVAL_EVERY);
+      setIntervalUnit(DEFAULT_INTERVAL_UNIT);
       setCronExpression('0 0 9 * * 1-5');
-      setWeekday(nowZoned.weekday);
-      setDayOfMonth(nowZoned.day);
-      setMonthOfYear(nowZoned.month);
       setLunarMonth(12);
       setLunarDay(23);
       setLunarLeap(false);
@@ -582,7 +538,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       setSubscriptionContent('');
       setShowAdvanced(false);
     }
-  }, [isOpen, initialData, isAdmin]);
+  }, [isOpen, initialData, isAdmin, applyRuleToForm]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -640,18 +596,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
       setPrecision(entry.precision);
       if (entry.labelColor) setLabelColor(entry.labelColor);
 
-      setRepeatMode(deriveRepeatModeFromRule(entry.rule));
-      if (entry.rule.kind === 'cron') {
-        setCronExpression(normalizeCronExpression(entry.rule.expression));
-      }
-      if (entry.rule.kind === 'lunarYearly') {
-        setLunarMonth(entry.rule.month);
-        setLunarDay(entry.rule.day);
-        setLunarLeap(Boolean(entry.rule.isLeapMonth));
-      }
-      if (entry.rule.kind === 'solarTermYearly') {
-        setSolarTermKey(entry.rule.term);
-      }
+      applyRuleToForm(entry.rule);
 
       if (dtLocal.isValid) {
         setDatePart(dtLocal.toFormat('yyyy-MM-dd'));
@@ -664,7 +609,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
 
       setShowTemplateDropdown(false);
     },
-    [i18n.language, timeZone],
+    [applyRuleToForm, i18n.language, timeZone],
   );
 
   const handleApplyNatural = () => {
@@ -686,18 +631,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     setTimeZone(parsed.timeZone);
     if (parsed.precision) setPrecision(parsed.precision);
 
-    if (parsed.rule) {
-      setRepeatMode(deriveRepeatModeFromRule(parsed.rule));
-
-      if (parsed.rule.kind === 'cron')
-        setCronExpression(normalizeCronExpression(parsed.rule.expression));
-      if (parsed.rule.kind === 'lunarYearly') {
-        setLunarMonth(parsed.rule.month);
-        setLunarDay(parsed.rule.day);
-        setLunarLeap(Boolean(parsed.rule.isLeapMonth));
-      }
-      if (parsed.rule.kind === 'solarTermYearly') setSolarTermKey(parsed.rule.term);
-    }
+    if (parsed.rule) applyRuleToForm(parsed.rule);
 
     if (parsed.targetLocal) {
       const [d, tpart] = parsed.targetLocal.split('T');
@@ -778,6 +712,10 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
     });
 
     if (!title.trim()) return;
+    if (repeatMode === 'interval' && (!Number.isFinite(intervalEvery) || intervalEvery < 1)) {
+      setErrorMessage(t('modals.countdown.invalidIntervalEvery'));
+      return;
+    }
 
     // For cron rules, store next run as targetLocal (preview)
     let finalTargetLocal = baseTargetLocal;
@@ -972,28 +910,26 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
               />
             </div>
 
-            {/* Repeat Mode (moved before target date) */}
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
                 {t('modals.countdown.recurrence')}
               </label>
-              <select
-                value={repeatMode}
-                onChange={(e) => setRepeatMode(e.target.value as RepeatMode)}
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-              >
-                <option value="once">{t('modals.countdown.once')}</option>
-                <option value="daily">{t('modals.countdown.daily')}</option>
-                <option value="weekly">{t('modals.countdown.weekly')}</option>
-                <option value="biweekly">{t('modals.countdown.biweekly')}</option>
-                <option value="workday">{t('modals.countdown.workday')}</option>
-                <option value="monthly">{t('modals.countdown.monthly')}</option>
-                <option value="quarterly">{t('modals.countdown.quarterly')}</option>
-                <option value="yearly">{t('modals.countdown.yearly')}</option>
-                <option value="cron">{t('modals.countdown.cron')}</option>
-                <option value="lunarYearly">{t('modals.countdown.lunarYearly')}</option>
-                <option value="solarTermYearly">{t('modals.countdown.solarTermYearly')}</option>
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                {REPEAT_MODE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setRepeatMode(option.value)}
+                    className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                      repeatMode === option.value
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                    }`}
+                  >
+                    {t(option.labelKey)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Smart Target Date/Time (varies by repeat mode) */}
@@ -1002,7 +938,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 {t('modals.countdown.targetDate')}
               </label>
 
-              {/* once: full date + time picker */}
               {repeatMode === 'once' && (
                 <div className="flex items-center gap-2">
                   <input
@@ -1015,13 +950,7 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                     <input
                       type="time"
                       step={timeStep}
-                      value={
-                        precision === 'second'
-                          ? normalizeTimePart(timePart)
-                          : precision === 'minute'
-                            ? normalizeTimePart(timePart).slice(0, 5)
-                            : normalizeTimePart(timePart).slice(0, 2) + ':00'
-                      }
+                      value={timeInputValue}
                       onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
                       className="w-[140px] px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
                     />
@@ -1029,8 +958,86 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 </div>
               )}
 
-              {/* daily / workday: time only */}
-              {(repeatMode === 'daily' || repeatMode === 'workday') && precision !== 'day' && (
+              {repeatMode === 'interval' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                      {t('modals.countdown.intervalEvery')}
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {INTERVAL_PRESET_OPTIONS.map((preset) => (
+                        <button
+                          key={`${preset.every}-${preset.unit}`}
+                          type="button"
+                          onClick={() => {
+                            setIntervalEvery(preset.every);
+                            setIntervalUnit(preset.unit);
+                          }}
+                          className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                            intervalEvery === preset.every && intervalUnit === preset.unit
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
+                          }`}
+                        >
+                          {t(preset.labelKey)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={Number.isFinite(intervalEvery) ? intervalEvery : ''}
+                        onChange={(e) =>
+                          setIntervalEvery(
+                            e.target.value ? Number.parseInt(e.target.value, 10) : Number.NaN,
+                          )
+                        }
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                      />
+                      <select
+                        value={intervalUnit}
+                        onChange={(e) => setIntervalUnit(e.target.value as IntervalUnit)}
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                      >
+                        <option value="day">{t('modals.countdown.intervalUnitDay')}</option>
+                        <option value="week">{t('modals.countdown.intervalUnitWeek')}</option>
+                        <option value="month">{t('modals.countdown.intervalUnitMonth')}</option>
+                        <option value="year">{t('modals.countdown.intervalUnitYear')}</option>
+                      </select>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                      {t('modals.countdown.intervalHint')}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                      {t('modals.countdown.repeatStart')}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={datePart}
+                        onChange={(e) => setDatePart(e.target.value)}
+                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                      />
+                      {precision !== 'day' && (
+                        <input
+                          type="time"
+                          step={timeStep}
+                          value={timeInputValue}
+                          onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
+                          className="w-[140px] px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {repeatMode === 'workday' && precision !== 'day' && (
                 <div className="flex items-center gap-2">
                   <label className="text-xs text-slate-500 dark:text-slate-400">
                     {t('modals.countdown.timeOnly')}
@@ -1038,155 +1045,13 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                   <input
                     type="time"
                     step={timeStep}
-                    value={
-                      precision === 'second'
-                        ? normalizeTimePart(timePart)
-                        : precision === 'minute'
-                          ? normalizeTimePart(timePart).slice(0, 5)
-                          : normalizeTimePart(timePart).slice(0, 2) + ':00'
-                    }
+                    value={timeInputValue}
                     onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
                     className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
                   />
                 </div>
               )}
 
-              {/* weekly / biweekly: weekday picker + time */}
-              {(repeatMode === 'weekly' || repeatMode === 'biweekly') && (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {(
-                      [
-                        { value: 1, key: 'weekdayMon' },
-                        { value: 2, key: 'weekdayTue' },
-                        { value: 3, key: 'weekdayWed' },
-                        { value: 4, key: 'weekdayThu' },
-                        { value: 5, key: 'weekdayFri' },
-                        { value: 6, key: 'weekdaySat' },
-                        { value: 7, key: 'weekdaySun' },
-                      ] as const
-                    ).map((wd) => (
-                      <button
-                        key={wd.value}
-                        type="button"
-                        onClick={() => setWeekday(wd.value)}
-                        className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                          weekday === wd.value
-                            ? 'border-accent bg-accent/10 text-accent'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-accent/50'
-                        }`}
-                      >
-                        {t(`modals.countdown.${wd.key}`)}
-                      </button>
-                    ))}
-                  </div>
-                  {precision !== 'day' && (
-                    <input
-                      type="time"
-                      step={timeStep}
-                      value={
-                        precision === 'second'
-                          ? normalizeTimePart(timePart)
-                          : precision === 'minute'
-                            ? normalizeTimePart(timePart).slice(0, 5)
-                            : normalizeTimePart(timePart).slice(0, 2) + ':00'
-                      }
-                      onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* monthly: day-of-month picker + time */}
-              {repeatMode === 'monthly' && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
-                      {t('modals.countdown.dayOfMonth')}
-                    </label>
-                    <select
-                      value={dayOfMonth}
-                      onChange={(e) => setDayOfMonth(Number.parseInt(e.target.value, 10))}
-                      className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm font-medium"
-                    >
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {precision !== 'day' && (
-                    <input
-                      type="time"
-                      step={timeStep}
-                      value={
-                        precision === 'second'
-                          ? normalizeTimePart(timePart)
-                          : precision === 'minute'
-                            ? normalizeTimePart(timePart).slice(0, 5)
-                            : normalizeTimePart(timePart).slice(0, 2) + ':00'
-                      }
-                      onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* quarterly / yearly: month + day-of-month + time */}
-              {(repeatMode === 'quarterly' || repeatMode === 'yearly') && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
-                      {t('modals.countdown.monthOfYear')}
-                    </label>
-                    <select
-                      value={monthOfYear}
-                      onChange={(e) => setMonthOfYear(Number.parseInt(e.target.value, 10))}
-                      className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm font-medium"
-                    >
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
-                      {t('modals.countdown.dayOfMonth')}
-                    </label>
-                    <select
-                      value={dayOfMonth}
-                      onChange={(e) => setDayOfMonth(Number.parseInt(e.target.value, 10))}
-                      className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm font-medium"
-                    >
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {precision !== 'day' && (
-                    <input
-                      type="time"
-                      step={timeStep}
-                      value={
-                        precision === 'second'
-                          ? normalizeTimePart(timePart)
-                          : precision === 'minute'
-                            ? normalizeTimePart(timePart).slice(0, 5)
-                            : normalizeTimePart(timePart).slice(0, 2) + ':00'
-                      }
-                      onChange={(e) => setTimePart(normalizeTimePart(e.target.value))}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* cron: expression input */}
               {repeatMode === 'cron' && (
                 <div className="space-y-2">
                   <input
@@ -1208,7 +1073,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 </div>
               )}
 
-              {/* lunarYearly: lunar month/day/leap picker */}
               {repeatMode === 'lunarYearly' && (
                 <div className="grid grid-cols-3 gap-2">
                   <select
@@ -1248,7 +1112,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 </div>
               )}
 
-              {/* solarTermYearly: term picker */}
               {repeatMode === 'solarTermYearly' && (
                 <select
                   value={solarTermKey}
@@ -1263,7 +1126,6 @@ const ReminderBoardModal: React.FC<ReminderBoardModalProps> = ({
                 </select>
               )}
 
-              {/* Next occurrence preview for recurring modes */}
               {nextOccurrencePreview && repeatMode !== 'once' && repeatMode !== 'cron' && (
                 <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                   {t('modals.countdown.nextOccurrence')}: {nextOccurrencePreview} (
