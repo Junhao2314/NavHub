@@ -162,6 +162,22 @@ const normalizeChecklist = (value: unknown): ChecklistItem[] | undefined => {
   return items.length > 0 ? items : undefined;
 };
 
+const normalizeSubscription = (value: unknown): CountdownItem['subscription'] => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const record = value as Record<string, unknown>;
+  if (record.enabled !== true) return undefined;
+
+  const name = typeof record.name === 'string' ? record.name.trim() : '';
+  const content = typeof record.content === 'string' ? record.content.trim() : '';
+
+  return {
+    enabled: true,
+    name: name || undefined,
+    content: content || undefined,
+  };
+};
+
 const normalizeNewCountdownItem = (
   data: Omit<CountdownItem, 'id' | 'createdAt'>,
   order: number,
@@ -176,11 +192,13 @@ const normalizeNewCountdownItem = (
 
   const tags = normalizeTags(data.tags);
   const checklist = normalizeChecklist(data.checklist);
+  const subscription = normalizeSubscription(data.subscription);
 
   return {
     ...data,
     tags,
     checklist,
+    subscription,
     id: generateId(),
     createdAt: now,
     order,
@@ -279,6 +297,7 @@ const sanitizeCountdowns = (input: unknown): CountdownItem[] => {
         : [...DEFAULT_REMINDER_MINUTES];
 
     const checklist = normalizeChecklist(record.checklist);
+    const subscription = normalizeSubscription(record.subscription);
 
     result.push({
       id,
@@ -299,6 +318,7 @@ const sanitizeCountdowns = (input: unknown): CountdownItem[] => {
       createdAt,
       order,
       checklist,
+      subscription,
     });
   }
 
@@ -397,6 +417,9 @@ export const useCountdownStore = () => {
       }
       if (Array.isArray(data.checklist)) {
         patch.checklist = normalizeChecklist(data.checklist);
+      }
+      if ('subscription' in data) {
+        patch.subscription = normalizeSubscription(data.subscription);
       }
       if (typeof data.timeZone === 'string' || typeof data.targetLocal === 'string') {
         const nextTimeZone = normalizeTimeZone(
