@@ -715,6 +715,7 @@
       "archiveDelayHint": "已过期的一次性备忘将在指定分钟后自动归档",
       "isPrivate": "私密（密码保护）",
       "privateBadge": "私密",
+      "subscriptionBadge": "已开启订阅提醒",
       "templateButton": "模板",
       "templateChinese": "中国节假日",
       "templateInternational": "国际节日",

@@ -69,6 +69,8 @@ const createItem = (args: {
   labelColor?: CountdownLabelColor;
   tags?: string[];
   archivedAt?: number;
+  reminderMinutes?: number[];
+  subscriptionEnabled?: boolean;
 }): CountdownItem => {
   const target = new Date(BASE_NOW.getTime() + args.offsetMs);
   const iso = target.toISOString();
@@ -84,6 +86,8 @@ const createItem = (args: {
     timeZone: 'UTC',
     precision: 'minute',
     rule: { kind: 'once' },
+    reminderMinutes: args.reminderMinutes,
+    subscription: args.subscriptionEnabled ? { enabled: true } : undefined,
     createdAt: BASE_NOW.getTime(),
   };
 };
@@ -310,5 +314,35 @@ describe('ReminderBoardSection (Filters)', () => {
 
     expect(container.textContent).toContain('In range');
     expect(container.textContent).not.toContain('Out of range');
+  });
+
+  it('shows subscription badge only for subscription-enabled reminders across all card views', async () => {
+    const withSubscription = createItem({
+      id: 'subscription',
+      title: 'Subscription enabled',
+      offsetMs: 60_000,
+      reminderMinutes: [1440, 0],
+      subscriptionEnabled: true,
+    });
+    const withReminderOnly = createItem({
+      id: 'reminder-only',
+      title: 'Reminder only',
+      offsetMs: 120_000,
+      reminderMinutes: [1440, 0],
+    });
+
+    const getSubscriptionBadges = () =>
+      Array.from(
+        container.querySelectorAll('[aria-label="已开启订阅提醒"], [title="已开启订阅提醒"]'),
+      );
+
+    for (const style of ['compact', 'card', 'ring', 'flip'] as const) {
+      localStorage.setItem('navhub_reminder_board_view_style_v1', style);
+      await render({ items: [withSubscription, withReminderOnly] });
+
+      expect(container.textContent).toContain('Subscription enabled');
+      expect(container.textContent).toContain('Reminder only');
+      expect(getSubscriptionBadges()).toHaveLength(1);
+    }
   });
 });

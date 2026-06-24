@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/sortable';
 import {
   Archive,
+  Bell,
   CheckSquare,
   ChevronDown,
   ChevronRight,
@@ -354,6 +355,24 @@ const ChecklistProgress: React.FC<{
   );
 };
 
+const SubscriptionBadge: React.FC<{
+  enabled?: boolean;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}> = ({ enabled, t }) => {
+  if (!enabled) return null;
+
+  const label = t('modals.countdown.subscriptionBadge');
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400"
+      title={label}
+      aria-label={label}
+    >
+      <Bell size={10} />
+    </span>
+  );
+};
+
 const ProgressBar: React.FC<{ ratio: number; state: ReminderVisualState }> = ({ ratio, state }) => {
   const percent = Math.min(100, Math.max(0, Math.round(ratio * 100)));
   return (
@@ -612,6 +631,7 @@ const ReminderCardCompact: React.FC<{
             <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
               {item.title}
             </h4>
+            <SubscriptionBadge enabled={item.subscription?.enabled} t={t} />
             {item.hidden && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
                 {t('modals.countdown.hidden')}
@@ -702,6 +722,7 @@ const ReminderCardCard: React.FC<{
             <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
               {item.title}
             </h4>
+            <SubscriptionBadge enabled={item.subscription?.enabled} t={t} />
             {item.hidden && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
                 {t('modals.countdown.hidden')}
@@ -798,6 +819,7 @@ const ReminderCardRing: React.FC<{
             <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
               {item.title}
             </h4>
+            <SubscriptionBadge enabled={item.subscription?.enabled} t={t} />
             {item.hidden && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
                 {t('modals.countdown.hidden')}
@@ -908,6 +930,7 @@ const ReminderCardFlip: React.FC<{
             <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
               {item.title}
             </h4>
+            <SubscriptionBadge enabled={item.subscription?.enabled} t={t} />
             {item.hidden && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
                 {t('modals.countdown.hidden')}

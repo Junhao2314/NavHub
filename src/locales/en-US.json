@@ -726,6 +726,7 @@
       "archiveDelayHint": "Expired one-time reminders will be auto-archived after specified minutes",
       "isPrivate": "Private (password-protected)",
       "privateBadge": "Private",
+      "subscriptionBadge": "Subscription reminder enabled",
       "templateButton": "Templates",
       "templateChinese": "Chinese Holidays",
       "templateInternational": "International Holidays",
